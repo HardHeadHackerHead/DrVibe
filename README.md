@@ -23,40 +23,33 @@ Dr. Vibe is a 128x128 pixel character (32x32 sprites at 4x scale) that sits on y
 
 <table>
 <tr>
-<td width="50%">
+<td width="60%">
 
 **He watches what you do**
 - Detects coding in 25+ apps (VS Code, terminals, IDEs)
 - Tracks file changes, momentum, and project context
 - Notices when you're stuck or fatigued
 
-</td>
-<td width="50%">
-
 **He reacts expressively**
 - 16 animation states with squash/stretch physics
 - Breathing, blinking, and random personality flourishes
 - Smooth transitions between every state
 
-</td>
-</tr>
-<tr>
-<td>
-
 **He keeps you healthy**
-- Hydration reminders
-- Eye strain breaks (20-20-20 rule)
-- Posture checks
-- Overwork prevention
-
-</td>
-<td>
+- Hydration reminders, eye strain breaks, posture checks
+- Overwork prevention and work-life boundaries
 
 **He celebrates your wins**
 - Achievement system with progress tracking
-- Personal best records
-- Daily streak tracking
+- Personal best records, daily streak tracking
 - Confetti and particle effects
+
+</td>
+<td width="40%" align="center">
+
+<img src="docs/images/ui-main-window.png" width="180" alt="Main Window" />
+
+*Dr. Vibe on your desktop — speech bubbles, momentum meter, and focus mode*
 
 </td>
 </tr>
@@ -92,6 +85,49 @@ When idle, Dr. Vibe is never truly still — he breathes, sways, blinks, and occ
 ![Skin Showcase](docs/images/skin-showcase.png)
 
 Each skin also supports **palette-swapped skin tones** applied in real-time via pixel-level canvas manipulation.
+
+---
+
+## Screenshots
+
+<table>
+<tr>
+<td align="center" width="50%">
+<strong>Dashboard</strong><br/>
+<img src="docs/images/ui-dashboard.png" alt="Dashboard" />
+<br/><em>Overview tab with streak, momentum, session stats, weekly chart, and personal bests</em>
+</td>
+<td align="center" width="50%">
+<strong>Session Stats</strong><br/>
+<img src="docs/images/ui-session.png" alt="Session Stats" />
+<br/><em>Real-time coding ratio, activity timeline, and recent files</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+<strong>Sprite Editor</strong><br/>
+<img src="docs/images/ui-sprite-editor.png" alt="Sprite Editor" />
+<br/><em>Built-in pixel editor with frame navigator, color palette, animation preview, and minimap</em>
+</td>
+<td align="center">
+<strong>Settings</strong><br/>
+<img src="docs/images/ui-settings.png" alt="Settings" />
+<br/><em>Appearance tab — skin selector, skin tones, walking behavior, and ghost mode</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+<strong>Achievements</strong><br/>
+<img src="docs/images/ui-achievements.png" alt="Achievements" />
+<br/><em>Unlocked achievements with dates and in-progress items with progress bars</em>
+</td>
+<td align="center">
+<strong>Toast Notifications</strong><br/>
+<img src="docs/images/ui-toasts.png" alt="Toast Notifications" />
+<br/><em>Glassmorphic toasts — color-coded by category with progress timers</em>
+</td>
+</tr>
+</table>
 
 ---
 
@@ -141,6 +177,10 @@ Deep integration with [Claude Code](https://claude.ai/claude-code) through a hoo
 ### Achievement System
 
 Unlockable achievements across 9 categories: Getting Started, Consistency, Productivity, Languages, Focus, Wellness, Curiosity, Mastery, and Claude Code.
+
+### Sprite Editor
+
+A built-in pixel art editor for customizing Dr. Vibe's spritesheet — frame navigator, drawing tools (pencil, eraser, fill, eyedropper), color palette, animation preview with FPS control, and a minimap of the full spritesheet.
 
 ### Sound System
 
