@@ -1,0 +1,87 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Dr. Vibe",
+  "version": "0.1.0",
+  "identifier": "com.drvibe.companion",
+  "build": {
+    "beforeDevCommand": "npx live-server src --port=1425 --no-browser --quiet",
+    "devUrl": "http://localhost:1425",
+    "beforeBuildCommand": "",
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Dr. Vibe",
+        "label": "main",
+        "width": 200,
+        "height": 280,
+        "minWidth": 150,
+        "minHeight": 200,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Speech",
+        "label": "speech",
+        "url": "speech.html",
+        "width": 200,
+        "height": 100,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Notifications",
+        "label": "toast",
+        "url": "toast.html",
+        "width": 350,
+        "height": 250,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {}
+}

@@ -1,0 +1,152 @@
+/* Dr. Vibe - Shared Panel Window Styles */
+/* Base styles for all standalone panel windows */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1e1e1e;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+}
+
+body::-webkit-scrollbar {
+  width: 6px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+h3 {
+  color: #4ade80;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+/* Common button styles */
+.panel-btn {
+  background: #2a2a2a;
+  color: #a0a0a0;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.panel-btn:hover {
+  background: #333;
+  color: #e0e0e0;
+}
+
+.panel-btn-primary {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.panel-btn-primary:hover {
+  background: rgba(74, 222, 128, 0.25);
+}
+
+/* Stats grid pattern */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat-card {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #4ade80;
+  display: block;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #a0a0a0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Card pattern */
+.card {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+/* Button row */
+.button-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4ade80;
+  transition: width 0.3s ease;
+}
+
+/* Section label */
+.section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #a0a0a0;
+  margin: 16px 0 8px;
+  display: block;
+}
+
+/* Links */
+a {
+  color: #4ade80;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Subtitle / muted text */
+.muted {
+  color: #a0a0a0;
+  font-size: 11px;
+}

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Vibe - Skill Development</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .panel-header h3 {
+      margin-bottom: 0;
+    }
+
+    .skill-counter {
+      font-size: 11px;
+      color: #a0a0a0;
+    }
+
+    .skill-card {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+
+    .skill-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .skill-language {
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .skill-time {
+      font-size: 12px;
+      color: #e0e0e0;
+    }
+
+    .skill-bar-container {
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .skill-bar {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .skill-session {
+      font-size: 10px;
+      color: #a0a0a0;
+      margin-top: 4px;
+    }
+
+    .skill-milestone {
+      margin-top: 6px;
+    }
+
+    .skill-milestone-bar {
+      height: 3px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .skill-milestone-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .skill-milestone-label {
+      font-size: 9px;
+      color: #808080;
+      margin-top: 2px;
+      display: block;
+    }
+
+    .skill-milestone-complete {
+      font-size: 9px;
+      color: #4ade80;
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    .skill-empty {
+      color: #808080;
+      font-style: italic;
+      font-size: 12px;
+      text-align: center;
+      padding: 30px 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <h3>Skill Development</h3>
+    <span class="skill-counter" id="skill-counter">0 languages</span>
+  </div>
+
+  <div id="skill-list"></div>
+
+  <div class="button-row">
+    <button class="panel-btn" id="export-btn">Export</button>
+    <button class="panel-btn" id="close-btn">Close</button>
+  </div>
+
+  <script type="module" src="skills-page.js"></script>
+</body>
+</html>

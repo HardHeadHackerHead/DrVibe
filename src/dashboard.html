@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Vibe Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e1e;
+      color: #e0e0e0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Tab Navigation */
+    .dashboard-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 12px 16px 0;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: #808080;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: #b0b0b0; }
+
+    .tab-btn.active {
+      color: #4ade80;
+      border-bottom-color: #4ade80;
+    }
+
+    /* Tab Panels */
+    .tab-panel {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .tab-panel.active { display: block; }
+
+    .tab-panel::-webkit-scrollbar { width: 6px; }
+    .tab-panel::-webkit-scrollbar-track { background: transparent; }
+    .tab-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    .tab-panel::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* Section Headers */
+    .section-header {
+      font-size: 11px;
+      font-weight: 600;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      margin-top: 16px;
+    }
+
+    .section-header:first-child { margin-top: 0; }
+
+    /* Cards */
+    .card {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+
+    /* Hero Stats (Overview) */
+    .hero-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .hero-stat {
+      flex: 1;
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .hero-stat .value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .hero-stat .label {
+      font-size: 10px;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .hero-stat .sub {
+      font-size: 10px;
+      color: #a0a0a0;
+      margin-top: 2px;
+    }
+
+    /* Momentum Bar */
+    .momentum-bar-container {
+      background: #2a2a2a;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .momentum-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease, background-color 0.5s ease;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat-item {
+      background: rgba(50, 50, 50, 0.4);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .stat-item .stat-value {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .stat-item .stat-label {
+      font-size: 10px;
+      color: #808080;
+      margin-top: 2px;
+    }
+
+    /* Weekly Mini Chart */
+    .weekly-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 60px;
+      padding: 8px 0;
+    }
+
+    .weekly-chart .day-bar-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+    }
+
+    .weekly-chart .day-bar {
+      width: 100%;
+      max-width: 32px;
+      background: #4ade80;
+      border-radius: 3px 3px 0 0;
+      min-height: 2px;
+      margin-top: auto;
+      transition: height 0.3s ease;
+    }
+
+    .weekly-chart .day-bar.today { background: #60a5fa; }
+
+    .weekly-chart .day-label {
+      font-size: 9px;
+      color: #808080;
+      margin-top: 4px;
+    }
+
+    /* Achievement Grid */
+    .achievement-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .achievement-card {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 12px;
+      transition: border-color 0.2s;
+    }
+
+    .achievement-card.unlocked {
+      border-color: #facc15;
+      background: rgba(250, 204, 21, 0.05);
+    }
+
+    .achievement-card.locked { opacity: 0.5; }
+
+    .achievement-card .ach-icon {
+      font-size: 24px;
+      margin-bottom: 6px;
+    }
+
+    .achievement-card .ach-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .achievement-card .ach-desc {
+      font-size: 10px;
+      color: #a0a0a0;
+      margin-bottom: 8px;
+    }
+
+    .achievement-card .ach-date {
+      font-size: 9px;
+      color: #facc15;
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      background: #2a2a2a;
+      border-radius: 3px;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar .progress-fill {
+      height: 100%;
+      background: #4ade80;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .progress-bar .progress-fill.gold { background: #facc15; }
+
+    /* Skill List */
+    .skill-item {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+    }
+
+    .skill-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .skill-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .skill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .skill-time {
+      font-size: 11px;
+      color: #a0a0a0;
+    }
+
+    .skill-milestone {
+      font-size: 9px;
+      color: #808080;
+      margin-top: 4px;
+    }
+
+    /* History */
+    .range-toggle {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .range-btn {
+      padding: 4px 12px;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 4px;
+      color: #a0a0a0;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .range-btn.active {
+      background: #4ade80;
+      color: #1e1e1e;
+      border-color: #4ade80;
+    }
+
+    .history-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .summary-stat {
+      text-align: center;
+      padding: 8px;
+      background: rgba(50, 50, 50, 0.4);
+      border-radius: 6px;
+    }
+
+    .summary-stat .s-value {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .summary-stat .s-label {
+      font-size: 9px;
+      color: #808080;
+      margin-top: 2px;
+    }
+
+    .history-day {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(50, 50, 50, 0.4);
+      border-radius: 6px;
+      margin-bottom: 4px;
+      gap: 12px;
+    }
+
+    .history-day .day-date {
+      font-size: 11px;
+      color: #a0a0a0;
+      min-width: 70px;
+    }
+
+    .history-day .day-time {
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 60px;
+    }
+
+    .history-day .day-files {
+      font-size: 10px;
+      color: #808080;
+      flex: 1;
+    }
+
+    .history-day .day-projects {
+      font-size: 10px;
+      color: #60a5fa;
+      text-align: right;
+    }
+
+    /* Personal Bests */
+    .pb-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .pb-card {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .pb-card .pb-label {
+      font-size: 10px;
+      color: #808080;
+      margin-bottom: 4px;
+    }
+
+    .pb-card .pb-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fb923c;
+    }
+
+    .pb-card .pb-date {
+      font-size: 9px;
+      color: #a0a0a0;
+      margin-top: 2px;
+    }
+
+    /* Wellness */
+    .wellness-feature {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(50, 50, 50, 0.4);
+      border-radius: 6px;
+      margin-bottom: 4px;
+      gap: 10px;
+    }
+
+    .wellness-feature .wf-icon { font-size: 16px; }
+
+    .wellness-feature .wf-name {
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .wellness-feature .wf-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .wellness-feature .wf-status.on {
+      background: rgba(74, 222, 128, 0.15);
+      color: #4ade80;
+    }
+
+    .wellness-feature .wf-status.off {
+      background: rgba(160, 160, 160, 0.1);
+      color: #808080;
+    }
+
+    /* Streak milestones */
+    .milestone-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .milestone-badge {
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .milestone-badge.reached {
+      background: rgba(250, 204, 21, 0.15);
+      color: #facc15;
+    }
+
+    .milestone-badge.upcoming {
+      background: rgba(160, 160, 160, 0.1);
+      color: #808080;
+    }
+
+    /* Counter header */
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .panel-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .panel-header .counter {
+      font-size: 11px;
+      color: #a0a0a0;
+    }
+
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #808080;
+      font-size: 12px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 30px;
+      color: #808080;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="dashboard-tabs">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="achievements">Achievements</button>
+    <button class="tab-btn" data-tab="skills">Skills</button>
+    <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn" data-tab="wellness">Wellness</button>
+  </nav>
+
+  <!-- Overview Tab -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="hero-row">
+      <div class="hero-stat">
+        <div class="value" id="hero-streak" style="color: #fb923c;">0</div>
+        <div class="label">Day Streak</div>
+        <div class="sub" id="hero-streak-level">--</div>
+      </div>
+      <div class="hero-stat">
+        <div class="value" id="hero-momentum" style="color: #60a5fa;">0</div>
+        <div class="label">Momentum</div>
+        <div class="momentum-bar-container">
+          <div class="momentum-bar-fill" id="hero-momentum-bar" style="width: 0%; background: #808080;"></div>
+        </div>
+      </div>
+      <div class="hero-stat">
+        <div class="value" id="hero-hydration" style="color: #60a5fa;">0</div>
+        <div class="label">Water Today</div>
+        <div class="sub" id="hero-hydration-sub"></div>
+      </div>
+    </div>
+
+    <div class="section-header">Today's Session</div>
+    <div class="stats-grid" id="today-stats">
+      <div class="stat-item">
+        <div class="stat-value" id="today-coding-time">0:00</div>
+        <div class="stat-label">Coding Time</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="today-files">0</div>
+        <div class="stat-label">Files Touched</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="today-project">--</div>
+        <div class="stat-label">Current Project</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="today-languages">0</div>
+        <div class="stat-label">Languages</div>
+      </div>
+    </div>
+
+    <div class="section-header">Personal Bests</div>
+    <div class="pb-grid" id="overview-bests"></div>
+
+    <div class="section-header">This Week</div>
+    <div class="card">
+      <div class="weekly-chart" id="weekly-chart"></div>
+    </div>
+  </div>
+
+  <!-- Achievements Tab -->
+  <div id="tab-achievements" class="tab-panel">
+    <div class="panel-header">
+      <h2>Achievements</h2>
+      <span class="counter" id="ach-counter">0 / 8</span>
+    </div>
+    <div class="achievement-grid" id="achievement-grid"></div>
+  </div>
+
+  <!-- Skills Tab -->
+  <div id="tab-skills" class="tab-panel">
+    <div class="panel-header">
+      <h2>Skills</h2>
+      <span class="counter" id="skill-counter">0 languages</span>
+    </div>
+    <div id="skill-list"></div>
+  </div>
+
+  <!-- History Tab -->
+  <div id="tab-history" class="tab-panel">
+    <div class="panel-header">
+      <h2>Session History</h2>
+    </div>
+    <div class="range-toggle" id="range-toggle">
+      <button class="range-btn active" data-range="7">7d</button>
+      <button class="range-btn" data-range="30">30d</button>
+      <button class="range-btn" data-range="90">90d</button>
+    </div>
+    <div class="history-summary" id="history-summary"></div>
+    <div id="history-list"></div>
+
+    <div class="section-header" style="margin-top: 20px;">Personal Records</div>
+    <div class="pb-grid" id="history-bests"></div>
+  </div>
+
+  <!-- Wellness Tab -->
+  <div id="tab-wellness" class="tab-panel">
+    <div class="panel-header">
+      <h2>Wellness</h2>
+    </div>
+
+    <div class="section-header">Hydration</div>
+    <div class="card">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 24px;">&#x1F4A7;</span>
+        <div>
+          <div style="font-size: 20px; font-weight: 600;" id="wellness-hydration">0</div>
+          <div style="font-size: 10px; color: #808080;">glasses today</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header">Coding Streak</div>
+    <div class="card">
+      <div style="display: flex; gap: 16px; margin-bottom: 10px;">
+        <div>
+          <div style="font-size: 24px; font-weight: 700; color: #fb923c;" id="wellness-streak-current">0</div>
+          <div style="font-size: 10px; color: #808080;">Current</div>
+        </div>
+        <div>
+          <div style="font-size: 24px; font-weight: 700; color: #facc15;" id="wellness-streak-max">0</div>
+          <div style="font-size: 10px; color: #808080;">Best Ever</div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-size: 11px; color: #a0a0a0;" id="wellness-streak-start">--</div>
+          <div style="font-size: 10px; color: #808080;">Streak started</div>
+        </div>
+      </div>
+      <div style="font-size: 10px; color: #808080; margin-bottom: 4px;" id="wellness-next-milestone">Next milestone: --</div>
+      <div class="progress-bar">
+        <div class="progress-fill gold" id="wellness-milestone-progress" style="width: 0%;"></div>
+      </div>
+      <div class="milestone-list" id="wellness-milestones"></div>
+    </div>
+
+    <div class="section-header">Active Features</div>
+    <div id="wellness-features"></div>
+  </div>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

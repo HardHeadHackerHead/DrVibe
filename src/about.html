@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Dr. Vibe</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      user-select: none;
+      padding: 24px 20px;
+    }
+
+    .about-container {
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+    }
+
+    /* --- Character hero area --- */
+    .about-hero {
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .about-character {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      transition: opacity 0.15s ease;
+    }
+
+    .about-glow {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 16px;
+      background: radial-gradient(ellipse, rgba(74, 222, 128, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 0.6; transform: translateX(-50%) scaleX(1); }
+      50% { opacity: 1; transform: translateX(-50%) scaleX(1.15); }
+    }
+
+    /* --- Speech bubble --- */
+    .about-speech {
+      position: relative;
+      background: rgba(74, 222, 128, 0.08);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+      border-radius: 10px;
+      padding: 8px 14px;
+      margin: 0 20px 16px;
+      font-size: 11px;
+      color: #c0e8c8;
+      font-style: italic;
+      line-height: 1.5;
+      animation: fade-in 0.6s ease-out 0.3s both;
+    }
+
+    .about-speech::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      width: 10px;
+      height: 10px;
+      background: rgba(74, 222, 128, 0.08);
+      border-left: 1px solid rgba(74, 222, 128, 0.2);
+      border-top: 1px solid rgba(74, 222, 128, 0.2);
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Title area --- */
+    .about-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4ade80;
+      margin-bottom: 2px;
+      letter-spacing: 0.5px;
+    }
+
+    .about-version {
+      font-size: 10px;
+      color: #666;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    .about-tagline {
+      font-size: 12px;
+      color: #a0a0a0;
+      margin-bottom: 18px;
+    }
+
+    /* --- Sections --- */
+    .about-section {
+      border-top: 1px solid #333;
+      padding-top: 12px;
+      margin-bottom: 14px;
+    }
+
+    .about-section-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .about-credit-line {
+      font-size: 11px;
+      color: #e0e0e0;
+      margin-bottom: 4px;
+    }
+
+    .about-credit-role {
+      color: #777;
+    }
+
+    .about-tech-list {
+      font-size: 11px;
+      color: #b0b0b0;
+      line-height: 1.6;
+    }
+
+    .about-tech-item {
+      display: inline;
+      color: #d0d0d0;
+    }
+
+    .about-tech-sep {
+      color: #444;
+      margin: 0 5px;
+    }
+
+    /* --- Links --- */
+    .about-links {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .about-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #888;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: rgba(255, 255, 255, 0.02);
+      transition: all 0.2s ease;
+    }
+
+    .about-link:hover {
+      color: #60a5fa;
+      border-color: rgba(96, 165, 250, 0.3);
+      background: rgba(96, 165, 250, 0.06);
+      text-decoration: none;
+    }
+
+    .about-link svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    .about-email {
+      font-size: 10px;
+      color: #555;
+      margin-bottom: 18px;
+      user-select: text;
+      letter-spacing: 0.3px;
+    }
+
+    .about-email span {
+      color: #888;
+    }
+
+    .about-skin-name {
+      font-size: 9px;
+      color: #555;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      height: 14px;
+      transition: opacity 0.3s ease;
+    }
+
+    .about-vibeathon {
+      font-size: 10px;
+      color: #777;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .about-vibeathon strong {
+      color: #a0a0a0;
+    }
+
+    /* --- Footer --- */
+    .about-footer {
+      font-size: 9px;
+      color: #444;
+      margin-top: 12px;
+    }
+
+    .button-row {
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="about-container">
+
+    <!-- Character with glow -->
+    <div class="about-hero">
+      <canvas id="dr-vibe-canvas" class="about-character" width="128" height="128"></canvas>
+      <div class="about-glow"></div>
+    </div>
+
+    <!-- Skin name -->
+    <div class="about-skin-name" id="skin-name"></div>
+
+    <!-- Speech bubble -->
+    <div class="about-speech" id="speech"></div>
+
+    <!-- Title -->
+    <div class="about-title">Dr. Vibe</div>
+    <div class="about-version">v0.1.0</div>
+    <div class="about-tagline">Your desktop coding companion</div>
+
+    <!-- Credits -->
+    <div class="about-section">
+      <div class="about-section-label">Credits</div>
+      <div class="about-credit-line">
+        <span class="about-credit-role">Vibe Coded by</span> Quad H
+      </div>
+      <div class="about-credit-line">
+        <span class="about-credit-role">Co-Developer</span> Claude Code
+      </div>
+    </div>
+
+    <!-- Tech Stack -->
+    <div class="about-section">
+      <div class="about-section-label">Built With</div>
+      <div class="about-tech-list">
+        <span class="about-tech-item">Tauri</span><span class="about-tech-sep">&middot;</span><span class="about-tech-item">Rust</span><span class="about-tech-sep">&middot;</span><span class="about-tech-item">JavaScript</span><span class="about-tech-sep">&middot;</span><span class="about-tech-item">HTML/CSS</span>
+      </div>
+    </div>
+
+    <!-- Links -->
+    <div class="about-links">
+      <a class="about-link" href="https://discord.gg/FRAmBMjyr4" data-url="https://discord.gg/FRAmBMjyr4">
+        <svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        Discord
+      </a>
+      <a class="about-link" href="https://quadslab.io/" data-url="https://quadslab.io/">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        Website
+      </a>
+    </div>
+    <div class="about-email">
+      <span>quad@quadslab.io</span>
+    </div>
+
+    <!-- Vibeathon note -->
+    <div class="about-vibeathon">
+      Created for the <strong><a class="about-link" href="https://bridgemind.ai" data-url="https://bridgemind.ai" style="border:none;padding:0;background:none;color:inherit;font-size:inherit;">BridgeMind.ai</a> Vibeathon</strong>
+    </div>
+
+  </div>
+
+  <script>
+    // --- Skin rotation ---
+    const SKINS = [
+      { file: 'dr-vibe-default',     name: 'Default' },
+      { file: 'dr-vibe-classic',     name: 'Classic' },
+      { file: 'dr-vibe-tuxedo',      name: 'Tuxedo' },
+      { file: 'dr-vibe-cyberpunk',   name: 'Cyberpunk' },
+      { file: 'dr-vibe-pirate',      name: 'Pirate' },
+      { file: 'dr-vibe-firefighter', name: 'Firefighter' },
+      { file: 'dr-vibe-wizard',      name: 'Wizard' },
+      { file: 'dr-vibe-arctic',      name: 'Arctic' },
+      { file: 'dr-vibe-retro80s',    name: 'Retro 80s' },
+      { file: 'dr-vibe-bridgemind',  name: 'BridgeMind' },
+      { file: 'dr-vibe-alien',       name: 'Alien' },
+      { file: 'dr-vibe-madscientist', name: 'Mad Scientist' },
+    ];
+    const SKIN_ROTATE_INTERVAL = 4000; // ms between skin changes
+
+    // Preload all skin images
+    const skinImages = SKINS.map(s => {
+      const img = new Image();
+      img.src = `assets/sprites/skins/${s.file}.png`;
+      return img;
+    });
+
+    let currentSkinIndex = 0;
+    const skinNameEl = document.getElementById('skin-name');
+
+    // --- Sprite animation ---
+    const canvas = document.getElementById('dr-vibe-canvas');
+    const ctx = canvas.getContext('2d');
+    const FRAME_SIZE = 32;
+    const SCALE = 4;
+    const SPRITE_ROW = 10; // thumbsUp animation
+    const FRAME_COUNT = 3;
+    const FRAME_DURATIONS = [300, 250, 400];
+
+    let currentFrame = 0;
+    let lastFrameTime = 0;
+    let animId;
+
+    ctx.imageSmoothingEnabled = false;
+
+    function drawFrame(frame) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const img = skinImages[currentSkinIndex];
+      if (!img.complete) return;
+      ctx.drawImage(
+        img,
+        frame * FRAME_SIZE, SPRITE_ROW * FRAME_SIZE,
+        FRAME_SIZE, FRAME_SIZE,
+        0, 0,
+        FRAME_SIZE * SCALE, FRAME_SIZE * SCALE
+      );
+    }
+
+    function animate(timestamp) {
+      if (!lastFrameTime) lastFrameTime = timestamp;
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed >= FRAME_DURATIONS[currentFrame]) {
+        currentFrame = (currentFrame + 1) % FRAME_COUNT;
+        drawFrame(currentFrame);
+        lastFrameTime = timestamp;
+      }
+      animId = requestAnimationFrame(animate);
+    }
+
+    function switchSkin() {
+      currentSkinIndex = (currentSkinIndex + 1) % SKINS.length;
+      skinNameEl.textContent = SKINS[currentSkinIndex].name;
+      // Fade the canvas briefly for a smooth transition
+      canvas.style.opacity = '0';
+      setTimeout(() => {
+        drawFrame(currentFrame);
+        canvas.style.opacity = '1';
+      }, 150);
+    }
+
+    // Start animation once the first skin loads
+    skinImages[0].onload = () => {
+      skinNameEl.textContent = SKINS[0].name;
+      drawFrame(0);
+      animId = requestAnimationFrame(animate);
+      // Start rotating skins
+      setInterval(switchSkin, SKIN_ROTATE_INTERVAL);
+    };
+
+    // --- Random speech ---
+    const quotes = [
+      "Welcome to my laboratory!",
+      "Ah, a fellow scientist! Come in, come in!",
+      "The experiment is going splendidly!",
+      "I've been expecting you...",
+      "Science waits for no one!",
+      "Every bug is just an undiscovered feature!",
+      "My goggles? Purely aesthetic. Mostly.",
+      "Did someone say... code review?",
+      "The beakers are bubbling nicely today!",
+      "Hypothesis: you're going to ship something great.",
+    ];
+    document.getElementById('speech').textContent =
+      `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
+
+    // --- Close window ---
+    async function closeWindow() {
+      cancelAnimationFrame(animId);
+      try {
+        const win = window.__TAURI__.window.getCurrentWindow();
+        await win.close();
+      } catch (e) {
+        window.close();
+      }
+    }
+
+    document.getElementById('about-close').addEventListener('click', closeWindow);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeWindow();
+    });
+
+    // --- External links ---
+    document.querySelectorAll('.about-link[data-url]').forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = e.currentTarget.dataset.url;
+        try {
+          const { open } = await import('@tauri-apps/plugin-shell');
+          await open(url);
+        } catch {
+          window.open(url, '_blank');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dr. Vibe — Sprite Sheet Editor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #1e1e1e;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #252525;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+    .toolbar-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .toolbar-sep {
+      width: 1px;
+      height: 24px;
+      background: #444;
+      margin: 0 6px;
+    }
+    .toolbar button, .tool-btn {
+      padding: 5px 10px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #333;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .toolbar button:hover, .tool-btn:hover { background: #444; }
+    .toolbar .btn-accent { background: #4ade80; color: #1e1e1e; border-color: #4ade80; font-weight: 600; }
+    .toolbar .btn-accent:hover { background: #22c55e; }
+    .tool-btn.active { background: #4ade80; color: #1e1e1e; border-color: #4ade80; }
+
+    /* ── Main Layout ── */
+    .editor-layout {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Left Panel: Frame Navigator ── */
+    .left-panel {
+      width: 200px;
+      background: #252525;
+      border-right: 1px solid #333;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .left-panel::-webkit-scrollbar { width: 5px; }
+    .left-panel::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+    .anim-group { padding: 6px 8px; border-bottom: 1px solid #2a2a2a; }
+    .anim-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .frame-thumbs { display: flex; gap: 3px; flex-wrap: wrap; }
+    .frame-thumb {
+      width: 40px;
+      height: 40px;
+      border: 2px solid #444;
+      border-radius: 3px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      background: #1a1a1a;
+    }
+    .frame-thumb:hover { border-color: #666; }
+    .frame-thumb.selected { border-color: #4ade80; box-shadow: 0 0 4px rgba(74, 222, 128, 0.4); }
+    .frame-thumb.empty { opacity: 0.3; }
+
+    /* ── Center: Edit Canvas ── */
+    .center-panel {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+      position: relative;
+      min-width: 0;
+    }
+    #edit-canvas {
+      image-rendering: pixelated;
+      cursor: crosshair;
+      border: 1px solid #444;
+    }
+
+    /* ── Right Panel ── */
+    .right-panel {
+      width: 220px;
+      background: #252525;
+      border-left: 1px solid #333;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .right-panel::-webkit-scrollbar { width: 5px; }
+    .right-panel::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+    .panel-section {
+      padding: 8px 10px;
+      border-bottom: 1px solid #333;
+    }
+    .section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    /* ── Color Palette ── */
+    .palette-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border: 1px solid #555;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .swatch:hover { border-color: #aaa; transform: scale(1.15); }
+    .swatch.active { border: 2px solid #fff; }
+    .color-picker-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .color-picker-row input[type="color"] {
+      width: 32px;
+      height: 24px;
+      border: 1px solid #555;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+    .color-preview {
+      width: 32px;
+      height: 24px;
+      border: 1px solid #555;
+      border-radius: 3px;
+    }
+    #color-hex {
+      background: #333;
+      border: 1px solid #555;
+      color: #e0e0e0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      width: 72px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    /* ── Tools ── */
+    .tools-row { display: flex; gap: 3px; flex-wrap: wrap; }
+
+    /* ── Preview ── */
+    #preview-canvas {
+      image-rendering: pixelated;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      display: block;
+      margin: 0 auto;
+    }
+    .preview-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .preview-controls input[type="range"] { width: 60px; }
+    .preview-controls button {
+      padding: 2px 8px;
+      border: 1px solid #444;
+      border-radius: 3px;
+      background: #333;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    /* ── Minimap ── */
+    #minimap-canvas {
+      image-rendering: pixelated;
+      border: 1px solid #444;
+      display: block;
+      margin: 0 auto;
+      cursor: pointer;
+    }
+
+    /* ── Status Bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 4px 12px;
+      background: #252525;
+      border-top: 1px solid #333;
+      font-size: 11px;
+      color: #888;
+      flex-shrink: 0;
+    }
+    .status-bar .status-color {
+      width: 12px;
+      height: 12px;
+      border: 1px solid #555;
+      border-radius: 2px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* Keyboard shortcut hints */
+    kbd {
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 2px;
+      padding: 0 3px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #aaa;
+    }
+
+    /* ── App Integration ── */
+    .app-controls { display: none; } /* hidden until Tauri detected */
+    .app-controls.visible { display: flex; }
+    .toolbar select {
+      padding: 4px 6px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #333;
+      color: #e0e0e0;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .toolbar select:focus { outline: none; border-color: #4ade80; }
+    .save-app-row {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .save-app-row input {
+      width: 120px;
+      padding: 4px 6px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #333;
+      color: #e0e0e0;
+      font-size: 11px;
+    }
+    .save-app-row input:focus { outline: none; border-color: #4ade80; }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Toolbar ═══ -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button id="btn-new" title="New blank sprite sheet">New</button>
+      <button id="btn-load" title="Load PNG sprite sheet">Load PNG</button>
+      <button id="btn-generate" title="Generate Dr. Vibe template">Generate Template</button>
+    </div>
+    <div class="toolbar-sep app-controls" id="app-sep"></div>
+    <div class="toolbar-group app-controls" id="app-load-group">
+      <select id="app-skin-select" title="Load skin from app">
+        <option value="">Load from App...</option>
+      </select>
+    </div>
+    <div class="toolbar-group app-controls" id="app-save-group">
+      <div class="save-app-row">
+        <input type="text" id="app-skin-name" placeholder="skin-name" title="Name for saved skin">
+        <button id="btn-save-app" class="btn-accent" title="Save to app skins folder">Save to App</button>
+      </div>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <button id="btn-save" title="Download as PNG">Save PNG</button>
+      <button id="btn-save-4x" title="Download 4x scaled PNG">Save 4x</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="btn-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <button class="tool-btn active" data-tool="pencil" title="Pencil (B)">Pencil</button>
+      <button class="tool-btn" data-tool="eraser" title="Eraser (E)">Eraser</button>
+      <button class="tool-btn" data-tool="fill" title="Fill (G)">Fill</button>
+      <button class="tool-btn" data-tool="eyedropper" title="Eyedropper (I)">Pick</button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <div class="toolbar-group">
+      <label style="color:#888">Grid:</label>
+      <input type="checkbox" id="chk-grid" checked title="Toggle pixel grid">
+    </div>
+  </div>
+
+  <!-- ═══ Main Layout ═══ -->
+  <div class="editor-layout">
+
+    <!-- Left Panel: Frame Navigator -->
+    <div class="left-panel" id="frame-nav"></div>
+
+    <!-- Center: Editing Canvas -->
+    <div class="center-panel">
+      <canvas id="edit-canvas"></canvas>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+
+      <!-- Color Palette -->
+      <div class="panel-section">
+        <div class="section-title">Palette</div>
+        <div class="palette-grid" id="preset-palette"></div>
+        <div class="color-picker-row">
+          <input type="color" id="color-picker" value="#4ade80">
+          <div class="color-preview" id="color-preview" style="background:#4ade80"></div>
+          <input type="text" id="color-hex" value="#4ade80" maxlength="7">
+        </div>
+      </div>
+
+      <!-- Recent Colors -->
+      <div class="panel-section">
+        <div class="section-title">Recent</div>
+        <div class="palette-grid" id="recent-palette"></div>
+      </div>
+
+      <!-- Animation Preview -->
+      <div class="panel-section">
+        <div class="section-title">Preview — <span id="preview-label">idle</span></div>
+        <canvas id="preview-canvas" width="128" height="128"></canvas>
+        <div class="preview-controls">
+          <button id="btn-play-pause">Pause</button>
+          <label>FPS:</label>
+          <input type="range" id="fps-slider" min="1" max="12" value="4">
+          <span id="fps-value">4</span>
+        </div>
+      </div>
+
+      <!-- Minimap -->
+      <div class="panel-section">
+        <div class="section-title">Sprite Sheet</div>
+        <canvas id="minimap-canvas"></canvas>
+      </div>
+
+      <!-- Shortcuts -->
+      <div class="panel-section">
+        <div class="section-title">Shortcuts</div>
+        <div style="line-height:1.8;color:#777">
+          <kbd>B</kbd> Pencil &nbsp; <kbd>E</kbd> Eraser<br>
+          <kbd>G</kbd> Fill &nbsp; <kbd>I</kbd> Eyedropper<br>
+          <kbd>[</kbd><kbd>]</kbd> Prev/Next frame<br>
+          <kbd>Ctrl+Z</kbd> Undo &nbsp; <kbd>Ctrl+Shift+Z</kbd> Redo
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Status Bar ═══ -->
+  <div class="status-bar">
+    <span id="status-pos">X: 0  Y: 0</span>
+    <span><span class="status-color" id="status-color" style="background:#4ade80"></span> <span id="status-hex">#4ade80</span></span>
+    <span id="status-anim">idle — Frame 0/3</span>
+    <span id="status-zoom">Zoom: 12x</span>
+  </div>
+
+  <!-- Hidden sheet canvas -->
+  <canvas id="sheet-canvas" style="display:none"></canvas>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // ANIMATION CONFIG (inlined from animations.js for file:// compat)
+    // ═══════════════════════════════════════════════════════════════
+    const ANIMATIONS = {
+      idle:        { row: 0,  frameCount: 3, color: '#4a90d9' },
+      coding:      { row: 1,  frameCount: 4, color: '#4ade80' },
+      thinking:    { row: 2,  frameCount: 3, color: '#facc15' },
+      tired:       { row: 3,  frameCount: 3, color: '#9ca3af' },
+      excited:     { row: 4,  frameCount: 4, color: '#f472b6' },
+      alert:       { row: 5,  frameCount: 3, color: '#f87171' },
+      walkRight:   { row: 6,  frameCount: 4, color: '#60a5fa' },
+      stretching:  { row: 7,  frameCount: 4, color: '#f97316' },
+      beaker:      { row: 8,  frameCount: 3, color: '#67e8f9' },
+      libraryCard: { row: 9,  frameCount: 4, color: '#fbbf24' },
+      thumbsUp:    { row: 10, frameCount: 3, color: '#4ade80' },
+      coverEyes:   { row: 11, frameCount: 3, color: '#a78bfa' },
+      celebrating: { row: 12, frameCount: 4, color: '#f472b6' },
+      focused:     { row: 13, frameCount: 2, color: '#6366f1' },
+      concerned:   { row: 14, frameCount: 3, color: '#f59e0b' },
+      presenting:  { row: 15, frameCount: 3, color: '#2dd4bf' },
+    };
+
+    // Row index → animation info
+    const ROW_INFO = [];
+    for (const [name, a] of Object.entries(ANIMATIONS)) {
+      if (!ROW_INFO[a.row]) ROW_INFO[a.row] = { names: [], frameCount: a.frameCount, color: a.color };
+      ROW_INFO[a.row].names.push(name);
+    }
+
+    const FRAME_W = 32, FRAME_H = 32;
+    const COLS = 4, ROWS = 16;
+    const SHEET_W = FRAME_W * COLS;   // 128
+    const SHEET_H = FRAME_H * ROWS;   // 512
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAL PALETTE & PROCEDURAL DRAWING (from SpriteAnimator)
+    // ═══════════════════════════════════════════════════════════════
+    const PAL = {
+      skin: '#fdd8b0', skinShade: '#e8b888', skinDark: '#d4a878',
+      hair: '#b8b8c8', hairHi: '#d0d0dc', hairDk: '#9898a8',
+      coat: '#f5f5fa', coatShade: '#dde0ea', coatDark: '#c0c4d0',
+      eye: '#2a2a3a', eyeHi: '#ffffff',
+      gogFrame: '#3a3a4a', gogLens: '#5ce0ff', gogGlint: '#a0f0ff',
+      mouth: '#c07060', mouthOpen: '#8b4040',
+      pants: '#3a3a50', pantsHi: '#4a4a60',
+      shoes: '#2a2a35', shoeHi: '#3a3a45',
+    };
+
+    function drawCharBase(ctx, x, by, color, gogglesDown) {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(x + 10, by + 25, 12, 1);
+      ctx.fillStyle = color; ctx.globalAlpha = 0.25;
+      ctx.fillRect(x + 8, by + 26, 16, 2); ctx.globalAlpha = 1;
+      ctx.fillStyle = PAL.shoes;
+      ctx.fillRect(x + 11, by + 24, 4, 1); ctx.fillRect(x + 17, by + 24, 4, 1);
+      ctx.fillStyle = PAL.shoeHi;
+      ctx.fillRect(x + 11, by + 24, 1, 1); ctx.fillRect(x + 17, by + 24, 1, 1);
+      ctx.fillStyle = PAL.pants;
+      ctx.fillRect(x + 12, by + 21, 3, 3); ctx.fillRect(x + 17, by + 21, 3, 3);
+      ctx.fillStyle = PAL.pantsHi;
+      ctx.fillRect(x + 12, by + 21, 1, 2); ctx.fillRect(x + 17, by + 21, 1, 2);
+      ctx.fillStyle = PAL.coat;
+      ctx.fillRect(x + 9, by + 13, 14, 8);
+      ctx.fillStyle = PAL.coatShade;
+      ctx.fillRect(x + 14, by + 13, 1, 2); ctx.fillRect(x + 17, by + 13, 1, 2);
+      ctx.fillStyle = PAL.skin;
+      ctx.fillRect(x + 15, by + 13, 2, 1);
+      ctx.fillStyle = PAL.coatDark;
+      ctx.fillRect(x + 16, by + 15, 1, 5);
+      ctx.fillStyle = PAL.coatShade;
+      ctx.fillRect(x + 10, by + 16, 3, 2);
+      ctx.fillRect(x + 9, by + 18, 14, 2);
+      ctx.fillStyle = PAL.coatDark;
+      ctx.fillRect(x + 10, by + 20, 12, 1);
+      ctx.fillStyle = PAL.skinShade;
+      ctx.fillRect(x + 14, by + 12, 4, 1);
+      ctx.fillStyle = PAL.skin;
+      ctx.fillRect(x + 11, by + 3, 10, 9);
+      ctx.fillStyle = PAL.skinShade;
+      ctx.fillRect(x + 11, by + 6, 1, 5); ctx.fillRect(x + 20, by + 6, 1, 5);
+      ctx.fillStyle = PAL.skinDark;
+      ctx.fillRect(x + 13, by + 11, 6, 1);
+      ctx.fillStyle = PAL.hair;
+      ctx.fillRect(x + 9, by, 2, 1); ctx.fillRect(x + 13, by, 3, 1); ctx.fillRect(x + 19, by, 2, 1);
+      ctx.fillRect(x + 9, by + 1, 14, 1); ctx.fillRect(x + 10, by + 2, 12, 1);
+      ctx.fillStyle = PAL.hairHi;
+      ctx.fillRect(x + 11, by + 1, 2, 1); ctx.fillRect(x + 17, by + 1, 2, 1);
+      ctx.fillStyle = PAL.hairDk;
+      ctx.fillRect(x + 9, by + 2, 1, 1); ctx.fillRect(x + 21, by + 2, 1, 1);
+      if (gogglesDown) {
+        ctx.fillStyle = PAL.gogFrame;
+        ctx.fillRect(x + 11, by + 7, 4, 2); ctx.fillRect(x + 17, by + 7, 4, 2); ctx.fillRect(x + 15, by + 7, 2, 1);
+        ctx.fillStyle = '#6366f1';
+        ctx.fillRect(x + 12, by + 7, 2, 1); ctx.fillRect(x + 18, by + 7, 2, 1);
+        ctx.fillStyle = '#818cf8';
+        ctx.fillRect(x + 12, by + 8, 2, 1); ctx.fillRect(x + 18, by + 8, 2, 1);
+      } else {
+        ctx.fillStyle = PAL.gogFrame;
+        ctx.fillRect(x + 11, by + 3, 4, 2); ctx.fillRect(x + 17, by + 3, 4, 2); ctx.fillRect(x + 15, by + 3, 2, 1);
+        ctx.fillStyle = PAL.gogLens;
+        ctx.fillRect(x + 12, by + 3, 2, 1); ctx.fillRect(x + 18, by + 3, 2, 1);
+        ctx.fillStyle = PAL.gogGlint;
+        ctx.fillRect(x + 12, by + 3, 1, 1); ctx.fillRect(x + 18, by + 3, 1, 1);
+      }
+    }
+
+    function drawEyes(ctx, x, by, style) {
+      const L = x + 13, R = x + 17;
+      switch (style) {
+        case 'normal':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 7, 2, 2); ctx.fillRect(R, by + 7, 2, 2);
+          ctx.fillStyle = PAL.eyeHi; ctx.fillRect(L, by + 7, 1, 1); ctx.fillRect(R, by + 7, 1, 1); break;
+        case 'wide':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 6, 2, 3); ctx.fillRect(R, by + 6, 2, 3);
+          ctx.fillStyle = PAL.eyeHi; ctx.fillRect(L, by + 6, 1, 1); ctx.fillRect(R, by + 6, 1, 1); break;
+        case 'tired':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 8, 2, 1); ctx.fillRect(R, by + 8, 2, 1);
+          ctx.fillStyle = PAL.skinShade; ctx.fillRect(L, by + 7, 2, 1); ctx.fillRect(R, by + 7, 2, 1); break;
+        case 'squint':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 7, 2, 1); ctx.fillRect(R, by + 7, 2, 1); break;
+        case 'lookUp':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 6, 2, 2); ctx.fillRect(R, by + 6, 2, 2);
+          ctx.fillStyle = PAL.eyeHi; ctx.fillRect(L + 1, by + 6, 1, 1); ctx.fillRect(R + 1, by + 6, 1, 1); break;
+        case 'lookDown':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 8, 2, 2); ctx.fillRect(R, by + 8, 2, 2);
+          ctx.fillStyle = PAL.eyeHi; ctx.fillRect(L, by + 8, 1, 1); ctx.fillRect(R, by + 8, 1, 1); break;
+        case 'sparkle':
+          ctx.fillStyle = PAL.eye; ctx.fillRect(L, by + 7, 2, 2); ctx.fillRect(R, by + 7, 2, 2);
+          ctx.fillStyle = PAL.eyeHi;
+          ctx.fillRect(L, by + 7, 1, 1); ctx.fillRect(L + 1, by + 8, 1, 1);
+          ctx.fillRect(R, by + 7, 1, 1); ctx.fillRect(R + 1, by + 8, 1, 1); break;
+      }
+    }
+
+    function drawMouth(ctx, x, by, style) {
+      switch (style) {
+        case 'smile':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14, by + 10, 4, 1); ctx.fillRect(x + 15, by + 11, 2, 1); break;
+        case 'grin':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 13, by + 10, 6, 1);
+          ctx.fillStyle = PAL.mouthOpen; ctx.fillRect(x + 14, by + 11, 4, 1); break;
+        case 'frown':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14, by + 11, 4, 1);
+          ctx.fillRect(x + 13, by + 10, 1, 1); ctx.fillRect(x + 18, by + 10, 1, 1); break;
+        case 'o':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 15, by + 10, 2, 1);
+          ctx.fillStyle = PAL.mouthOpen; ctx.fillRect(x + 15, by + 11, 2, 1); break;
+        case 'neutral':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14, by + 10, 4, 1); break;
+        case 'open':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14, by + 10, 4, 1);
+          ctx.fillStyle = PAL.mouthOpen; ctx.fillRect(x + 14, by + 11, 4, 1); break;
+        case 'smirk':
+          ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14, by + 10, 4, 1); ctx.fillRect(x + 17, by + 9, 1, 1); break;
+      }
+    }
+
+    function drawBrows(ctx, x, by, style) {
+      ctx.fillStyle = PAL.eye;
+      if (style === 'worried') {
+        ctx.fillRect(x + 12, by + 5, 3, 1); ctx.fillRect(x + 13, by + 6, 2, 1);
+        ctx.fillRect(x + 17, by + 5, 3, 1); ctx.fillRect(x + 17, by + 6, 2, 1);
+      } else if (style === 'raised') {
+        ctx.fillRect(x + 12, by + 5, 3, 1); ctx.fillRect(x + 17, by + 5, 3, 1);
+      }
+    }
+
+    function drawArmsDown(ctx, x, by) {
+      ctx.fillStyle = PAL.coat;
+      ctx.fillRect(x + 5, by + 14, 3, 6); ctx.fillRect(x + 24, by + 14, 3, 6);
+      ctx.fillStyle = PAL.skin;
+      ctx.fillRect(x + 5, by + 19, 3, 2); ctx.fillRect(x + 24, by + 19, 3, 2);
+    }
+
+    function drawFrame(ctx, col, row, color, animState) {
+      const x = col * FRAME_W, y = row * FRAME_H;
+      const bounce = col % 2;
+      const by = y + 3 - bounce;
+      if (animState === 6) { drawWalkingFrame(ctx, x, y, col, color); return; }
+      if (animState === 11) { drawCoverEyesFrame(ctx, x, by, col, color); return; }
+      const gogglesDown = animState === 13;
+      drawCharBase(ctx, x, by, color, gogglesDown);
+      switch (animState) {
+        case 0: drawEyes(ctx, x, by, 'normal'); drawMouth(ctx, x, by, col === 1 ? 'smile' : 'neutral'); drawArmsDown(ctx, x, by); break;
+        case 1:
+          drawEyes(ctx, x, by, col % 2 === 0 ? 'normal' : 'lookDown'); drawMouth(ctx, x, by, 'neutral');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 4, by + 11, 3, 7); ctx.fillRect(x + 25, by + 11, 3, 7);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 4, by + 17, 3, 2); ctx.fillRect(x + 25, by + 17, 3, 2); break;
+        case 2:
+          drawEyes(ctx, x, by, 'lookUp'); drawMouth(ctx, x, by, 'neutral');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 14, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2);
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 21, by + 10, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 21, by + 9, 3, 2); break;
+        case 3:
+          drawEyes(ctx, x, by, 'tired'); drawMouth(ctx, x, by, 'frown');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 15, 3, 6); ctx.fillRect(x + 24, by + 15, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 20, 3, 2); ctx.fillRect(x + 24, by + 20, 3, 2); break;
+        case 4:
+          drawEyes(ctx, x, by, 'sparkle'); drawMouth(ctx, x, by, 'grin');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 3, by + 9, 3, 7); ctx.fillRect(x + 26, by + 9, 3, 7);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 3, by + 8, 3, 2); ctx.fillRect(x + 26, by + 8, 3, 2); break;
+        case 5:
+          drawEyes(ctx, x, by, 'wide'); drawBrows(ctx, x, by, 'raised'); drawMouth(ctx, x, by, 'o');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 4, by + 13, 3, 6); ctx.fillRect(x + 25, by + 13, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 4, by + 18, 3, 2); ctx.fillRect(x + 25, by + 18, 3, 2); break;
+        case 7:
+          drawEyes(ctx, x, by, 'lookUp'); drawMouth(ctx, x, by, col >= 2 ? 'open' : 'smile');
+          if (col === 0) { drawArmsDown(ctx, x, by); }
+          else if (col === 1) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 4, by + 8, 3, 8); ctx.fillRect(x + 25, by + 8, 3, 8);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 4, by + 7, 3, 2); ctx.fillRect(x + 25, by + 7, 3, 2);
+          } else if (col === 2) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 6, by + 2, 3, 10); ctx.fillRect(x + 23, by + 2, 3, 10);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 7, by, 2, 3); ctx.fillRect(x + 23, by, 2, 3);
+          } else {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 7, by + 2, 3, 10); ctx.fillRect(x + 22, by + 2, 3, 10);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 8, by, 2, 3); ctx.fillRect(x + 22, by, 2, 3);
+          } break;
+        case 8:
+          drawEyes(ctx, x, by, 'normal'); drawMouth(ctx, x, by, col === 2 ? 'grin' : 'smile');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 14, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2);
+          if (col === 0) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 24, by + 10, 3, 7);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 24, by + 9, 3, 2);
+            ctx.fillStyle = '#67e8f9'; ctx.fillRect(x + 25, by + 5, 4, 5);
+            ctx.fillStyle = '#e0f2fe'; ctx.fillRect(x + 25, by + 5, 4, 1);
+          } else if (col === 1) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 24, by + 6, 3, 9);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 24, by + 5, 3, 2);
+            ctx.fillStyle = '#67e8f9'; ctx.fillRect(x + 25, by + 1, 4, 5);
+            ctx.fillStyle = '#e0f2fe'; ctx.fillRect(x + 25, by + 1, 4, 1);
+            ctx.fillStyle = '#a5f3fc'; ctx.fillRect(x + 26, by, 1, 1); ctx.fillRect(x + 28, by + 1, 1, 1);
+          } else {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 24, by + 8, 3, 8);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 24, by + 7, 3, 2);
+            ctx.fillStyle = '#67e8f9'; ctx.fillRect(x + 25, by + 3, 4, 5);
+            ctx.fillStyle = '#e0f2fe'; ctx.fillRect(x + 25, by + 3, 4, 1);
+            ctx.fillStyle = '#a5f3fc'; ctx.fillRect(x + 27, by + 2, 1, 1);
+          } break;
+        case 9:
+          drawEyes(ctx, x, by, col === 0 ? 'normal' : 'sparkle'); drawMouth(ctx, x, by, col >= 2 ? 'grin' : 'smile');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 14, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2);
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 23, by + 10, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 23, by + 9, 3, 2);
+          ctx.fillStyle = '#fef08a'; ctx.fillRect(x + 24, by + 5, 5, 4);
+          ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + 24, by + 5, 5, 1);
+          ctx.fillStyle = '#92400e'; ctx.fillRect(x + 25, by + 7, 3, 1); break;
+        case 10:
+          drawEyes(ctx, x, by, 'normal'); drawMouth(ctx, x, by, 'grin'); drawArmsDown(ctx, x, by);
+          if (col >= 1) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 25, by + 8, 3, 8);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 25, by + 6, 3, 3); ctx.fillRect(x + 26, by + 5, 2, 2);
+          } break;
+        case 12:
+          drawEyes(ctx, x, by, 'sparkle'); drawMouth(ctx, x, by, 'grin');
+          if (col % 2 === 0) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 3, by + 6, 3, 8); ctx.fillRect(x + 26, by + 6, 3, 8);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 3, by + 4, 3, 3); ctx.fillRect(x + 26, by + 4, 3, 3);
+          } else {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 2, by + 4, 3, 10); ctx.fillRect(x + 27, by + 4, 3, 10);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 2, by + 2, 3, 3); ctx.fillRect(x + 27, by + 2, 3, 3);
+          } break;
+        case 13:
+          drawMouth(ctx, x, by, 'neutral');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 4, by + 11, 3, 7); ctx.fillRect(x + 25, by + 11, 3, 7);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 4, by + 17, 3, 2); ctx.fillRect(x + 25, by + 17, 3, 2); break;
+        case 14:
+          drawEyes(ctx, x, by, 'normal'); drawBrows(ctx, x, by, 'worried'); drawMouth(ctx, x, by, 'frown');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 13, 3, 7); ctx.fillRect(x + 24, by + 13, 3, 7);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2); ctx.fillRect(x + 24, by + 19, 3, 2); break;
+        case 15:
+          drawEyes(ctx, x, by, 'normal'); drawMouth(ctx, x, by, 'smile');
+          ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 14, 3, 6);
+          ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2);
+          if (col === 0) {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 24, by + 12, 3, 6);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 24, by + 17, 3, 2);
+          } else {
+            ctx.fillStyle = PAL.coat; ctx.fillRect(x + 25, by + 8, 3, 8);
+            ctx.fillStyle = PAL.skin; ctx.fillRect(x + 26, by + 7, 3, 2);
+          } break;
+        default:
+          drawEyes(ctx, x, by, 'normal'); drawMouth(ctx, x, by, 'smile'); drawArmsDown(ctx, x, by); break;
+      }
+    }
+
+    function drawCoverEyesFrame(ctx, x, by, col, color) {
+      drawCharBase(ctx, x, by, color, false);
+      if (col === 0) {
+        ctx.fillStyle = PAL.eye; ctx.fillRect(x + 13, by + 8, 2, 1); ctx.fillRect(x + 17, by + 8, 2, 1);
+        drawMouth(ctx, x, by, 'neutral');
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 10, 3, 7); ctx.fillRect(x + 24, by + 10, 3, 7);
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 7, by + 8, 3, 3); ctx.fillRect(x + 22, by + 8, 3, 3);
+      } else if (col === 1) {
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 10, by + 6, 12, 4);
+        ctx.fillStyle = PAL.skinShade;
+        ctx.fillRect(x + 13, by + 6, 1, 4); ctx.fillRect(x + 16, by + 6, 1, 4); ctx.fillRect(x + 19, by + 6, 1, 4);
+        drawMouth(ctx, x, by, 'neutral');
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 8, 5, 8); ctx.fillRect(x + 22, by + 8, 5, 8);
+      } else {
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 10, by + 6, 12, 4);
+        ctx.fillStyle = PAL.skinShade;
+        ctx.fillRect(x + 12, by + 6, 1, 4); ctx.fillRect(x + 16, by + 6, 1, 4); ctx.fillRect(x + 20, by + 6, 1, 4);
+        ctx.fillStyle = PAL.eye; ctx.fillRect(x + 13, by + 7, 2, 2);
+        ctx.fillStyle = PAL.eyeHi; ctx.fillRect(x + 13, by + 7, 1, 1);
+        drawMouth(ctx, x, by, 'smile');
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 8, 5, 8); ctx.fillRect(x + 22, by + 8, 5, 8);
+      }
+    }
+
+    function drawWalkingFrame(ctx, x, baseY, col, color) {
+      const isContact = col === 0 || col === 2;
+      const bobY = isContact ? 1 : 0;
+      const by = baseY + 3 + bobY;
+      const leanX = isContact ? 1 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      const shW = isContact ? 14 : 12;
+      ctx.fillRect(x + 16 - shW / 2, by + 25, shW, 1);
+      ctx.fillStyle = color; ctx.globalAlpha = 0.25;
+      ctx.fillRect(x + 8, by + 26, 16, 2); ctx.globalAlpha = 1;
+      ctx.fillStyle = PAL.shoes;
+      if (col === 0) { ctx.fillRect(x + 18 + leanX, by + 24, 4, 1); ctx.fillRect(x + 10 + leanX, by + 24, 3, 1); }
+      else if (col === 2) { ctx.fillRect(x + 10 + leanX, by + 24, 4, 1); ctx.fillRect(x + 19 + leanX, by + 24, 3, 1); }
+      else { ctx.fillRect(x + 12, by + 24, 4, 1); ctx.fillRect(x + 17, by + 24, 4, 1); }
+      ctx.fillStyle = PAL.pants;
+      if (isContact) { ctx.fillRect(x + 12 + leanX, by + 21, 3, 3); ctx.fillRect(x + 17 + leanX, by + 21, 3, 3); }
+      else {
+        ctx.fillRect(x + 13, by + 21, 3, 3); ctx.fillRect(x + 17, by + 21, 3, 3);
+        ctx.fillStyle = PAL.pantsHi; ctx.fillRect(x + 13, by + 21, 1, 2); ctx.fillRect(x + 17, by + 21, 1, 2);
+      }
+      ctx.fillStyle = PAL.coat; ctx.fillRect(x + 9 + leanX, by + 13, 14, 8);
+      ctx.fillStyle = PAL.coatShade; ctx.fillRect(x + 14 + leanX, by + 13, 1, 2); ctx.fillRect(x + 17 + leanX, by + 13, 1, 2);
+      ctx.fillStyle = PAL.skin; ctx.fillRect(x + 15 + leanX, by + 13, 2, 1);
+      ctx.fillStyle = PAL.coatDark; ctx.fillRect(x + 16 + leanX, by + 15, 1, 5);
+      ctx.fillStyle = PAL.coatShade; ctx.fillRect(x + 10 + leanX, by + 16, 3, 2); ctx.fillRect(x + 9 + leanX, by + 18, 14, 2);
+      ctx.fillStyle = PAL.coatDark; ctx.fillRect(x + 10 + leanX, by + 20, 12, 1);
+      ctx.fillStyle = PAL.skinShade; ctx.fillRect(x + 14 + leanX, by + 12, 4, 1);
+      ctx.fillStyle = PAL.skin; ctx.fillRect(x + 11 + leanX, by + 3, 10, 9);
+      ctx.fillStyle = PAL.skinShade; ctx.fillRect(x + 11 + leanX, by + 6, 1, 5); ctx.fillRect(x + 20 + leanX, by + 6, 1, 5);
+      ctx.fillStyle = PAL.skinDark; ctx.fillRect(x + 13 + leanX, by + 11, 6, 1);
+      const hb = isContact ? 0 : -1;
+      ctx.fillStyle = PAL.hair;
+      ctx.fillRect(x + 9 + leanX, by + hb, 2, 1); ctx.fillRect(x + 13 + leanX, by + hb, 3, 1); ctx.fillRect(x + 19 + leanX, by + hb, 2, 1);
+      ctx.fillRect(x + 9 + leanX, by + 1 + hb, 14, 1); ctx.fillRect(x + 10 + leanX, by + 2 + hb, 12, 1);
+      ctx.fillStyle = PAL.hairHi; ctx.fillRect(x + 11 + leanX, by + 1 + hb, 2, 1); ctx.fillRect(x + 17 + leanX, by + 1 + hb, 2, 1);
+      ctx.fillStyle = PAL.hairDk; ctx.fillRect(x + 9 + leanX, by + 2 + hb, 1, 1); ctx.fillRect(x + 21 + leanX, by + 2 + hb, 1, 1);
+      ctx.fillStyle = PAL.gogFrame;
+      ctx.fillRect(x + 11 + leanX, by + 3 + hb, 4, 2); ctx.fillRect(x + 17 + leanX, by + 3 + hb, 4, 2); ctx.fillRect(x + 15 + leanX, by + 3 + hb, 2, 1);
+      ctx.fillStyle = PAL.gogLens; ctx.fillRect(x + 12 + leanX, by + 3 + hb, 2, 1); ctx.fillRect(x + 18 + leanX, by + 3 + hb, 2, 1);
+      ctx.fillStyle = PAL.gogGlint; ctx.fillRect(x + 12 + leanX, by + 3 + hb, 1, 1); ctx.fillRect(x + 18 + leanX, by + 3 + hb, 1, 1);
+      ctx.fillStyle = PAL.eye;
+      ctx.fillRect(x + 14 + leanX, by + 7, 2, 2); ctx.fillRect(x + 18 + leanX, by + 7, 2, 2);
+      ctx.fillStyle = PAL.eyeHi; ctx.fillRect(x + 14 + leanX, by + 7, 1, 1); ctx.fillRect(x + 18 + leanX, by + 7, 1, 1);
+      ctx.fillStyle = PAL.mouth; ctx.fillRect(x + 14 + leanX, by + 10, 4, 1);
+      if (!isContact) ctx.fillRect(x + 17 + leanX, by + 9, 1, 1);
+      if (col === 0) {
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 4, by + 12, 3, 7); ctx.fillRect(x + 3, by + 14, 2, 4);
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 3, by + 17, 3, 2);
+        ctx.fillStyle = PAL.coatShade; ctx.fillRect(x + 24, by + 15, 3, 5);
+        ctx.fillStyle = PAL.skinShade; ctx.fillRect(x + 24, by + 19, 3, 2);
+      } else if (col === 1 || col === 3) {
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 5, by + 14, 3, 6); ctx.fillRect(x + 24, by + 14, 3, 6);
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 5, by + 19, 3, 2); ctx.fillRect(x + 24, by + 19, 3, 2);
+      } else {
+        ctx.fillStyle = PAL.coat; ctx.fillRect(x + 25, by + 12, 3, 7); ctx.fillRect(x + 27, by + 14, 2, 4);
+        ctx.fillStyle = PAL.skin; ctx.fillRect(x + 27, by + 17, 3, 2);
+        ctx.fillStyle = PAL.coatShade; ctx.fillRect(x + 5, by + 15, 3, 5);
+        ctx.fillStyle = PAL.skinShade; ctx.fillRect(x + 5, by + 19, 3, 2);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EDITOR STATE
+    // ═══════════════════════════════════════════════════════════════
+    const S = {
+      currentRow: 0,
+      currentFrame: 0,
+      tool: 'pencil',
+      color: '#4ade80',
+      recentColors: [],
+      undoStack: [],
+      redoStack: [],
+      maxUndo: 50,
+      showGrid: true,
+      zoom: 12,
+      drawing: false,
+      lastPx: -1,
+      lastPy: -1,
+      previewPlaying: true,
+      previewFps: 4,
+      previewFrame: 0,
+      previewTimer: null,
+    };
+
+    // Sheet canvas (backing store)
+    const sheetCanvas = document.getElementById('sheet-canvas');
+    sheetCanvas.width = SHEET_W;
+    sheetCanvas.height = SHEET_H;
+    const sheetCtx = sheetCanvas.getContext('2d');
+
+    // Edit canvas
+    const editCanvas = document.getElementById('edit-canvas');
+    const editCtx = editCanvas.getContext('2d');
+
+    // Preview canvas
+    const previewCanvas = document.getElementById('preview-canvas');
+    const previewCtx = previewCanvas.getContext('2d');
+    previewCtx.imageSmoothingEnabled = false;
+
+    // Minimap canvas
+    const minimapCanvas = document.getElementById('minimap-canvas');
+    const minimapCtx = minimapCanvas.getContext('2d');
+    minimapCtx.imageSmoothingEnabled = false;
+
+    // ═══════════════════════════════════════════════════════════════
+    // UTILITIES
+    // ═══════════════════════════════════════════════════════════════
+    function hexToRgba(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return [r, g, b, 255];
+    }
+
+    function rgbaToHex(r, g, b) {
+      return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+
+    function colorsMatch(a, b) {
+      return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+    }
+
+    function getAnimForRow(row) {
+      return ROW_INFO[row] || { names: [`row${row}`], frameCount: 4, color: '#888' };
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PIXEL OPERATIONS (on sheet canvas)
+    // ═══════════════════════════════════════════════════════════════
+    function frameOrigin() {
+      return { x: S.currentFrame * FRAME_W, y: S.currentRow * FRAME_H };
+    }
+
+    function setPixel(localX, localY, hex) {
+      const o = frameOrigin();
+      const [r, g, b] = hexToRgba(hex);
+      const imgData = sheetCtx.createImageData(1, 1);
+      imgData.data[0] = r; imgData.data[1] = g; imgData.data[2] = b; imgData.data[3] = 255;
+      sheetCtx.putImageData(imgData, o.x + localX, o.y + localY);
+    }
+
+    function clearPixel(localX, localY) {
+      const o = frameOrigin();
+      sheetCtx.clearRect(o.x + localX, o.y + localY, 1, 1);
+    }
+
+    function getPixelColor(localX, localY) {
+      const o = frameOrigin();
+      const d = sheetCtx.getImageData(o.x + localX, o.y + localY, 1, 1).data;
+      if (d[3] === 0) return null;
+      return rgbaToHex(d[0], d[1], d[2]);
+    }
+
+    function getPixelRgba(data, x, y) {
+      const i = (y * 32 + x) * 4;
+      return [data[i], data[i + 1], data[i + 2], data[i + 3]];
+    }
+
+    function setPixelRgba(data, x, y, rgba) {
+      const i = (y * 32 + x) * 4;
+      data[i] = rgba[0]; data[i + 1] = rgba[1]; data[i + 2] = rgba[2]; data[i + 3] = rgba[3];
+    }
+
+    // Bresenham line
+    function linePixels(x0, y0, x1, y1) {
+      const pts = [];
+      const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+      const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+      let err = dx - dy;
+      while (true) {
+        pts.push([x0, y0]);
+        if (x0 === x1 && y0 === y1) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+      }
+      return pts;
+    }
+
+    // Flood fill
+    function floodFill(startX, startY, hex) {
+      const o = frameOrigin();
+      const imgData = sheetCtx.getImageData(o.x, o.y, 32, 32);
+      const data = imgData.data;
+      const target = getPixelRgba(data, startX, startY);
+      const fill = hexToRgba(hex);
+      if (colorsMatch(target, fill)) return;
+      const stack = [[startX, startY]];
+      const visited = new Uint8Array(32 * 32);
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        if (x < 0 || x >= 32 || y < 0 || y >= 32) continue;
+        const key = y * 32 + x;
+        if (visited[key]) continue;
+        if (!colorsMatch(getPixelRgba(data, x, y), target)) continue;
+        visited[key] = 1;
+        setPixelRgba(data, x, y, fill);
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+      sheetCtx.putImageData(imgData, o.x, o.y);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // UNDO / REDO
+    // ═══════════════════════════════════════════════════════════════
+    function pushUndo() {
+      const o = frameOrigin();
+      const snapshot = sheetCtx.getImageData(o.x, o.y, 32, 32);
+      S.undoStack.push({ row: S.currentRow, frame: S.currentFrame, data: snapshot });
+      if (S.undoStack.length > S.maxUndo) S.undoStack.shift();
+      S.redoStack = [];
+    }
+
+    function undo() {
+      if (!S.undoStack.length) return;
+      const entry = S.undoStack.pop();
+      const ox = entry.frame * FRAME_W, oy = entry.row * FRAME_H;
+      const current = sheetCtx.getImageData(ox, oy, 32, 32);
+      S.redoStack.push({ row: entry.row, frame: entry.frame, data: current });
+      sheetCtx.putImageData(entry.data, ox, oy);
+      S.currentRow = entry.row;
+      S.currentFrame = entry.frame;
+      refreshAll();
+    }
+
+    function redo() {
+      if (!S.redoStack.length) return;
+      const entry = S.redoStack.pop();
+      const ox = entry.frame * FRAME_W, oy = entry.row * FRAME_H;
+      const current = sheetCtx.getImageData(ox, oy, 32, 32);
+      S.undoStack.push({ row: entry.row, frame: entry.frame, data: current });
+      sheetCtx.putImageData(entry.data, ox, oy);
+      S.currentRow = entry.row;
+      S.currentFrame = entry.frame;
+      refreshAll();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RENDERING
+    // ═══════════════════════════════════════════════════════════════
+
+    // Checkerboard pattern for transparency
+    function drawCheckerboard(ctx, w, h, cellSize) {
+      for (let y = 0; y < h; y += cellSize) {
+        for (let x = 0; x < w; x += cellSize) {
+          const dark = ((x / cellSize + y / cellSize) % 2 === 0);
+          ctx.fillStyle = dark ? '#2a2a2a' : '#333';
+          ctx.fillRect(x, y, cellSize, cellSize);
+        }
+      }
+    }
+
+    function refreshEditCanvas() {
+      const z = S.zoom;
+      const cw = 32 * z, ch = 32 * z;
+      editCanvas.width = cw;
+      editCanvas.height = ch;
+      editCtx.imageSmoothingEnabled = false;
+
+      // Checkerboard background
+      drawCheckerboard(editCtx, cw, ch, z);
+
+      // Draw current frame scaled up
+      const o = frameOrigin();
+      editCtx.drawImage(sheetCanvas, o.x, o.y, 32, 32, 0, 0, cw, ch);
+
+      // Grid overlay
+      if (S.showGrid) {
+        editCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+        editCtx.lineWidth = 1;
+        for (let i = 0; i <= 32; i++) {
+          const pos = i * z + 0.5;
+          editCtx.beginPath(); editCtx.moveTo(pos, 0); editCtx.lineTo(pos, ch); editCtx.stroke();
+          editCtx.beginPath(); editCtx.moveTo(0, pos); editCtx.lineTo(cw, pos); editCtx.stroke();
+        }
+        // 8-pixel grid (stronger)
+        editCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+        for (let i = 0; i <= 4; i++) {
+          const pos = i * 8 * z + 0.5;
+          editCtx.beginPath(); editCtx.moveTo(pos, 0); editCtx.lineTo(pos, ch); editCtx.stroke();
+          editCtx.beginPath(); editCtx.moveTo(0, pos); editCtx.lineTo(cw, pos); editCtx.stroke();
+        }
+      }
+    }
+
+    function refreshPreview() {
+      const info = getAnimForRow(S.currentRow);
+      const frame = S.previewFrame % info.frameCount;
+      const sx = frame * 32, sy = S.currentRow * 32;
+      previewCtx.clearRect(0, 0, 128, 128);
+      drawCheckerboard(previewCtx, 128, 128, 16);
+      previewCtx.drawImage(sheetCanvas, sx, sy, 32, 32, 0, 0, 128, 128);
+    }
+
+    function refreshMinimap() {
+      const scale = 0.5;
+      const mw = SHEET_W * scale, mh = SHEET_H * scale;
+      minimapCanvas.width = mw;
+      minimapCanvas.height = mh;
+      minimapCtx.imageSmoothingEnabled = false;
+      minimapCtx.fillStyle = '#1a1a1a';
+      minimapCtx.fillRect(0, 0, mw, mh);
+      minimapCtx.drawImage(sheetCanvas, 0, 0, mw, mh);
+
+      // Highlight current frame
+      const fx = S.currentFrame * FRAME_W * scale;
+      const fy = S.currentRow * FRAME_H * scale;
+      const fw = FRAME_W * scale, fh = FRAME_H * scale;
+      minimapCtx.strokeStyle = '#4ade80';
+      minimapCtx.lineWidth = 2;
+      minimapCtx.strokeRect(fx + 1, fy + 1, fw - 2, fh - 2);
+
+      // Row grid lines
+      minimapCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+      minimapCtx.lineWidth = 1;
+      for (let r = 1; r < ROWS; r++) {
+        const y = r * FRAME_H * scale + 0.5;
+        minimapCtx.beginPath(); minimapCtx.moveTo(0, y); minimapCtx.lineTo(mw, y); minimapCtx.stroke();
+      }
+    }
+
+    function refreshFrameNav() {
+      const nav = document.getElementById('frame-nav');
+      nav.innerHTML = '';
+      for (let row = 0; row < ROWS; row++) {
+        const info = getAnimForRow(row);
+        const group = document.createElement('div');
+        group.className = 'anim-group';
+
+        const label = document.createElement('div');
+        label.className = 'anim-label';
+        label.textContent = `${row}: ${info.names.join(', ')} (${info.frameCount}f)`;
+        group.appendChild(label);
+
+        const thumbs = document.createElement('div');
+        thumbs.className = 'frame-thumbs';
+
+        for (let col = 0; col < COLS; col++) {
+          const thumb = document.createElement('canvas');
+          thumb.className = 'frame-thumb';
+          if (col >= info.frameCount) thumb.classList.add('empty');
+          if (row === S.currentRow && col === S.currentFrame) thumb.classList.add('selected');
+          thumb.width = 32;
+          thumb.height = 32;
+          thumb.style.width = '40px';
+          thumb.style.height = '40px';
+          const tctx = thumb.getContext('2d');
+          tctx.imageSmoothingEnabled = false;
+          tctx.drawImage(sheetCanvas, col * 32, row * 32, 32, 32, 0, 0, 32, 32);
+
+          thumb.addEventListener('click', () => {
+            S.currentRow = row;
+            S.currentFrame = col;
+            S.previewFrame = 0;
+            refreshAll();
+          });
+          thumbs.appendChild(thumb);
+        }
+        group.appendChild(thumbs);
+        nav.appendChild(group);
+      }
+    }
+
+    function refreshStatusBar() {
+      const info = getAnimForRow(S.currentRow);
+      document.getElementById('status-anim').textContent = `${info.names[0]} - Frame ${S.currentFrame}/${info.frameCount}`;
+      document.getElementById('status-zoom').textContent = `Zoom: ${S.zoom}x`;
+    }
+
+    function refreshAll() {
+      refreshEditCanvas();
+      refreshFrameNav();
+      refreshMinimap();
+      refreshPreview();
+      refreshStatusBar();
+      updatePreviewLabel();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // COLOR PALETTE
+    // ═══════════════════════════════════════════════════════════════
+    const PRESET_COLORS = [
+      // Dr. Vibe PAL
+      PAL.skin, PAL.skinShade, PAL.skinDark,
+      PAL.hair, PAL.hairHi, PAL.hairDk,
+      PAL.coat, PAL.coatShade, PAL.coatDark,
+      PAL.eye, PAL.eyeHi,
+      PAL.gogFrame, PAL.gogLens, PAL.gogGlint,
+      PAL.mouth, PAL.mouthOpen,
+      PAL.pants, PAL.pantsHi,
+      PAL.shoes, PAL.shoeHi,
+      // Basic colors
+      '#000000', '#333333', '#666666', '#999999', '#cccccc', '#ffffff',
+      '#ff0000', '#ff8800', '#ffff00', '#00ff00', '#00ffff', '#0088ff',
+      '#0000ff', '#8800ff', '#ff00ff', '#ff0088',
+    ];
+
+    function buildPalette() {
+      const grid = document.getElementById('preset-palette');
+      grid.innerHTML = '';
+      for (const c of PRESET_COLORS) {
+        const sw = document.createElement('div');
+        sw.className = 'swatch';
+        sw.style.background = c;
+        sw.title = c;
+        sw.addEventListener('click', () => setColor(c));
+        grid.appendChild(sw);
+      }
+    }
+
+    function setColor(hex) {
+      S.color = hex;
+      document.getElementById('color-picker').value = hex;
+      document.getElementById('color-preview').style.background = hex;
+      document.getElementById('color-hex').value = hex;
+      document.getElementById('status-color').style.background = hex;
+      document.getElementById('status-hex').textContent = hex;
+      // Track recent
+      S.recentColors = S.recentColors.filter(c => c !== hex);
+      S.recentColors.unshift(hex);
+      if (S.recentColors.length > 16) S.recentColors.pop();
+      refreshRecentPalette();
+    }
+
+    function refreshRecentPalette() {
+      const grid = document.getElementById('recent-palette');
+      grid.innerHTML = '';
+      for (const c of S.recentColors) {
+        const sw = document.createElement('div');
+        sw.className = 'swatch';
+        sw.style.background = c;
+        sw.title = c;
+        sw.addEventListener('click', () => setColor(c));
+        grid.appendChild(sw);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ANIMATION PREVIEW
+    // ═══════════════════════════════════════════════════════════════
+    function updatePreviewLabel() {
+      const info = getAnimForRow(S.currentRow);
+      document.getElementById('preview-label').textContent = info.names[0];
+    }
+
+    function startPreview() {
+      stopPreview();
+      S.previewFrame = 0;
+      S.previewTimer = setInterval(() => {
+        const info = getAnimForRow(S.currentRow);
+        S.previewFrame = (S.previewFrame + 1) % info.frameCount;
+        refreshPreview();
+      }, 1000 / S.previewFps);
+    }
+
+    function stopPreview() {
+      if (S.previewTimer) { clearInterval(S.previewTimer); S.previewTimer = null; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOUSE HANDLERS (edit canvas)
+    // ═══════════════════════════════════════════════════════════════
+    function canvasToPixel(e) {
+      const rect = editCanvas.getBoundingClientRect();
+      const px = Math.floor((e.clientX - rect.left) / S.zoom);
+      const py = Math.floor((e.clientY - rect.top) / S.zoom);
+      return [Math.max(0, Math.min(31, px)), Math.max(0, Math.min(31, py))];
+    }
+
+    editCanvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const [px, py] = canvasToPixel(e);
+      S.drawing = true;
+      S.lastPx = px;
+      S.lastPy = py;
+
+      if (S.tool === 'pencil') {
+        pushUndo();
+        setPixel(px, py, S.color);
+        setColor(S.color); // track recent
+        refreshEditCanvas();
+        refreshMinimap();
+        refreshPreview();
+      } else if (S.tool === 'eraser') {
+        pushUndo();
+        clearPixel(px, py);
+        refreshEditCanvas();
+        refreshMinimap();
+        refreshPreview();
+      } else if (S.tool === 'fill') {
+        pushUndo();
+        floodFill(px, py, S.color);
+        setColor(S.color);
+        refreshEditCanvas();
+        refreshFrameNav();
+        refreshMinimap();
+        refreshPreview();
+      } else if (S.tool === 'eyedropper') {
+        const c = getPixelColor(px, py);
+        if (c) setColor(c);
+        S.drawing = false;
+      }
+
+      document.getElementById('status-pos').textContent = `X: ${px}  Y: ${py}`;
+    });
+
+    editCanvas.addEventListener('mousemove', (e) => {
+      const [px, py] = canvasToPixel(e);
+      document.getElementById('status-pos').textContent = `X: ${px}  Y: ${py}`;
+
+      if (!S.drawing) return;
+      if (px === S.lastPx && py === S.lastPy) return;
+
+      if (S.tool === 'pencil') {
+        for (const [x, y] of linePixels(S.lastPx, S.lastPy, px, py)) {
+          setPixel(x, y, S.color);
+        }
+        refreshEditCanvas();
+        refreshMinimap();
+      } else if (S.tool === 'eraser') {
+        for (const [x, y] of linePixels(S.lastPx, S.lastPy, px, py)) {
+          clearPixel(x, y);
+        }
+        refreshEditCanvas();
+        refreshMinimap();
+      }
+
+      S.lastPx = px;
+      S.lastPy = py;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (S.drawing) {
+        S.drawing = false;
+        refreshFrameNav();
+        refreshPreview();
+      }
+    });
+
+    // Minimap click
+    minimapCanvas.addEventListener('click', (e) => {
+      const rect = minimapCanvas.getBoundingClientRect();
+      const scale = 0.5;
+      const mx = (e.clientX - rect.left) / scale;
+      const my = (e.clientY - rect.top) / scale;
+      const col = Math.floor(mx / FRAME_W);
+      const row = Math.floor(my / FRAME_H);
+      if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+        S.currentRow = row;
+        S.currentFrame = col;
+        S.previewFrame = 0;
+        refreshAll();
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // FILE OPERATIONS
+    // ═══════════════════════════════════════════════════════════════
+    function newSheet() {
+      sheetCtx.clearRect(0, 0, SHEET_W, SHEET_H);
+      S.undoStack = [];
+      S.redoStack = [];
+      S.currentRow = 0;
+      S.currentFrame = 0;
+      refreshAll();
+    }
+
+    function loadPng() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.png';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const img = new Image();
+        img.onload = () => {
+          if (img.width !== 128 || img.height !== 512) {
+            if (!confirm(`Expected 128x512, got ${img.width}x${img.height}. Load anyway?`)) return;
+          }
+          sheetCtx.clearRect(0, 0, SHEET_W, SHEET_H);
+          sheetCtx.drawImage(img, 0, 0);
+          S.undoStack = [];
+          S.redoStack = [];
+          S.currentRow = 0;
+          S.currentFrame = 0;
+          refreshAll();
+        };
+        img.src = URL.createObjectURL(file);
+      };
+      input.click();
+    }
+
+    function generateTemplate() {
+      sheetCtx.clearRect(0, 0, SHEET_W, SHEET_H);
+      for (const [name, anim] of Object.entries(ANIMATIONS)) {
+        if (name === 'walkLeft') continue;
+        for (let col = 0; col < anim.frameCount; col++) {
+          drawFrame(sheetCtx, col, anim.row, anim.color, anim.row);
+        }
+      }
+      S.undoStack = [];
+      S.redoStack = [];
+      S.currentRow = 0;
+      S.currentFrame = 0;
+      refreshAll();
+    }
+
+    function savePng() {
+      sheetCanvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dr-vibe-custom.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
+
+    function save4x() {
+      const big = document.createElement('canvas');
+      big.width = SHEET_W * 4;
+      big.height = SHEET_H * 4;
+      const ctx = big.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sheetCanvas, 0, 0, big.width, big.height);
+      big.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dr-vibe-custom-4x.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TOOL SELECTION
+    // ═══════════════════════════════════════════════════════════════
+    function selectTool(tool) {
+      S.tool = tool;
+      document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tool === tool);
+      });
+      editCanvas.style.cursor = tool === 'eyedropper' ? 'copy' : 'crosshair';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EVENT LISTENERS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Toolbar buttons
+    document.getElementById('btn-new').addEventListener('click', () => {
+      if (confirm('Clear the entire sprite sheet?')) newSheet();
+    });
+    document.getElementById('btn-load').addEventListener('click', loadPng);
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      if (confirm('Generate Dr. Vibe template? This replaces the current sheet.')) generateTemplate();
+    });
+    document.getElementById('btn-save').addEventListener('click', savePng);
+    document.getElementById('btn-save-4x').addEventListener('click', save4x);
+    document.getElementById('btn-undo').addEventListener('click', undo);
+    document.getElementById('btn-redo').addEventListener('click', redo);
+
+    // Tool buttons
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+    });
+
+    // Grid toggle
+    document.getElementById('chk-grid').addEventListener('change', (e) => {
+      S.showGrid = e.target.checked;
+      refreshEditCanvas();
+    });
+
+    // Color picker
+    document.getElementById('color-picker').addEventListener('input', (e) => setColor(e.target.value));
+    document.getElementById('color-hex').addEventListener('change', (e) => {
+      const v = e.target.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) setColor(v);
+    });
+
+    // Preview controls
+    document.getElementById('btn-play-pause').addEventListener('click', () => {
+      S.previewPlaying = !S.previewPlaying;
+      document.getElementById('btn-play-pause').textContent = S.previewPlaying ? 'Pause' : 'Play';
+      if (S.previewPlaying) startPreview(); else stopPreview();
+    });
+    document.getElementById('fps-slider').addEventListener('input', (e) => {
+      S.previewFps = parseInt(e.target.value);
+      document.getElementById('fps-value').textContent = S.previewFps;
+      if (S.previewPlaying) startPreview();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Don't capture when typing in inputs
+      if (e.target.tagName === 'INPUT') return;
+
+      if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); redo(); return; }
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); return; }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); return; }
+
+      switch (e.key.toLowerCase()) {
+        case 'b': selectTool('pencil'); break;
+        case 'e': selectTool('eraser'); break;
+        case 'g': selectTool('fill'); break;
+        case 'i': selectTool('eyedropper'); break;
+        case '[': {
+          const info = getAnimForRow(S.currentRow);
+          S.currentFrame = (S.currentFrame - 1 + info.frameCount) % info.frameCount;
+          refreshAll();
+          break;
+        }
+        case ']': {
+          const info = getAnimForRow(S.currentRow);
+          S.currentFrame = (S.currentFrame + 1) % info.frameCount;
+          refreshAll();
+          break;
+        }
+      }
+    });
+
+    // Prevent context menu on canvas
+    editCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // ═══════════════════════════════════════════════════════════════
+    // TAURI APP INTEGRATION
+    // ═══════════════════════════════════════════════════════════════
+    const hasTauriApi = !!(window.__TAURI__?.core?.invoke);
+
+    async function initAppIntegration() {
+      if (!hasTauriApi) return;
+
+      // Show app controls
+      document.querySelectorAll('.app-controls').forEach(el => el.classList.add('visible'));
+
+      // Populate skin dropdown
+      await refreshAppSkins();
+
+      // Load skin from app dropdown
+      document.getElementById('app-skin-select').addEventListener('change', async (e) => {
+        const name = e.target.value;
+        if (!name) return;
+        try {
+          const b64 = await window.__TAURI__.core.invoke('read_skin', { name });
+          const img = new Image();
+          img.onload = () => {
+            sheetCtx.clearRect(0, 0, SHEET_W, SHEET_H);
+            sheetCtx.drawImage(img, 0, 0);
+            S.undoStack = [];
+            S.redoStack = [];
+            S.currentRow = 0;
+            S.currentFrame = 0;
+            // Pre-fill save name with loaded skin name
+            document.getElementById('app-skin-name').value = name;
+            refreshAll();
+          };
+          img.src = 'data:image/png;base64,' + b64;
+        } catch (err) {
+          alert('Failed to load skin: ' + err);
+        }
+        // Reset dropdown to placeholder
+        e.target.value = '';
+      });
+
+      // Save skin to app
+      const PROTECTED_SKINS = [
+        'dr-vibe-default', 'dr-vibe-classic', 'dr-vibe-tuxedo',
+        'dr-vibe-cyberpunk', 'dr-vibe-alien', 'dr-vibe-pirate',
+        'dr-vibe-firefighter', 'dr-vibe-wizard', 'dr-vibe-arctic',
+        'dr-vibe-retro80s', 'dr-vibe-bridgemind',
+      ];
+
+      document.getElementById('btn-save-app').addEventListener('click', async () => {
+        const name = document.getElementById('app-skin-name').value.trim();
+        if (!name) { alert('Enter a name for the skin'); return; }
+        if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+          alert('Name can only contain letters, numbers, hyphens, and underscores');
+          return;
+        }
+        if (PROTECTED_SKINS.includes(name)) {
+          alert('"' + name + '" is a built-in skin and cannot be overwritten.\nSave with a different name.');
+          return;
+        }
+        try {
+          // Convert canvas to base64
+          const dataUrl = await new Promise(resolve => {
+            sheetCanvas.toBlob(blob => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            }, 'image/png');
+          });
+          const b64 = dataUrl.split(',')[1];
+          await window.__TAURI__.core.invoke('save_skin', { name, data: b64 });
+          alert('Saved "' + name + '" to skins folder!');
+          await refreshAppSkins();
+        } catch (err) {
+          alert('Failed to save skin: ' + err);
+        }
+      });
+    }
+
+    async function refreshAppSkins() {
+      if (!hasTauriApi) return;
+      try {
+        const skins = await window.__TAURI__.core.invoke('list_skins');
+        const select = document.getElementById('app-skin-select');
+        select.innerHTML = '<option value="">Load from App...</option>';
+        for (const skin of skins) {
+          const opt = document.createElement('option');
+          opt.value = skin;
+          opt.textContent = skin;
+          select.appendChild(opt);
+        }
+      } catch (e) {
+        console.error('Failed to list skins:', e);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════
+    buildPalette();
+    generateTemplate();
+    startPreview();
+    initAppIntegration();
+  </script>
+</body>
+</html>

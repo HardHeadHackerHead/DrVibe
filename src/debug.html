@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Menu</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    body {
+      padding: 12px;
+      user-select: none;
+    }
+
+    .debug-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .debug-column {
+      min-width: 0;
+    }
+
+    .debug-col-header {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: bold;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #333;
+      margin-bottom: 4px;
+    }
+
+    .debug-cat-icon {
+      font-size: 12px;
+    }
+
+    .debug-item {
+      padding: 4px 8px;
+      font-size: 11px;
+      color: #b0b0b0;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.08s, color 0.08s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .debug-item:hover {
+      background: rgba(248, 113, 113, 0.18);
+      color: #f87171;
+    }
+
+    .debug-item:active {
+      background: rgba(248, 113, 113, 0.3);
+    }
+
+    .debug-divider {
+      border-top: 1px solid #2a2a2a;
+      margin: 3px 4px;
+    }
+
+    .debug-flash {
+      position: fixed;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(248, 113, 113, 0.15);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: #f87171;
+      font-size: 10px;
+      padding: 4px 12px;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+    }
+
+    .debug-flash.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="debug-title">Debug Menu</div>
+  <div class="debug-grid" id="debug-grid"></div>
+  <div class="debug-flash" id="debug-flash"></div>
+
+  <script>
+    // Emit a debug command to the main window via Tauri events
+    async function sendDebug(command, payload) {
+      try {
+        const { emitTo } = window.__TAURI__.event;
+        await emitTo('main', 'debug-command', { command, payload });
+        flash(command);
+      } catch (e) {
+        console.error('Debug emit failed:', e);
+      }
+    }
+
+    // Brief flash showing what was triggered
+    let flashTimer = null;
+    function flash(text) {
+      const el = document.getElementById('debug-flash');
+      el.textContent = text;
+      el.classList.add('visible');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => el.classList.remove('visible'), 800);
+    }
+
+    // Category definitions
+    const categories = [
+      {
+        icon: '\uD83C\uDFAD', label: 'Animations',
+        items: [
+          'idle', 'coding', 'thinking', 'tired', 'excited', 'alert',
+          'libraryCard', 'presenting', 'concerned', 'focused',
+          'coverEyes', 'thumbsUp', 'celebrating', 'beaker', 'stretching',
+          'walkRight', 'walkLeft'
+        ].map(s => ({ text: s, cmd: 'animation', payload: s })).concat([
+          { divider: true },
+          { text: 'Walk Now', cmd: 'walk', payload: 'start' },
+          { text: 'Stop Walk', cmd: 'walk', payload: 'stop' }
+        ])
+      },
+      {
+        icon: '\u23F1', label: 'Timer',
+        items: [
+          { text: 'Start', cmd: 'timer', payload: 'start' },
+          { text: 'Pause', cmd: 'timer', payload: 'pause' },
+          { text: 'Resume', cmd: 'timer', payload: 'resume' },
+          { text: 'Stop', cmd: 'timer', payload: 'stop' },
+          { divider: true },
+          { text: 'Work Complete', cmd: 'event', payload: 'timer:workComplete' },
+          { text: 'Break Start', cmd: 'event', payload: 'timer:breakStart' },
+          { text: 'Break Complete', cmd: 'event', payload: 'timer:breakComplete' },
+          { divider: true },
+          { text: 'Speech Bubble', cmd: 'event', payload: 'timer:speech' },
+        ]
+      },
+      {
+        icon: '\uD83D\uDCBB', label: 'Activity',
+        items: [
+          { text: 'Coding Start', cmd: 'event', payload: 'activity:codingStart' },
+          { text: 'Coding Stop', cmd: 'event', payload: 'activity:codingStop' },
+          { text: 'Idle', cmd: 'event', payload: 'activity:idle' },
+          { text: 'Window Switch', cmd: 'event', payload: 'activity:windowSwitch' },
+          { divider: true },
+          { text: 'Detect Project', cmd: 'event', payload: 'project:detected' },
+          { text: 'Lose Project', cmd: 'event', payload: 'project:lost' },
+          { divider: true },
+          { text: 'Cold (0%)', cmd: 'momentum', payload: 'cold' },
+          { text: 'Warming (30%)', cmd: 'momentum', payload: 'warming' },
+          { text: 'Flowing (50%)', cmd: 'momentum', payload: 'flowing' },
+          { text: 'Hot (75%)', cmd: 'momentum', payload: 'hot' },
+          { text: 'Fire (100%)', cmd: 'momentum', payload: 'fire' },
+          { divider: true },
+          { text: 'Stuck Detected', cmd: 'event', payload: 'stuck:detected' },
+          { text: 'Fatigue', cmd: 'event', payload: 'fatigue:detected' },
+          { text: 'Overwork', cmd: 'event', payload: 'overwork:warning' },
+        ]
+      },
+      {
+        icon: '\uD83D\uDC9A', label: 'Health',
+        items: [
+          { text: 'Hydration Reminder', cmd: 'event', payload: 'hydration:reminder' },
+          { text: 'Log Water', cmd: 'event', payload: 'hydration:logged' },
+          { divider: true },
+          { text: 'Eye Strain', cmd: 'event', payload: 'eyestrain:reminder' },
+          { text: 'Eye Strain Done', cmd: 'event', payload: 'eyestrain:complete' },
+          { divider: true },
+          { text: 'Posture Check', cmd: 'event', payload: 'posture:reminder' },
+          { text: 'Posture Done', cmd: 'event', payload: 'posture:complete' },
+          { divider: true },
+          { text: 'Boundary', cmd: 'event', payload: 'boundary:reminderSent' },
+          { text: 'Break Activity', cmd: 'event', payload: 'break:activitySuggested' },
+        ]
+      },
+      {
+        icon: '\uD83D\uDDD7', label: 'Panels',
+        items: [
+          { text: 'Session', cmd: 'event', payload: 'ui:sessionPanelToggle' },
+          { text: 'About', cmd: 'event', payload: 'ui:aboutPanelToggle' },
+          { text: 'Achievements', cmd: 'event', payload: 'ui:achievementPanelToggle' },
+          { text: 'Skills', cmd: 'event', payload: 'ui:skillPanelToggle' },
+          { text: 'Weekly Summary', cmd: 'event', payload: 'ui:weeklySummaryPanelToggle' },
+          { text: "Today's Wins", cmd: 'event', payload: 'ui:todayWinsToggle' },
+          { text: 'Personal Best', cmd: 'event', payload: 'ui:personalBestPanelToggle' },
+          { text: 'Session Context', cmd: 'event', payload: 'ui:sessionContextToggle' },
+          { divider: true },
+          { text: 'Settings Window', cmd: 'openSettings', payload: null },
+        ]
+      },
+      {
+        icon: '\u26A1', label: 'Events',
+        items: [
+          { text: 'Encouragement', cmd: 'event', payload: 'encouragement:triggered' },
+          { text: 'Celebration', cmd: 'event', payload: 'celebration:triggered' },
+          { text: 'Resume Suggest', cmd: 'event', payload: 'resume:suggestionTriggered' },
+          { text: 'Learning Resource', cmd: 'event', payload: 'learning:resourceSuggested' },
+          { divider: true },
+          { text: 'Streak Milestone', cmd: 'event', payload: 'streak:milestone' },
+          { text: 'Streak Reminder', cmd: 'event', payload: 'streak:reminder' },
+          { text: 'Streak Broken', cmd: 'event', payload: 'streak:broken' },
+          { text: 'Streak Recovered', cmd: 'event', payload: 'streak:recovered' },
+          { divider: true },
+          { text: 'Skill Milestone', cmd: 'event', payload: 'skill:milestone' },
+          { text: 'Personal Best', cmd: 'event', payload: 'personalBest:set' },
+          { divider: true },
+          { text: 'Focus Start', cmd: 'focus', payload: 'start' },
+          { text: 'Focus End', cmd: 'focus', payload: 'stop' },
+          { divider: true },
+          { text: 'Notification', cmd: 'notification', payload: null },
+        ]
+      },
+      {
+        icon: '\uD83C\uDFC6', label: 'Achievements',
+        items: [
+          { text: 'Hello World', cmd: 'achievement', payload: 'hello_world' },
+          { text: 'Focused Marathon', cmd: 'achievement', payload: 'focused_marathon' },
+          { text: 'Polyglot', cmd: 'achievement', payload: 'polyglot' },
+          { text: 'All Nighter', cmd: 'achievement', payload: 'all_nighter' },
+          { text: 'Streak Warrior', cmd: 'achievement', payload: 'streak_warrior' },
+          { text: 'Speed Demon', cmd: 'achievement', payload: 'speed_demon' },
+          { text: 'Time Master', cmd: 'achievement', payload: 'time_master' },
+          { text: 'Balanced Life', cmd: 'achievement', payload: 'balanced_life' },
+          { divider: true },
+          { text: 'Toast Test', cmd: 'event', payload: 'achievement:unlocked' },
+        ]
+      },
+    ];
+
+    // Build the grid
+    const grid = document.getElementById('debug-grid');
+
+    for (const cat of categories) {
+      const col = document.createElement('div');
+      col.className = 'debug-column';
+
+      const header = document.createElement('div');
+      header.className = 'debug-col-header';
+      header.innerHTML = `<span class="debug-cat-icon">${cat.icon}</span>${cat.label}`;
+      col.appendChild(header);
+
+      for (const item of cat.items) {
+        if (item.divider) {
+          const d = document.createElement('div');
+          d.className = 'debug-divider';
+          col.appendChild(d);
+          continue;
+        }
+        const btn = document.createElement('div');
+        btn.className = 'debug-item';
+        btn.textContent = item.text;
+        btn.addEventListener('click', () => sendDebug(item.cmd, item.payload));
+        col.appendChild(btn);
+      }
+
+      grid.appendChild(col);
+    }
+
+    // Notify main window when debug menu opens/closes so it can
+    // suppress automatic character reactions while we're testing.
+    (async () => {
+      try {
+        const { emitTo } = window.__TAURI__.event;
+
+        // Suppress reactions on open
+        await emitTo('main', 'debug-command', { command: 'suppress', payload: true });
+
+        // Unsuppress on close (covers X button, Escape, etc.)
+        window.addEventListener('beforeunload', () => {
+          emitTo('main', 'debug-command', { command: 'suppress', payload: false });
+        });
+      } catch (e) {
+        console.error('Debug lifecycle events failed:', e);
+      }
+    })();
+
+    // Escape to close
+    document.addEventListener('keydown', async (e) => {
+      if (e.key === 'Escape') {
+        try {
+          const win = window.__TAURI__.window.getCurrentWindow();
+          await win.close();
+        } catch { window.close(); }
+      }
+    });
+  </script>
+</body>
+</html>

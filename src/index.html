@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Vibe</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="celebration-canvas"></canvas>
+    <div id="focus-aura" class="hidden"></div>
+    <canvas id="character-canvas" width="128" height="128"></canvas>
+    <div id="focus-overlay" class="hidden">
+      <span id="focus-countdown">25:00</span>
+      <button id="focus-end">End Focus</button>
+    </div>
+    <div id="project-display" class="hidden">
+      <span id="project-badge" class="hidden"></span>
+      <span id="project-name"></span>
+    </div>
+
+    <div id="momentum-meter" title="Momentum: cold">
+      <div id="momentum-fill"></div>
+    </div>
+    <div id="session-context" class="hidden">
+      <span id="session-context-badge">0 files</span>
+      <div id="session-context-files"></div>
+    </div>
+    <div id="eye-strain-overlay" class="hidden">
+      <span id="eye-strain-message"></span>
+      <span id="eye-strain-countdown">20</span>
+      <div class="eye-strain-buttons">
+        <button id="eye-strain-snooze">Snooze</button>
+      </div>
+    </div>
+    <div id="posture-overlay" class="hidden">
+      <span id="posture-message"></span>
+      <span id="posture-tip"></span>
+      <span id="posture-countdown">15</span>
+      <div class="posture-buttons">
+        <button id="posture-snooze">Snooze</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Learning Resources Panel (hidden by default) -->
+  <div id="resource-panel" class="hidden">
+    <div class="resource-header">
+      <span class="resource-icon">📚</span>
+      <span class="resource-message"></span>
+    </div>
+    <ul class="resource-list"></ul>
+    <div class="resource-buttons">
+      <button class="resource-dismiss">Got it!</button>
+      <button class="resource-dismiss-project"></button>
+    </div>
+  </div>
+
+  <!-- Personal Best Toast (hidden by default) -->
+  <div id="personal-best-toast" class="hidden"></div>
+
+  <!-- Celebration Toast (hidden by default) -->
+  <div id="celebration-toast" class="hidden"></div>
+
+  <!-- Achievement Toast (hidden by default) -->
+  <div id="achievement-toast" class="hidden"></div>
+
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Report</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    body {
+      user-select: none;
+    }
+
+    .weekly-header {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .weekly-header h3 {
+      color: #facc15;
+      margin-bottom: 2px;
+    }
+
+    .weekly-week-label {
+      font-size: 10px;
+      color: #a0a0a0;
+    }
+
+    .weekly-encouragement {
+      font-size: 11px;
+      color: #4ade80;
+      text-align: center;
+      line-height: 1.4;
+      margin-bottom: 12px;
+      font-style: italic;
+      padding: 0 4px;
+    }
+
+    /* Stats grid - 2x3 */
+    .weekly-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .weekly-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 4px;
+      background: rgba(50, 50, 50, 0.6);
+      border-radius: 6px;
+      border: 1px solid #3a3a3a;
+    }
+
+    .weekly-stat-value {
+      font-size: 12px;
+      font-weight: bold;
+      color: #e0e0e0;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .weekly-stat:first-child .weekly-stat-value {
+      color: #4ade80;
+    }
+
+    .weekly-stat-label {
+      font-size: 7px;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .weekly-stat-projects {
+      grid-column: span 3;
+    }
+
+    .weekly-stat-projects .weekly-stat-value {
+      font-size: 10px;
+      font-weight: normal;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    /* Daily Activity Chart */
+    .weekly-chart-section {
+      border-top: 1px solid #3a3a3a;
+      padding-top: 8px;
+      margin-bottom: 10px;
+    }
+
+    .weekly-section-label {
+      font-size: 9px;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .weekly-daily-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 50px;
+      padding: 0 4px;
+    }
+
+    .weekly-day-bar {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+    }
+
+    .weekly-bar-container {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      position: relative;
+      height: 40px;
+    }
+
+    .weekly-bar-fill {
+      width: 80%;
+      border-radius: 2px 2px 0 0;
+      background: #3a3a3a;
+      transition: height 0.4s ease;
+      position: absolute;
+      bottom: 0;
+    }
+
+    .weekly-bar-fill.active {
+      background: #4ade80;
+    }
+
+    .weekly-day-label {
+      font-size: 9px;
+      color: #808080;
+      margin-top: 3px;
+    }
+
+    /* Goals Section */
+    .weekly-goals-section {
+      border-top: 1px solid #3a3a3a;
+      padding-top: 8px;
+      margin-bottom: 10px;
+    }
+
+    .weekly-no-goals {
+      font-size: 9px;
+      color: #666;
+      font-style: italic;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .weekly-goal-row {
+      margin-top: 6px;
+    }
+
+    .weekly-goal-label {
+      font-size: 10px;
+      color: #e0e0e0;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .weekly-goal-bar {
+      width: 100%;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .weekly-goal-fill {
+      height: 100%;
+      background: #facc15;
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .weekly-goal-fill.met {
+      background: #4ade80;
+    }
+
+    /* Goal Form */
+    .weekly-goal-form {
+      border-top: 1px solid #3a3a3a;
+      padding-top: 8px;
+      margin-bottom: 8px;
+    }
+
+    .weekly-goal-form.hidden {
+      display: none;
+    }
+
+    .weekly-goal-input-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+
+    .weekly-goal-input-row label {
+      color: #e0e0e0;
+    }
+
+    .weekly-goal-input-row input {
+      width: 70px;
+      background: #3a3a3a;
+      border: 1px solid #555;
+      color: white;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .weekly-goal-input-row input:focus {
+      outline: none;
+      border-color: #facc15;
+    }
+
+    .weekly-goal-form-buttons {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .weekly-goal-form-buttons button {
+      padding: 3px 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10px;
+      transition: background 0.2s;
+    }
+
+    #weekly-goal-save {
+      background: #facc15;
+      color: black;
+    }
+
+    #weekly-goal-save:hover {
+      background: #eab308;
+    }
+
+    #weekly-goal-clear {
+      background: #3a3a3a;
+      color: #a0a0a0;
+    }
+
+    #weekly-goal-clear:hover {
+      background: #555;
+    }
+
+    /* Button row */
+    .weekly-buttons {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .weekly-buttons button {
+      padding: 5px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+      background: #3a3a3a;
+      color: white;
+    }
+
+    .weekly-buttons button:hover {
+      background: #555;
+    }
+
+    #weekly-set-goals {
+      background: rgba(250, 204, 21, 0.15);
+      color: #facc15;
+      border: 1px solid rgba(250, 204, 21, 0.3);
+    }
+
+    #weekly-set-goals:hover {
+      background: rgba(250, 204, 21, 0.25);
+    }
+
+    #weekly-export {
+      background: rgba(74, 222, 128, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(74, 222, 128, 0.3);
+    }
+
+    #weekly-export:hover {
+      background: rgba(74, 222, 128, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <div class="weekly-header">
+    <h3>Weekly Report</h3>
+    <span id="weekly-week-label" class="weekly-week-label"></span>
+  </div>
+
+  <p id="weekly-encouragement" class="weekly-encouragement"></p>
+
+  <div class="weekly-stats-grid">
+    <div class="weekly-stat">
+      <span class="weekly-stat-value" id="weekly-coding-time">0m</span>
+      <span class="weekly-stat-label">coding</span>
+    </div>
+    <div class="weekly-stat">
+      <span class="weekly-stat-value" id="weekly-active-days">0 / 7</span>
+      <span class="weekly-stat-label">active days</span>
+    </div>
+    <div class="weekly-stat">
+      <span class="weekly-stat-value" id="weekly-files">0 files</span>
+      <span class="weekly-stat-label">touched</span>
+    </div>
+    <div class="weekly-stat">
+      <span class="weekly-stat-value" id="weekly-longest-session">0m</span>
+      <span class="weekly-stat-label">longest</span>
+    </div>
+    <div class="weekly-stat">
+      <span class="weekly-stat-value" id="weekly-streak">0 days</span>
+      <span class="weekly-stat-label">streak</span>
+    </div>
+    <div class="weekly-stat weekly-stat-projects">
+      <span class="weekly-stat-value" id="weekly-projects">-</span>
+      <span class="weekly-stat-label">projects</span>
+    </div>
+  </div>
+
+  <div class="weekly-chart-section">
+    <span class="weekly-section-label">Daily Activity</span>
+    <div id="weekly-daily-chart" class="weekly-daily-chart"></div>
+  </div>
+
+  <div id="weekly-goals-section" class="weekly-goals-section"></div>
+
+  <div id="weekly-goal-form" class="weekly-goal-form hidden">
+    <div class="weekly-goal-input-row">
+      <label for="weekly-goal-hours">Hours/week:</label>
+      <input type="number" id="weekly-goal-hours" min="1" max="100" step="0.5" placeholder="e.g. 10">
+    </div>
+    <div class="weekly-goal-input-row">
+      <label for="weekly-goal-days">Days/week:</label>
+      <input type="number" id="weekly-goal-days" min="1" max="7" step="1" placeholder="e.g. 5">
+    </div>
+    <div class="weekly-goal-form-buttons">
+      <button id="weekly-goal-save">Save Goals</button>
+      <button id="weekly-goal-clear">Clear</button>
+    </div>
+  </div>
+
+  <div class="weekly-buttons">
+    <button id="weekly-set-goals">Set Goals</button>
+    <button id="weekly-export">Export</button>
+    <button id="weekly-close">Close</button>
+  </div>
+
+  <script type="module" src="weekly-page.js"></script>
+</body>
+</html>

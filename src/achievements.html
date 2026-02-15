@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Vibe - Achievements</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .panel-header h3 {
+      margin-bottom: 0;
+    }
+
+    .achievement-counter {
+      font-size: 11px;
+      color: #a0a0a0;
+    }
+
+    .achievement-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #a0a0a0;
+      margin: 12px 0 6px 2px;
+    }
+
+    .achievement-section-label:first-child {
+      margin-top: 0;
+    }
+
+    .achievement-section-label.unlocked-label {
+      color: #4ade80;
+    }
+
+    .achievement-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .achievement-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 11px;
+      color: #666;
+      padding: 8px;
+      font-style: italic;
+    }
+
+    .achievement-card {
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .achievement-card.unlocked {
+      border-color: rgba(74, 222, 128, 0.4);
+      background: rgba(74, 222, 128, 0.05);
+    }
+
+    .achievement-card.locked {
+      opacity: 0.5;
+    }
+
+    .achievement-emblem {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+      border: 2px solid;
+    }
+
+    .achievement-card.unlocked .achievement-emblem {
+      background: rgba(74, 222, 128, 0.15);
+      border-color: rgba(74, 222, 128, 0.5);
+    }
+
+    .achievement-card.locked .achievement-emblem {
+      background: rgba(80, 80, 80, 0.4);
+      border-color: #444;
+      filter: grayscale(100%);
+    }
+
+    .achievement-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .achievement-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .achievement-desc {
+      font-size: 10px;
+      color: #a0a0a0;
+      margin-top: 2px;
+    }
+
+    .achievement-progress-bar {
+      height: 3px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .achievement-progress-fill {
+      height: 100%;
+      background: #4ade80;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .achievement-progress-text {
+      font-size: 9px;
+      color: #a0a0a0;
+      margin-top: 2px;
+    }
+
+    .achievement-date {
+      font-size: 10px;
+      color: #4ade80;
+      font-style: italic;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <h3>Achievements</h3>
+    <span class="achievement-counter" id="achievement-counter">0 / 0</span>
+  </div>
+
+  <div class="achievement-section-label unlocked-label" id="unlocked-label">Unlocked</div>
+  <div class="achievement-grid" id="unlocked-grid"></div>
+
+  <div class="achievement-section-label" id="locked-label">Locked</div>
+  <div class="achievement-grid" id="locked-grid"></div>
+
+  <div class="button-row">
+    <button class="panel-btn" id="close-btn">Close</button>
+  </div>
+
+  <script type="module" src="achievements-page.js"></script>
+</body>
+</html>

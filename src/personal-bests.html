@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Bests</title>
+  <link rel="stylesheet" href="panel-common.css">
+  <style>
+    body {
+      user-select: none;
+    }
+
+    .pb-header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .pb-header h3 {
+      font-size: 14px;
+      color: #fb923c;
+      margin-bottom: 2px;
+    }
+
+    .pb-subtitle {
+      font-size: 9px;
+      color: #a0a0a0;
+      font-style: italic;
+    }
+
+    /* Metric cards */
+    #personal-best-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .pb-card {
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(50, 50, 50, 0.6);
+      border: 1px solid #3a3a3a;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .pb-card:hover {
+      border-color: #555;
+    }
+
+    .pb-card.pb-record {
+      border-color: #fb923c;
+      background: rgba(251, 146, 60, 0.08);
+      box-shadow: 0 0 8px rgba(251, 146, 60, 0.15);
+    }
+
+    .pb-card-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .pb-icon {
+      font-size: 14px;
+    }
+
+    .pb-label {
+      font-size: 10px;
+      color: #a0a0a0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: bold;
+    }
+
+    .pb-values {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .pb-current,
+    .pb-best {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 50px;
+    }
+
+    .pb-value-number {
+      font-size: 13px;
+      font-weight: bold;
+      color: #e0e0e0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pb-best-number {
+      color: #fb923c;
+    }
+
+    .pb-value-label {
+      font-size: 8px;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 1px;
+    }
+
+    .pb-vs {
+      font-size: 9px;
+      color: #555;
+      font-style: italic;
+    }
+
+    .pb-progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .pb-progress-fill {
+      height: 100%;
+      background: #fb923c;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+      opacity: 0.6;
+    }
+
+    .pb-progress-fill.pb-record-fill {
+      opacity: 1;
+      background: #fb923c;
+      box-shadow: 0 0 4px rgba(251, 146, 60, 0.4);
+    }
+
+    .pb-date {
+      display: block;
+      font-size: 9px;
+      color: #666;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    /* History section */
+    .pb-history-section {
+      border-top: 1px solid #3a3a3a;
+      padding-top: 8px;
+      margin-bottom: 10px;
+      min-height: 20px;
+    }
+
+    .pb-history-hint,
+    .pb-history-empty {
+      font-size: 9px;
+      color: #555;
+      font-style: italic;
+      display: block;
+      text-align: center;
+    }
+
+    .pb-history-title {
+      font-size: 9px;
+      color: #808080;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .pb-history-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 50px;
+      padding: 0 4px;
+    }
+
+    .pb-history-bar-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+    }
+
+    .pb-history-bar-wrapper > :first-child {
+      margin-top: auto;
+    }
+
+    .pb-history-bar {
+      width: 80%;
+      border-radius: 2px 2px 0 0;
+      background: #fb923c;
+      min-height: 2px;
+      transition: height 0.3s ease;
+    }
+
+    .pb-history-bar-label {
+      font-size: 7px;
+      color: #808080;
+      margin-top: 3px;
+      white-space: nowrap;
+    }
+
+    /* Close button */
+    .pb-buttons {
+      display: flex;
+      justify-content: center;
+    }
+
+    .pb-buttons button {
+      padding: 5px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+      background: #3a3a3a;
+      color: white;
+    }
+
+    .pb-buttons button:hover {
+      background: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="pb-header">
+    <h3>Personal Bests</h3>
+    <span class="pb-subtitle">Compete with yourself</span>
+  </div>
+
+  <div id="personal-best-grid"></div>
+
+  <div id="personal-best-history" class="pb-history-section">
+    <span class="pb-history-hint">Click a metric to see history</span>
+  </div>
+
+  <div class="pb-buttons">
+    <button id="personal-best-close">Close</button>
+  </div>
+
+  <script type="module" src="personal-bests-page.js"></script>
+</body>
+</html>

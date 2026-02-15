@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "default",
+  "description": "Default capabilities for Dr. Vibe",
+  "windows": ["main", "speech", "toast", "settings", "dashboard", "session", "about", "achievements", "skills", "weekly", "today-wins", "personal-bests", "debug", "sprite-editor"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-position",
+    "core:window:allow-current-monitor",
+    "core:window:allow-available-monitors",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-outer-size",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-scale-factor",
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted",
+    "store:default",
+    "shell:default",
+    "shell:allow-open",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit-to"
+  ]
+}

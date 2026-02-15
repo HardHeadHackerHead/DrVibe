@@ -1,0 +1,360 @@
+{
+  "languages": {
+    "rust": {
+      "label": "Rust",
+      "indicators": ["Cargo.toml", ".rs"],
+      "resources": [
+        {
+          "title": "The Rust Programming Language (The Book)",
+          "url": "https://doc.rust-lang.org/book/",
+          "type": "guide"
+        },
+        {
+          "title": "Rust By Example",
+          "url": "https://doc.rust-lang.org/rust-by-example/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Rust Standard Library Docs",
+          "url": "https://doc.rust-lang.org/std/",
+          "type": "docs"
+        }
+      ]
+    },
+    "python": {
+      "label": "Python",
+      "indicators": ["requirements.txt", "pyproject.toml", "setup.py", ".py"],
+      "resources": [
+        {
+          "title": "Python Official Tutorial",
+          "url": "https://docs.python.org/3/tutorial/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Python Standard Library Reference",
+          "url": "https://docs.python.org/3/library/",
+          "type": "docs"
+        },
+        {
+          "title": "Real Python Tutorials",
+          "url": "https://realpython.com/",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "javascript": {
+      "label": "JavaScript",
+      "indicators": ["package.json", ".js", ".mjs"],
+      "resources": [
+        {
+          "title": "MDN JavaScript Guide",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+          "type": "guide"
+        },
+        {
+          "title": "JavaScript.info",
+          "url": "https://javascript.info/",
+          "type": "tutorial"
+        },
+        {
+          "title": "MDN Web API Reference",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API",
+          "type": "docs"
+        }
+      ]
+    },
+    "typescript": {
+      "label": "TypeScript",
+      "indicators": ["tsconfig.json", ".ts", ".tsx"],
+      "resources": [
+        {
+          "title": "TypeScript Handbook",
+          "url": "https://www.typescriptlang.org/docs/handbook/",
+          "type": "guide"
+        },
+        {
+          "title": "TypeScript Playground",
+          "url": "https://www.typescriptlang.org/play",
+          "type": "tutorial"
+        },
+        {
+          "title": "TypeScript Reference",
+          "url": "https://www.typescriptlang.org/docs/",
+          "type": "docs"
+        }
+      ]
+    },
+    "go": {
+      "label": "Go",
+      "indicators": ["go.mod", "go.sum", ".go"],
+      "resources": [
+        {
+          "title": "A Tour of Go",
+          "url": "https://go.dev/tour/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Effective Go",
+          "url": "https://go.dev/doc/effective_go",
+          "type": "guide"
+        },
+        {
+          "title": "Go Standard Library",
+          "url": "https://pkg.go.dev/std",
+          "type": "docs"
+        }
+      ]
+    },
+    "java": {
+      "label": "Java",
+      "indicators": ["pom.xml", "build.gradle", ".java"],
+      "resources": [
+        {
+          "title": "Oracle Java Tutorials",
+          "url": "https://docs.oracle.com/javase/tutorial/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Java SE API Documentation",
+          "url": "https://docs.oracle.com/en/java/javase/21/docs/api/",
+          "type": "docs"
+        },
+        {
+          "title": "Baeldung Java Guides",
+          "url": "https://www.baeldung.com/",
+          "type": "guide"
+        }
+      ]
+    },
+    "csharp": {
+      "label": "C#",
+      "indicators": [".csproj", ".sln", ".cs"],
+      "resources": [
+        {
+          "title": "C# Documentation",
+          "url": "https://learn.microsoft.com/en-us/dotnet/csharp/",
+          "type": "guide"
+        },
+        {
+          "title": "C# Fundamentals",
+          "url": "https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/",
+          "type": "tutorial"
+        },
+        {
+          "title": ".NET API Browser",
+          "url": "https://learn.microsoft.com/en-us/dotnet/api/",
+          "type": "docs"
+        }
+      ]
+    },
+    "cpp": {
+      "label": "C++",
+      "indicators": ["CMakeLists.txt", ".cpp", ".hpp", ".h"],
+      "resources": [
+        {
+          "title": "C++ Reference",
+          "url": "https://en.cppreference.com/",
+          "type": "docs"
+        },
+        {
+          "title": "Learn C++",
+          "url": "https://www.learncpp.com/",
+          "type": "tutorial"
+        },
+        {
+          "title": "C++ Core Guidelines",
+          "url": "https://isocpp.github.io/CppCoreGuidelines/",
+          "type": "guide"
+        }
+      ]
+    },
+    "ruby": {
+      "label": "Ruby",
+      "indicators": ["Gemfile", ".rb", "Rakefile"],
+      "resources": [
+        {
+          "title": "Ruby Documentation",
+          "url": "https://ruby-doc.org/",
+          "type": "docs"
+        },
+        {
+          "title": "Ruby in Twenty Minutes",
+          "url": "https://www.ruby-lang.org/en/documentation/quickstart/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Ruby on Rails Guides",
+          "url": "https://guides.rubyonrails.org/",
+          "type": "guide"
+        }
+      ]
+    },
+    "swift": {
+      "label": "Swift",
+      "indicators": ["Package.swift", ".swift", ".xcodeproj"],
+      "resources": [
+        {
+          "title": "The Swift Programming Language",
+          "url": "https://docs.swift.org/swift-book/",
+          "type": "guide"
+        },
+        {
+          "title": "Apple Developer Documentation",
+          "url": "https://developer.apple.com/documentation/",
+          "type": "docs"
+        },
+        {
+          "title": "Hacking with Swift",
+          "url": "https://www.hackingwithswift.com/",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "kotlin": {
+      "label": "Kotlin",
+      "indicators": [".kt", ".kts", "build.gradle.kts"],
+      "resources": [
+        {
+          "title": "Kotlin Official Documentation",
+          "url": "https://kotlinlang.org/docs/home.html",
+          "type": "guide"
+        },
+        {
+          "title": "Kotlin Playground",
+          "url": "https://play.kotlinlang.org/",
+          "type": "tutorial"
+        },
+        {
+          "title": "Kotlin Standard Library",
+          "url": "https://kotlinlang.org/api/latest/jvm/stdlib/",
+          "type": "docs"
+        }
+      ]
+    },
+    "php": {
+      "label": "PHP",
+      "indicators": ["composer.json", ".php"],
+      "resources": [
+        {
+          "title": "PHP Manual",
+          "url": "https://www.php.net/manual/en/",
+          "type": "docs"
+        },
+        {
+          "title": "PHP The Right Way",
+          "url": "https://phptherightway.com/",
+          "type": "guide"
+        },
+        {
+          "title": "Laravel Documentation",
+          "url": "https://laravel.com/docs",
+          "type": "guide"
+        }
+      ]
+    }
+  },
+  "frameworks": {
+    "react": {
+      "label": "React",
+      "indicators": ["react", "react-dom", ".jsx", ".tsx"],
+      "resources": [
+        {
+          "title": "React Documentation",
+          "url": "https://react.dev/",
+          "type": "docs"
+        },
+        {
+          "title": "React Tutorial",
+          "url": "https://react.dev/learn",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "vue": {
+      "label": "Vue.js",
+      "indicators": ["vue", ".vue"],
+      "resources": [
+        {
+          "title": "Vue.js Guide",
+          "url": "https://vuejs.org/guide/introduction.html",
+          "type": "guide"
+        },
+        {
+          "title": "Vue.js API Reference",
+          "url": "https://vuejs.org/api/",
+          "type": "docs"
+        }
+      ]
+    },
+    "angular": {
+      "label": "Angular",
+      "indicators": ["angular.json", "@angular/core"],
+      "resources": [
+        {
+          "title": "Angular Documentation",
+          "url": "https://angular.dev/",
+          "type": "docs"
+        },
+        {
+          "title": "Angular Tutorial",
+          "url": "https://angular.dev/tutorials",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "django": {
+      "label": "Django",
+      "indicators": ["django", "manage.py"],
+      "resources": [
+        {
+          "title": "Django Documentation",
+          "url": "https://docs.djangoproject.com/",
+          "type": "docs"
+        },
+        {
+          "title": "Django Tutorial",
+          "url": "https://docs.djangoproject.com/en/stable/intro/tutorial01/",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "flask": {
+      "label": "Flask",
+      "indicators": ["flask"],
+      "resources": [
+        {
+          "title": "Flask Documentation",
+          "url": "https://flask.palletsprojects.com/",
+          "type": "docs"
+        },
+        {
+          "title": "Flask Tutorial",
+          "url": "https://flask.palletsprojects.com/en/latest/tutorial/",
+          "type": "tutorial"
+        }
+      ]
+    },
+    "tauri": {
+      "label": "Tauri",
+      "indicators": ["tauri.conf.json", "@tauri-apps"],
+      "resources": [
+        {
+          "title": "Tauri Documentation",
+          "url": "https://v2.tauri.app/",
+          "type": "docs"
+        },
+        {
+          "title": "Tauri Guides",
+          "url": "https://v2.tauri.app/start/",
+          "type": "guide"
+        }
+      ]
+    }
+  },
+  "suggestionTemplates": {
+    "newLanguage": "Working with {label}? Here are some handy references:",
+    "newFramework": "Using {label}? These resources might come in handy:",
+    "struggling": "Spending a lot of time on this? These {label} resources could help:",
+    "lowMomentum": "Getting started with {label}? Check out these resources:"
+  }
+}
