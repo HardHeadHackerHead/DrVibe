@@ -26,5 +26,13 @@ desktop.ini
 *.log
 npm-debug.log*
 
+# Release scripts and assets (contain local config)
+release-macos.sh
+make-dmg.sh
+keys/
+
+# Generated DMG backgrounds (rebuilt by make-dmg.sh)
+src-tauri/dmg-resources/background*.png
+
 # Package lock (optional - uncomment if you don't want to track it)
 # package-lock.json

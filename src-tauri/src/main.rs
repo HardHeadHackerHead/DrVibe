@@ -676,7 +676,29 @@ fn get_cursor_position_impl() -> Result<(i32, i32), String> {
 
 #[cfg(target_os = "macos")]
 fn get_cursor_position_impl() -> Result<(i32, i32), String> {
-    Err("macOS implementation pending".to_string())
+    use cocoa::foundation::{NSPoint, NSRect};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        // NSEvent mouseLocation returns cursor position in Cocoa screen coordinates
+        // (origin at bottom-left of primary screen, in points)
+        let mouse_loc: NSPoint = msg_send![class!(NSEvent), mouseLocation];
+
+        // Get primary screen frame to convert coordinate origin
+        let main_screen: cocoa::base::id = msg_send![class!(NSScreen), mainScreen];
+        if main_screen.is_null() {
+            return Err("No main screen".to_string());
+        }
+        let frame: NSRect = msg_send![main_screen, frame];
+        let scale: f64 = msg_send![main_screen, backingScaleFactor];
+
+        // Convert from Cocoa (bottom-left origin) to top-left origin,
+        // then from points to physical pixels to match Tauri's outerPosition()
+        let x = mouse_loc.x * scale;
+        let y = (frame.size.height - mouse_loc.y) * scale;
+
+        Ok((x as i32, y as i32))
+    }
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -735,7 +757,39 @@ fn get_active_window_impl() -> Result<WindowInfo, String> {
 
 #[cfg(target_os = "macos")]
 fn get_active_window_impl() -> Result<WindowInfo, String> {
-    Err("macOS implementation pending".to_string())
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let workspace: cocoa::base::id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        if workspace.is_null() {
+            return Err("Cannot get shared workspace".to_string());
+        }
+
+        let app: cocoa::base::id = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            return Err("No frontmost application".to_string());
+        }
+
+        let name_ns: cocoa::base::id = msg_send![app, localizedName];
+        let pid: i32 = msg_send![app, processIdentifier];
+
+        let app_name = if name_ns.is_null() {
+            "Unknown".to_string()
+        } else {
+            let c_str: *const std::os::raw::c_char = msg_send![name_ns, UTF8String];
+            if c_str.is_null() {
+                "Unknown".to_string()
+            } else {
+                std::ffi::CStr::from_ptr(c_str).to_string_lossy().into_owned()
+            }
+        };
+
+        Ok(WindowInfo {
+            app_name,
+            window_title: String::new(),
+            process_id: pid as u32,
+        })
+    }
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
