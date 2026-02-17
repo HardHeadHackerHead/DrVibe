@@ -13,12 +13,13 @@
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
-    "@tauri-apps/plugin-store": "^2.0.0"
+    "@tauri-apps/plugin-store": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.10.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
     "canvas": "^3.2.1",
-    "live-server": "^1.2.2",
+    "live-server": "^1.2.0",
     "serve": "^14.2.0"
   }
 }

@@ -50,6 +50,7 @@ import { FocusMode } from './features/focus/FocusMode.js';
 import { ClickThrough } from './features/clickthrough/ClickThrough.js';
 import { WalkingBehavior } from './features/character/WalkingBehavior.js';
 import { SoundManager } from './features/sound/SoundManager.js';
+import { updateChecker } from './core/UpdateChecker.js';
 import { WindowDrag } from './ui/WindowDrag.js';
 
 import { ProjectDisplay } from './ui/ProjectDisplay.js';
@@ -532,6 +533,9 @@ class App {
 
     eventBus.emit(Events.APP_READY, {});
     console.log('Dr. Vibe initialized!');
+
+    // Check for updates 30 seconds after startup (silent, non-blocking)
+    updateChecker.scheduleCheck();
   }
 
   async _initOptional(name, fn) {

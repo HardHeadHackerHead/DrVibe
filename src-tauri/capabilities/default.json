@@ -27,6 +27,9 @@
     "shell:allow-open",
     "core:event:default",
     "core:event:allow-listen",
-    "core:event:allow-emit-to"
+    "core:event:allow-emit-to",
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install"
   ]
 }

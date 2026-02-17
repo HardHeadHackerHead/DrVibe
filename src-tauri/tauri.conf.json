@@ -67,6 +67,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -81,8 +82,16 @@
       "timestampUrl": ""
     },
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "Developer ID Application: DAVID MICHAEL HACKER (X83LY7NA33)"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/HardHeadHackerHead/DrVibe/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJEMkUwMERFNEVFQ0Q5OTQKUldTVTJleE8zZ0F1dlcrSWdkLzhpNGlQNTd1K1ZiOEZYa3JEZHYyem5maU9VYXFRTG5vQjcxL0YK"
+    }
+  }
 }
