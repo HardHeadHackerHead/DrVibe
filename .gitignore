@@ -31,8 +31,9 @@ release-macos.sh
 make-dmg.sh
 keys/
 
-# Generated DMG backgrounds (rebuilt by make-dmg.sh)
+# Generated DMG resources (rebuilt by make-dmg.sh)
 src-tauri/dmg-resources/background*.png
+src-tauri/dmg-resources/volicon.icns
 
 # Package lock (optional - uncomment if you don't want to track it)
 # package-lock.json
