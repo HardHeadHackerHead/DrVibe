@@ -253,6 +253,11 @@ export const Events = {
   AI_PAIR_STARTED: 'aiPair:started',
   AI_PAIR_ENDED: 'aiPair:ended',
 
+  // Snitch security integration
+  SNITCH_SCAN_SUGGESTED: 'snitch:scanSuggested',
+  SNITCH_SCAN_STARTED:   'snitch:scanStarted',
+  SNITCH_SCAN_COMPLETE:  'snitch:scanComplete',
+
   // Streak tracker events
   STREAK_UPDATED: 'streak:updated',
   STREAK_MILESTONE: 'streak:milestone',

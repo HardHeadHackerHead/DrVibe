@@ -49,6 +49,7 @@ import { DailyStreakTracker } from './features/streak/DailyStreakTracker.js';
 import { FocusMode } from './features/focus/FocusMode.js';
 import { ClickThrough } from './features/clickthrough/ClickThrough.js';
 import { WalkingBehavior } from './features/character/WalkingBehavior.js';
+import { SnitchTracker } from './features/security/SnitchTracker.js';
 import { SoundManager } from './features/sound/SoundManager.js';
 import { updateChecker } from './core/UpdateChecker.js';
 import { WindowDrag } from './ui/WindowDrag.js';
@@ -107,6 +108,7 @@ class App {
     this.walkingBehavior = null;
     this.soundManager = null;
     this.speechBubbleTimer = null;
+    this.snitchTracker = null;
     this._todayWinsIsQuitFlow = false;
   }
 
@@ -179,6 +181,11 @@ class App {
     await this._initOptional('AIPairTracker', async () => {
       this.aiPairTracker = new AIPairTracker();
       this.aiPairTracker.init();
+    });
+
+    await this._initOptional('SnitchTracker', async () => {
+      this.snitchTracker = new SnitchTracker(this.settings);
+      this.snitchTracker.init();
     });
 
     await this._initOptional('MomentumTracker', async () => {
@@ -695,6 +702,12 @@ class App {
         projectName ? `Working on: ${projectName}` : 'A new Claude Code session started.'
       );
     });
+
+    // Snitch security scan suggestion
+    eventBus.on(Events.SNITCH_SCAN_SUGGESTED, ({ text, tip }) => {
+      this.character?.setState('worried');
+      showSpeech(text, tip);
+    });
   }
 
   _showSpeechWindow() {
@@ -985,6 +998,7 @@ class App {
       'aiPair:milestone': [Events.AI_PAIR_MILESTONE, { seconds: 1800, label: '30 minutes', text: '30 minutes of pair programming!', tip: 'You two are in sync.' }],
       'aiPair:started': [Events.AI_PAIR_STARTED, { startedAt: Date.now() }],
       'aiPair:ended': [Events.AI_PAIR_ENDED, { duration: 3600, startedAt: Date.now() - 3600000 }],
+      'snitch:scanSuggested': [Events.SNITCH_SCAN_SUGGESTED, { mode: 'diff', fileCount: 7, cwd: '/test/project', projectName: 'debug-project', text: '7 files just changed. Worth a quick security check before you ship?', tip: 'Run /snitch --diff in your terminal.' }],
     };
 
     const entry = eventData[eventKey];
@@ -1098,6 +1112,7 @@ class App {
     this.fileSystemScanner?.destroy();
     this.claudeCodeTracker?.destroy();
     this.aiPairTracker?.destroy();
+    this.snitchTracker?.destroy();
     this.momentumTracker?.destroy();
     this.sessionContext?.destroy();
     this.sessionTracker?.destroy();
