@@ -369,6 +369,9 @@ export class ClaudeCodeTracker {
       cwd: event.cwd,
     });
 
+    // Not run through the watcher's ignore rules (watcher.rs): a Write or
+    // Edit is a deliberate edit even in a gitignored file (.env, local
+    // config). Build output reaches the counts only through the watcher.
     eventBus.emit('file-changed-synthetic', {
       event_type: isNewFile ? 'create' : 'modify',
       path: event.file,

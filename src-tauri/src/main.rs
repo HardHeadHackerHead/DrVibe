@@ -10,6 +10,7 @@ mod deeplink;
 mod e2e_bridge;
 mod error_reports;
 mod generator;
+mod gitignore;
 mod panels;
 mod presence;
 mod projects;
