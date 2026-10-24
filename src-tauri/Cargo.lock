@@ -959,6 +959,7 @@ dependencies = [
  "cocoa",
  "drvibe-protocol",
  "keyring",
+ "libc",
  "notify",
  "objc",
  "png 0.17.16",
