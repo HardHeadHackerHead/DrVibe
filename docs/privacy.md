@@ -29,6 +29,7 @@ Codex CLI (which talks to its own provider under your account).
 | The title and process name of the focused window | To tell when you're coding and in which app or project | In memory |
 | File changes inside your project folders | Momentum, files touched, languages | In memory; daily totals in the app data |
 | Git details: branches, commit messages, changed files | Commit celebrations and reminders | In memory; counts and commit dates in the app data |
+| Names and paths of your git repos. With *Find my repos automatically* on (Settings → Tracking, on by default), the app looks in your home folder and on every local drive once a day (not network or removable drives) and remembers repos you work in; off, only the project folders you added | To watch every repo for commits | The app data. Never sent: the sync carries a repo count, not names or paths |
 | Claude Code activity (tool, file path, session, folder), while *Follow Claude Code* is on | Heat bar and Claude Code reactions | `~/.dr-vibe/claude-code-events.jsonl` (rotated at 5 MB). See [claude-code.md](claude-code.md) |
 | Antigravity activity | The levitating animation | In memory |
 | Sessions, streaks, achievements, personal bests, time per language, break, hydration, posture and focus history | Dashboard and progress | `%APPDATA%\com.drvibe.companion\dr-vibe-data.json` |

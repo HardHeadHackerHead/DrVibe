@@ -24,6 +24,7 @@ import { applyClaudeHooksSetting } from './features/activity/claudeHooks.js';
 import { AIPairTracker } from './features/activity/AIPairTracker.js';
 import { AntiGravityTracker } from './features/activity/AntiGravityTracker.js';
 import { GitTracker } from './features/activity/GitTracker.js';
+import { claudeFolderToAutoAdd } from './features/activity/repoPaths.js';
 import { Settings } from './features/settings/Settings.js';
 import { Notifier } from './features/notifications/Notifier.js';
 import { BoundaryAwareness } from './features/boundaries/BoundaryAwareness.js';
@@ -220,8 +221,22 @@ class App {
     });
 
     await this._initOptional('FileSystemScanner', async () => {
-      this.fileSystemScanner = new FileSystemScanner();
+      this.fileSystemScanner = new FileSystemScanner(this.settings);
       await this.fileSystemScanner.init();
+
+      // Settings -> Tracking shows the found repos and has "Scan now".
+      const sendRepoStatus = () => {
+        try {
+          window.__TAURI__.event.emitTo('settings', 'repo-scan-status', this.fileSystemScanner.getStatus());
+        } catch {}
+      };
+      for (const ev of [Events.SCANNER_STARTED, Events.SCANNER_COMPLETE, Events.SCANNER_ERROR, Events.PROJECTS_DISCOVERED]) {
+        eventBus.on(ev, sendRepoStatus);
+      }
+      window.__TAURI__?.event?.listen?.('request-repo-scan-status', sendRepoStatus);
+      window.__TAURI__?.event?.listen?.('repo-scan-now', () => {
+        this.fileSystemScanner.scan().catch(e => console.error('Repo scan failed:', e));
+      });
     });
 
     await this._initOptional('ClaudeCodeHooks', async () => {
@@ -253,10 +268,10 @@ class App {
       this.gitTracker = new GitTracker(this.settings);
       this.gitTracker.init();
 
-      // If FileSystemScanner already emitted discovered projects, seed the watchlist now
-      const discovered = this.fileSystemScanner?.getProjects();
+      // If the repo scanner already emitted its list, seed the watchlist now
+      const discovered = this.fileSystemScanner?.getRepos();
       if (discovered?.length > 0) {
-        this.gitTracker.populateFromProjects(discovered);
+        this.gitTracker.populateFromRepos(discovered);
       }
     });
 
@@ -1218,36 +1233,22 @@ class App {
       );
 
       // Auto-add the parent directory to projectFolders so momentum tracking
-      // persists across restarts even if the user never manually configured folders.
-      // Guards against over-broad and malformed entries that earlier versions
-      // wrote (e.g. `C:\Users\` from running Claude in the user home, or
-      // double-escaped paths from a buggy hook). Without these guards the
-      // Tauri file watcher ended up watching all of AppData and Documents.
+      // persists across restarts, only with "Find my repos automatically" on.
+      // claudeFolderToAutoAdd guards against over-broad and malformed entries
+      // (e.g. `C:\Users\` from running Claude in the user home) that once had
+      // the file watcher watching all of AppData and Documents.
       if (cwd && this.projectDetector) {
-        // Collapse any double-backslash sequences that may have leaked in
-        // from older hook versions, then strip trailing separators.
-        const cleaned = cwd.replace(/\\{2,}/g, '\\').replace(/[/\\]+$/, '');
-        const parentPath = cleaned.replace(/[/\\][^/\\]+$/, '') || cleaned;
-
-        // Reject parents that are too shallow to be a real project root —
-        // anything at or above `C:\Users\<name>` on Windows or a 2-segment
-        // path on POSIX. Heuristic: parent must have at least 3 path segments.
-        const segments = parentPath.split(/[/\\]+/).filter(Boolean);
-        const tooShallow = segments.length < 3;
-        const looksMalformed = /\\{2,}/.test(parentPath);
-
-        const folderToAdd = parentPath;
-        if (
-          folderToAdd &&
-          !tooShallow &&
-          !looksMalformed &&
-          !this.settings.projectFolders.includes(folderToAdd)
-        ) {
-          this.settings.addProjectFolder(folderToAdd);
-          this.projectDetector.scanExtraPaths([folderToAdd]);
-          console.log(`Auto-added project folder from Claude Code session: ${folderToAdd}`);
-        } else if (tooShallow || looksMalformed) {
-          console.warn(`Skipped auto-add (shallow=${tooShallow}, malformed=${looksMalformed}): ${parentPath}`);
+        const { folder, skip } = claudeFolderToAutoAdd(cwd, {
+          autoDetect: this.settings.get('autoDetectRepos') !== false,
+          projectFolders: this.settings.projectFolders,
+          ignored: this.settings.get('ignoredRepos'),
+        });
+        if (folder) {
+          this.settings.addProjectFolder(folder);
+          this.projectDetector.scanExtraPaths([folder]);
+          console.log(`Auto-added project folder from Claude Code session: ${folder}`);
+        } else if (skip === 'too-shallow' || skip === 'malformed') {
+          console.warn(`Skipped auto-add (${skip}): ${cwd}`);
         }
       }
     });

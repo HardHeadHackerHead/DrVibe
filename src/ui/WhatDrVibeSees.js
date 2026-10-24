@@ -7,6 +7,7 @@ export const STAYS_LOCAL = [
   'The names and titles of the windows you use, to tell when you are coding',
   'File paths and file changes inside your project folders',
   'Git details: branches, commit messages and changed files',
+  'Where your git repos are, found on your drives if "Find my repos automatically" is on in Tracking',
   'Claude Code activity from its hooks (which files it reads and edits, never prompts or code), if Claude Code is switched on in Tracking',
   'Whether Antigravity is the app in front, from its window',
   'Your break, hydration, posture and focus history',

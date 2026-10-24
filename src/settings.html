@@ -405,6 +405,27 @@
     .project-folder-scanning { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
     .project-folder-none { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
     .project-folders-add { display: flex; gap: 6px; }
+    /* ── Found repos ── */
+    .found-repos-card { margin-bottom: 14px; }
+    .found-repos-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .found-repos-head span { font-size: 10px; color: var(--muted-2); }
+    .found-repos-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+    .found-repo {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 2px 8px;
+      padding: 4px 6px; border-radius: 6px; font-size: 10px;
+    }
+    .found-repo:hover { background: rgba(127,127,127,0.06); }
+    .found-repo-name { font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .found-repo-path { grid-column: 1 / -1; grid-row: 2; font-family: var(--font-mono); font-size: 9px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .found-repo-when { font-size: 9px; color: var(--muted-2); white-space: nowrap; }
+    .found-repo-tag { font-size: 8px; color: var(--green); margin-left: 4px; font-weight: 500; }
+    .found-repo button {
+      background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 5px;
+      padding: 1px 7px; font-size: 9px; cursor: pointer; font-family: inherit; transition: color .15s, border-color .15s;
+    }
+    .found-repo button:hover { color: var(--text-2); border-color: rgba(127,127,127,0.3); }
+    .found-repos-empty { font-size: 10px; color: var(--muted-2); font-style: italic; padding: 4px 6px; }
+    .ignored-repos { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
     .project-folders-add input {
       flex: 1; background: var(--bg-input); border: 1px solid var(--border);
       color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 11px; font-family: inherit; transition: border-color .15s;
@@ -1120,6 +1141,23 @@
             </div>
 
             <div class="panel-col">
+              <div class="section-label">Git Repos</div>
+              <div class="section-card found-repos-card">
+                <div class="toggle-row" style="margin-bottom:6px">
+                  <span style="font-weight:600;color:var(--text-2)">Find my repos automatically</span>
+                  <label class="toggle"><input type="checkbox" id="auto-detect-repos" checked><span class="track"></span></label>
+                </div>
+                <div id="auto-detect-repos-desc" class="section-desc" style="margin:0 0 10px">Looks for git repos in your home folder and on every local drive once a day, and remembers repos you work in. Paths stay on this computer.</div>
+                <div class="found-repos-head">
+                  <span id="found-repos-summary">Not scanned yet</span>
+                  <button id="repo-scan-btn" class="browse-btn">Scan now</button>
+                </div>
+                <div id="found-repos-list" class="found-repos-list"></div>
+                <div id="ignored-repos-wrap" class="ignored-repos" hidden>
+                  <div id="ignored-repos-summary" class="git-group-label">Ignored</div>
+                  <div id="ignored-repos-list" class="found-repos-list"></div>
+                </div>
+              </div>
               <div class="section-label">Project Folders</div>
               <div class="section-desc">Scanned for git repos to enable momentum tracking</div>
               <div id="project-folders-list" class="project-folders-list"></div>

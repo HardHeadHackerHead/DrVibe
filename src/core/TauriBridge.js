@@ -216,14 +216,14 @@ class TauriBridge {
     }
   }
 
-  // Filesystem scanning for project discovery
-  async scanDirectoriesForProjects(searchPaths, maxDepth = 5) {
-    if (!this.isAvailable || !this.invoke) return [];
+  // Git repo discovery (repo_scan.rs). Null when unavailable or already running.
+  async scanGitRepos(request) {
+    if (!this.isAvailable || !this.invoke) return null;
     try {
-      return await this.invoke('scan_directories_for_projects', { searchPaths, maxDepth });
+      return await this.invoke('scan_git_repos', { request });
     } catch (e) {
-      console.error('Failed to scan directories for projects:', e);
-      return [];
+      console.error('Failed to scan for git repos:', e);
+      return null;
     }
   }
 

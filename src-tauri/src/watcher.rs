@@ -20,29 +20,31 @@ pub struct FileChangeEvent {
     pub timestamp: u64,
 }
 
+// Folders whose file changes are noise. The repo scan skips them too.
+pub(crate) const IGNORED_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    "__pycache__",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".cargo",
+];
+
 // Directories/extensions to ignore when watching for file changes
 pub(crate) fn should_ignore_path(path: &Path) -> bool {
     let path_str = path.to_string_lossy();
 
     // Ignore hidden dirs and common non-source dirs
-    let ignore_dirs = [
-        "node_modules",
-        ".git",
-        "target",
-        "dist",
-        "build",
-        "__pycache__",
-        ".next",
-        ".nuxt",
-        ".svelte-kit",
-        ".venv",
-        "venv",
-        ".tox",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".cargo",
-    ];
-    for dir in &ignore_dirs {
+    for dir in IGNORED_DIRS {
         if path_str.contains(&format!("{}{}", std::path::MAIN_SEPARATOR, dir))
             || path_str.contains(&format!("{}{}{}", dir, std::path::MAIN_SEPARATOR, ""))
         {

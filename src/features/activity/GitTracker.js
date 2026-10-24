@@ -5,6 +5,7 @@
 
 import { eventBus, Events } from '../../core/EventBus.js';
 import { tauri } from '../../core/TauriBridge.js';
+import { isIgnoredRepo, isInside } from './repoPaths.js';
 
 // How long to wait before re-sending a reminder at each urgency level.
 const REMINDER_COOLDOWNS = {
@@ -39,6 +40,7 @@ class RepoState {
     this.path = path;
     this.name = name;
     this.tier = 'idle';               // 'active' | 'idle'
+    this.detected = false;            // added from runtime detection, not the scan list
 
     // Git state
     this.lastCommitHash = null;
@@ -80,8 +82,8 @@ export class GitTracker {
     // Global reminder cooldown
     this._lastGlobalReminderTime = null;
 
-    // Track whether we've done the initial seed
-    this._seededFromScanner = false;
+    // A seeding round is in progress
+    this._seeding = false;
   }
 
   // ---- Setting helpers ----
@@ -123,13 +125,36 @@ export class GitTracker {
     return p.replace(/\\/g, '/').replace(/\/+$/, '');
   }
 
-  _addToWatchlist(path, name) {
-    if (!path) return;
+  _addToWatchlist(path, name, { detected = false } = {}) {
+    if (!path || !this._isAllowed(path)) return;
     const key = this._normalizePath(path);
     if (this._watchlist.has(key)) return;
 
-    this._watchlist.set(key, new RepoState(key, name));
+    const repo = new RepoState(key, name);
+    repo.detected = detected;
+    this._watchlist.set(key, repo);
     console.log(`GitTracker: added "${name}" to watchlist (${this._watchlist.size} repos)`);
+  }
+
+  /**
+   * Ignored repos are never tracked. With "Find my repos automatically" off,
+   * only repos inside the user's project folders are.
+   */
+  _isAllowed(path) {
+    if (isIgnoredRepo(path, this.settings?.get('ignoredRepos'))) return false;
+    if (this.settings?.get('autoDetectRepos') !== false) return true;
+    const folders = this.settings?.get('projectFolders');
+    return Array.isArray(folders) && folders.some(f => isInside(path, f));
+  }
+
+  /** Drop watched repos the settings no longer allow. */
+  _pruneDisallowed() {
+    for (const [key, repo] of this._watchlist) {
+      if (!this._isAllowed(repo.path)) {
+        this._watchlist.delete(key);
+        console.log(`GitTracker: stopped tracking "${repo.name}"`);
+      }
+    }
   }
 
   _promoteToActive(path) {
@@ -141,18 +166,24 @@ export class GitTracker {
   }
 
   /**
-   * Populate the watchlist from an array of discovered projects.
-   * Called from app.js after init, and also from the PROJECTS_DISCOVERED event.
+   * Sync the watchlist with the repo scanner's list ({ name, path }): new repos
+   * are added, repos no longer listed are dropped (runtime-detected ones stay
+   * while allowed). Called from app.js after init and on PROJECTS_DISCOVERED.
    */
-  populateFromProjects(projects) {
-    if (!projects) return;
-    for (const project of projects) {
-      if (project.markers_found?.includes('.git')) {
-        this._addToWatchlist(project.path, project.name);
-      }
+  populateFromRepos(repos) {
+    if (!repos) return;
+    const listed = new Set();
+    for (const repo of repos) {
+      if (!repo?.path) continue;
+      listed.add(this._normalizePath(repo.path));
+      this._addToWatchlist(repo.path, repo.name);
     }
-    if (!this._seededFromScanner && this._watchlist.size > 0) {
-      this._seededFromScanner = true;
+    for (const [key, repo] of this._watchlist) {
+      if (!listed.has(key) && !repo.detected) this._watchlist.delete(key);
+    }
+    this._pruneDisallowed();
+    if (this._watchlist.size > 0) {
+      // Repos added by a later scan get their silent first poll too
       this._seedAllRepos();
       this._ensureIdleTierRunning();
     }
@@ -408,8 +439,10 @@ export class GitTracker {
   // ---- Seeding ----
 
   async _seedAllRepos() {
+    if (this._seeding) return;
     const unseeded = [...this._watchlist.values()].filter(r => !r.seeded);
     if (unseeded.length === 0) return;
+    this._seeding = true;
 
     console.log(`GitTracker: seeding ${unseeded.length} repos...`);
 
@@ -418,7 +451,12 @@ export class GitTracker {
       await Promise.all(batch.map(repo => this._pollRepo(repo, true)));
     }
 
+    this._seeding = false;
     console.log(`GitTracker: seeding complete, ${this._watchlist.size} repos tracked`);
+    // Repos listed while this round ran
+    if ([...this._watchlist.values()].some(r => !r.seeded && r.consecutiveFailures === 0)) {
+      this._seedAllRepos();
+    }
   }
 
   // ---- Lifecycle ----
@@ -426,8 +464,8 @@ export class GitTracker {
   init() {
     // Populate watchlist when FileSystemScanner reports discovered projects
     this._unsubscribers.push(
-      eventBus.on(Events.PROJECTS_DISCOVERED, ({ projects }) => {
-        this.populateFromProjects(projects);
+      eventBus.on(Events.PROJECTS_DISCOVERED, ({ repos }) => {
+        this.populateFromRepos(repos);
       })
     );
 
@@ -436,7 +474,7 @@ export class GitTracker {
       eventBus.on(Events.PROJECT_DETECTED, (project) => {
         if (project.path) {
           this._currentProjectPath = project.path;
-          this._addToWatchlist(project.path, project.name);
+          this._addToWatchlist(project.path, project.name, { detected: true });
           this._promoteToActive(project.path);
 
           // Mark as recently active — the user is working on this now
@@ -472,6 +510,9 @@ export class GitTracker {
           } else {
             this._stopAllPolling();
           }
+        }
+        if (key === 'ignoredRepos' || key === 'autoDetectRepos' || key === 'projectFolders') {
+          this._pruneDisallowed();
         }
         if (key === 'gitPollIntervalMinutes' && this._activeTierTimer) {
           this._startActiveTier();
