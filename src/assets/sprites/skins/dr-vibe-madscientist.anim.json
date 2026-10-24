@@ -1,0 +1,89 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Mad Scientist Dr. Vibe — wild hair, bubbling beakers, erratic excited energy and manic experimentation",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 800,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 600,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 1000,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 700,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 2
+      }
+    ],
+    "maxInterval": 16000,
+    "minInterval": 5000,
+    "timeOfDay": {
+      "eveningHours": [
+        19,
+        23
+      ],
+      "eveningScale": 0.4,
+      "morningHours": [
+        6,
+        10
+      ],
+      "morningScale": 2.0
+    }
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 2000,
+      "scaleY": 0.03
+    },
+    "sway": {
+      "offsetX": 1.8,
+      "period": 3000
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.07,
+      "scaleY": 0.13,
+      "speed": 7.0
+    },
+    "excited": {
+      "scaleX": 0.06,
+      "scaleY": 0.11,
+      "speed": 5.5
+    },
+    "idle": {
+      "scaleX": 0.018,
+      "scaleY": 0.03,
+      "speed": 1.8
+    },
+    "thinking": {
+      "scaleX": 0.02,
+      "scaleY": 0.03,
+      "speed": 2.0
+    }
+  },
+  "vibeId": "a5203d73-38a3-4ca2-b07f-7b78273e8afe",
+  "walk": {
+    "maxIdleMs": 22000,
+    "maxSpeed": 2.6,
+    "minIdleMs": 7000
+  }
+}

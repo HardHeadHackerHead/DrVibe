@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Dr Vibe needs accessibility access to detect active windows and monitor your coding activity.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Dr Vibe needs automation access to interact with other applications.</string>
+</dict>
+</plist>

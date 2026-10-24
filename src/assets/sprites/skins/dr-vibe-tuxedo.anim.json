@@ -1,0 +1,82 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Tuxedo Dr. Vibe — formal black-tie attire, composed and elegant with measured graceful movements",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 1800,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 4
+      },
+      {
+        "duration": 1000,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 4
+      },
+      {
+        "duration": 2000,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 1500,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 95000,
+    "minInterval": 38000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 4500,
+      "scaleY": 0.011
+    },
+    "sway": {
+      "offsetX": 0.3,
+      "period": 8000
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.028,
+      "scaleY": 0.055,
+      "speed": 2.5
+    },
+    "coding": {
+      "scaleX": 0.004,
+      "scaleY": 0.007,
+      "speed": 0.9
+    },
+    "excited": {
+      "scaleX": 0.02,
+      "scaleY": 0.04,
+      "speed": 2.0
+    },
+    "idle": {
+      "scaleX": 0.006,
+      "scaleY": 0.011,
+      "speed": 0.6
+    },
+    "presenting": {
+      "scaleX": 0.005,
+      "scaleY": 0.01,
+      "speed": 0.7
+    }
+  },
+  "vibeId": "abf96008-43f5-41d9-859d-e3086e6d3ee9",
+  "walk": {
+    "maxIdleMs": 58000,
+    "maxSpeed": 1.6,
+    "minIdleMs": 26000
+  }
+}

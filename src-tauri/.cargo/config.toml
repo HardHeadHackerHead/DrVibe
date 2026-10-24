@@ -1,0 +1,6 @@
+# Dev build speed optimizations
+# These settings dramatically reduce compile times during development.
+
+[target.x86_64-pc-windows-msvc]
+# Use LLVM's lld-link instead of the default MSVC linker — much faster linking
+linker = "lld-link"

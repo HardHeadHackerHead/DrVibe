@@ -1,0 +1,94 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Arctic Dr. Vibe — bundled up in winter gear, slow and deliberate movements, frosty color palette",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 2000,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 4
+      },
+      {
+        "duration": 1200,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 2500,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 1800,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 105000,
+    "minInterval": 42000,
+    "timeOfDay": {
+      "eveningHours": [
+        18,
+        22
+      ],
+      "eveningScale": 1.2,
+      "morningHours": [
+        6,
+        10
+      ],
+      "morningScale": 1.8
+    }
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 5200,
+      "scaleY": 0.013
+    },
+    "sway": {
+      "offsetX": 0.45,
+      "period": 8500
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.03,
+      "scaleY": 0.058,
+      "speed": 2.5
+    },
+    "coding": {
+      "scaleX": 0.004,
+      "scaleY": 0.008,
+      "speed": 0.8
+    },
+    "excited": {
+      "scaleX": 0.022,
+      "scaleY": 0.042,
+      "speed": 2.0
+    },
+    "idle": {
+      "scaleX": 0.007,
+      "scaleY": 0.013,
+      "speed": 0.5
+    },
+    "tired": {
+      "scaleX": 0.006,
+      "scaleY": 0.03,
+      "speed": 0.3
+    }
+  },
+  "vibeId": "366d80dc-9cef-4a7f-9d85-1ad6b2b68586",
+  "walk": {
+    "maxIdleMs": 78000,
+    "maxSpeed": 1.4,
+    "minIdleMs": 32000
+  }
+}

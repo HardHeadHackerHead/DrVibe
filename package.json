@@ -1,0 +1,36 @@
+{
+  "name": "dr-vibe",
+  "version": "2.0.0",
+  "description": "Desktop coding companion - a mad scientist who reacts to your coding activity",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev:local": "cross-env DR_VIBE_WEB_BASE_URL=http://localhost:8080 tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev:prod": "cross-env DR_VIBE_WEB_BASE_URL=https://drvibe.io tauri dev --config src-tauri/tauri.dev.conf.json",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "generate-nsis-images": "npm install --no-save canvas@2 && node scripts/generate-nsis-images.cjs",
+    "sync:generator-prompt": "node scripts/sync-generator-prompt.mjs",
+    "setup": "npm install",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "node scripts/check.mjs",
+    "release": "node scripts/release.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-notification": "^2.0.0",
+    "@tauri-apps/plugin-store": "^2.0.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "cross-env": "^7.0.3",
+    "jsdom": "^25.0.1",
+    "live-server": "^1.2.0",
+    "serve": "^14.2.5",
+    "vitest": "^2.1.9"
+  }
+}

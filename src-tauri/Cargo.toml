@@ -1,0 +1,66 @@
+[package]
+name = "dr-vibe"
+version = "2.0.0"
+description = "Desktop coding companion - a mad scientist who reacts to your coding activity"
+authors = ["Dr. Vibe"]
+edition = "2021"
+
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "devtools"] }
+tauri-plugin-notification = "2"
+tauri-plugin-store = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-autostart = "2"
+tokio = { version = "1", features = ["sync", "time"] }
+url = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = { version = "6", features = ["macos_fsevent"] }
+base64 = "0.22"
+reqwest = { version = "0.12", features = ["multipart", "rustls-tls", "json"], default-features = false }
+png = "0.17"
+chrono = "0.4"
+keyring = { version = "3", features = ["sync-secret-service", "windows-native", "apple-native"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+drvibe-protocol = { path = "../crates/drvibe-protocol", features = ["signing"] }
+
+# Cross-platform active window detection
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_Graphics_Gdi"
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.25"
+
+[profile.dev]
+debug = "line-tables-only"   # Minimal debug info - faster compile + link, still get backtraces
+codegen-units = 16           # More parallel codegen units - faster compile, slightly larger binary
+
+[profile.dev.package."*"]
+opt-level = 1                # Slightly optimize dependencies - they rarely change and this
+                             # makes the app noticeably less sluggish during dev
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+[dev-dependencies]
+tiny_http = "0.12"
+tokio = { version = "1", features = ["rt-multi-thread"] }

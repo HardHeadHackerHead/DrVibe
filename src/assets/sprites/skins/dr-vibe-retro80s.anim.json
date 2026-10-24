@@ -1,0 +1,94 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Retro 80s Dr. Vibe — neon colors, headband, synth-wave aesthetic with groovy night-owl energy",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 900,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 700,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1300,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 1000,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 3
+      }
+    ],
+    "maxInterval": 24000,
+    "minInterval": 9000,
+    "timeOfDay": {
+      "eveningHours": [
+        20,
+        24
+      ],
+      "eveningScale": 1.7,
+      "morningHours": [
+        6,
+        10
+      ],
+      "morningScale": 0.5
+    }
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 2600,
+      "scaleY": 0.022
+    },
+    "sway": {
+      "offsetX": 1.4,
+      "period": 2800
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.055,
+      "scaleY": 0.1,
+      "speed": 5.5
+    },
+    "excited": {
+      "scaleX": 0.045,
+      "scaleY": 0.08,
+      "speed": 4.5
+    },
+    "idle": {
+      "scaleX": 0.013,
+      "scaleY": 0.022,
+      "speed": 1.6
+    },
+    "walkLeft": {
+      "scaleX": 0.02,
+      "scaleY": 0.038,
+      "speed": 3.2
+    },
+    "walkRight": {
+      "scaleX": 0.02,
+      "scaleY": 0.038,
+      "speed": 3.2
+    }
+  },
+  "vibeId": "2721cfa6-25e1-4912-bcf6-4c9387c85f31",
+  "walk": {
+    "maxIdleMs": 22000,
+    "maxSpeed": 2.5,
+    "minIdleMs": 8000
+  }
+}

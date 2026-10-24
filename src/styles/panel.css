@@ -1,0 +1,60 @@
+/*
+ * Shared base for every desktop window: fonts + tokens, plus the variable
+ * names the window stylesheets were written against, mapped onto tokens.
+ * Windows link only this file; change colours in tokens.css, not here.
+ */
+
+@import url('fonts.css');
+@import url('tokens.css');
+
+:root,
+[data-theme='dark'],
+[data-theme='light'],
+[data-theme='system'] {
+  --green:         var(--lab-green);
+  --green-dim:     color-mix(in srgb, var(--lab-green) 10%, transparent);
+  --green-border:  color-mix(in srgb, var(--lab-green) 24%, transparent);
+  --bg-main:       var(--bg);
+  --bg-sidebar:    var(--inset);
+  --bg-card:       var(--surface);
+  --bg-card-solid: var(--surface);
+  --bg-input:      var(--surface-2);
+  --border-solid:  var(--border-strong);
+  --text-2:        var(--text-soft);
+  --muted-2:       var(--muted);
+  --radius:        8px;
+}
+
+html,
+body {
+  font-family: var(--font-body);
+}
+
+h1, h2, .display {
+  font-family: var(--font-display);
+}
+
+code, kbd, .mono, .stat-value, .num {
+  font-family: var(--font-mono);
+}
+
+canvas,
+.sprite {
+  image-rendering: pixelated;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* "What Dr. Vibe sees" explainer (ui/WhatDrVibeSees.js) */
+.wdvs { display: grid; gap: 10px; font-size: 11px; line-height: 1.45; color: var(--text-soft); }
+.wdvs-head { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.wdvs ul { margin: 0; padding-left: 16px; }
+.wdvs li + li { margin-top: 2px; }

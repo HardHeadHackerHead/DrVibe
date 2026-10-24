@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Dr. Vibe</title>
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 14px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      letter-spacing: 0.02em;
+    }
+    .titlebar-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+      align-items: center;
+    }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+
+    /* ── Body (no scroll — fits in window) ── */
+    .about-scroll {
+      height: calc(100% - 32px);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 18px;
+    }
+
+    .about-container {
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+    }
+
+    /* --- Character hero area --- */
+    .about-hero {
+      position: relative;
+      margin-bottom: 6px;
+    }
+
+    .about-character {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      transition: opacity 0.15s ease;
+    }
+
+    .about-glow {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 16px;
+      background: radial-gradient(ellipse, rgba(74, 222, 128, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 0.6; transform: translateX(-50%) scaleX(1); }
+      50% { opacity: 1; transform: translateX(-50%) scaleX(1.15); }
+    }
+
+    /* --- Speech bubble --- */
+    .about-speech {
+      position: relative;
+      background: var(--green-dim);
+      border: 1px solid var(--green-border);
+      border-radius: 10px;
+      padding: 6px 14px;
+      margin: 0 16px 10px;
+      font-size: 11px;
+      color: var(--text-2);
+      font-style: italic;
+      line-height: 1.5;
+      animation: fade-in 0.6s ease-out 0.3s both;
+      transition: opacity 0.3s ease;
+    }
+
+    .about-speech::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      width: 10px;
+      height: 10px;
+      background: var(--green-dim);
+      border-left: 1px solid var(--green-border);
+      border-top: 1px solid var(--green-border);
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Title area --- */
+    .about-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 1px;
+      letter-spacing: 0.5px;
+    }
+
+    .about-version {
+      font-size: 10px;
+      color: var(--muted-2);
+      margin-bottom: 4px;
+      letter-spacing: 1px;
+    }
+
+    .about-tagline {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .about-skin-name {
+      font-size: 9px;
+      color: var(--muted-2);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      height: 14px;
+      transition: opacity 0.3s ease;
+    }
+
+    /* --- Credits card --- */
+    .about-section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      text-align: left;
+      margin-bottom: 8px;
+    }
+
+    .about-section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .about-credits-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .about-credit-cell {
+      background: rgba(127,127,127,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+    }
+
+    .about-credit-role {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      color: var(--muted-2);
+      margin-bottom: 3px;
+    }
+
+    .about-credit-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* --- Links (mirrors .community-gate-link from Settings) --- */
+    .about-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .about-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--muted);
+      text-decoration: none;
+      cursor: pointer;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(127,127,127,0.05);
+      font-weight: 500;
+      font-family: inherit;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+
+    .about-link:hover {
+      background: rgba(127,127,127,0.10);
+      color: var(--text);
+      border-color: rgba(127,127,127,0.2);
+      text-decoration: none;
+    }
+
+    .about-link svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    .about-email {
+      font-size: 10px;
+      color: var(--muted-2);
+      margin-bottom: 6px;
+      user-select: text;
+      letter-spacing: 0.3px;
+    }
+
+    .about-email span {
+      color: var(--muted);
+    }
+
+    .about-vibeathon {
+      font-size: 10px;
+      color: var(--muted-2);
+      margin-bottom: 0;
+      line-height: 1.5;
+    }
+
+    .about-vibeathon strong {
+      color: var(--muted);
+    }
+
+    /* --- Update check --- */
+    .about-update-row {
+      margin-bottom: 10px;
+    }
+
+    .about-update-btn {
+      font-family: inherit;
+      font-size: 10px;
+      color: var(--muted);
+      background: rgba(127,127,127,0.05);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.3px;
+      font-weight: 500;
+    }
+
+    .about-update-btn:hover:not(:disabled) {
+      color: var(--green);
+      border-color: var(--green-border);
+      background: var(--green-dim);
+    }
+
+    .about-update-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .about-update-status {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 5px;
+      min-height: 14px;
+    }
+
+    .about-update-status.success { color: var(--green); }
+    .about-update-status.error   { color: #f87171; }
+  </style>
+</head>
+<body>
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <span class="titlebar-title">About Dr. Vibe</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn titlebar-close" id="about-close" title="Close">✕</button>
+    </div>
+  </div>
+
+  <div class="about-scroll">
+    <div class="about-container">
+
+      <!-- Character with glow -->
+      <div class="about-hero">
+        <canvas id="dr-vibe-canvas" class="about-character" width="96" height="96"></canvas>
+        <div class="about-glow"></div>
+      </div>
+
+      <!-- Skin name -->
+      <div class="about-skin-name" id="skin-name"></div>
+
+      <!-- Speech bubble -->
+      <div class="about-speech" id="speech"></div>
+
+      <!-- Title -->
+      <div class="about-title">Dr. Vibe</div>
+      <div class="about-version" id="app-version">v0.1.0</div>
+
+      <!-- Update check -->
+      <div class="about-update-row">
+        <button class="about-update-btn" id="check-updates-btn">Check for Updates</button>
+        <div class="about-update-status" id="update-status"></div>
+      </div>
+
+      <div class="about-tagline">Your desktop coding companion</div>
+
+      <!-- Credits -->
+      <div class="about-section-card">
+        <div class="about-section-label">Credits</div>
+        <div class="about-credits-grid">
+          <div class="about-credit-cell">
+            <div class="about-credit-role">Vibe Coded by</div>
+            <div class="about-credit-name">DHack</div>
+          </div>
+          <div class="about-credit-cell">
+            <div class="about-credit-role">Co-Developer</div>
+            <div class="about-credit-name">Claude Code</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Links -->
+      <div class="about-links">
+        <a class="about-link" data-url="https://discord.gg/9kuSMvjFrr">
+          <svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+          Discord
+        </a>
+        <a class="about-link" data-url="https://drvibe.io/">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          Website
+        </a>
+        <a class="about-link" data-url="https://github.com/HardHeadHackerHead/DrVibe">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+          GitHub
+        </a>
+        <a class="about-link" data-url="https://www.youtube.com/@HardHeadHackerHead/">
+          <svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          YouTube
+        </a>
+      </div>
+
+      <!-- Vibeathon note -->
+      <div class="about-vibeathon">
+        Created for the <strong><a class="about-link" href="https://bridgemind.ai" data-url="https://bridgemind.ai" style="border:none;padding:0;background:none;color:inherit;font-size:inherit;">BridgeMind.ai</a> Vibeathon</strong>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Frameless window: drag by the custom title bar (-webkit-app-region has no effect in Tauri)
+    document.querySelector('.titlebar')?.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.target.closest('.titlebar-controls')) return;
+      window.__TAURI__?.window?.getCurrentWindow()?.startDragging()?.catch?.(() => {});
+    });
+
+    // --- Skin rotation ---
+    const SKINS = [
+      { file: 'dr-vibe-default',     name: 'Default' },
+      { file: 'dr-vibe-classic',     name: 'Classic' },
+      { file: 'dr-vibe-tuxedo',      name: 'Tuxedo' },
+      { file: 'dr-vibe-cyberpunk',   name: 'Cyberpunk' },
+      { file: 'dr-vibe-pirate',      name: 'Pirate' },
+      { file: 'dr-vibe-firefighter', name: 'Firefighter' },
+      { file: 'dr-vibe-wizard',      name: 'Wizard' },
+      { file: 'dr-vibe-arctic',      name: 'Arctic' },
+      { file: 'dr-vibe-retro80s',    name: 'Retro 80s' },
+      { file: 'dr-vibe-bridgemind',  name: 'BridgeMind' },
+      { file: 'dr-vibe-alien',       name: 'Alien' },
+      { file: 'dr-vibe-madscientist', name: 'Mad Scientist' },
+    ];
+    const SKIN_ROTATE_INTERVAL = 4000; // ms between skin changes
+
+    // Preload all skin images
+    const skinImages = SKINS.map(s => {
+      const img = new Image();
+      img.src = `assets/sprites/skins/${s.file}.png`;
+      return img;
+    });
+
+    let currentSkinIndex = 0;
+    const skinNameEl = document.getElementById('skin-name');
+
+    // --- Sprite animation ---
+    const canvas = document.getElementById('dr-vibe-canvas');
+    const ctx = canvas.getContext('2d');
+    const FRAME_SIZE = 32;
+    const SCALE = 3;
+    const SPRITE_ROW = 10; // thumbsUp animation
+    const FRAME_COUNT = 3;
+    const FRAME_DURATIONS = [300, 250, 400];
+
+    let currentFrame = 0;
+    let lastFrameTime = 0;
+    let animId;
+
+    ctx.imageSmoothingEnabled = false;
+
+    function drawFrame(frame) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const img = skinImages[currentSkinIndex];
+      if (!img.complete) return;
+      ctx.drawImage(
+        img,
+        frame * FRAME_SIZE, SPRITE_ROW * FRAME_SIZE,
+        FRAME_SIZE, FRAME_SIZE,
+        0, 0,
+        FRAME_SIZE * SCALE, FRAME_SIZE * SCALE
+      );
+    }
+
+    function animate(timestamp) {
+      if (!lastFrameTime) lastFrameTime = timestamp;
+      const elapsed = timestamp - lastFrameTime;
+      if (elapsed >= FRAME_DURATIONS[currentFrame]) {
+        currentFrame = (currentFrame + 1) % FRAME_COUNT;
+        drawFrame(currentFrame);
+        lastFrameTime = timestamp;
+      }
+      animId = requestAnimationFrame(animate);
+    }
+
+    function switchSkin() {
+      currentSkinIndex = (currentSkinIndex + 1) % SKINS.length;
+      skinNameEl.textContent = SKINS[currentSkinIndex].name;
+      // Fade the canvas briefly for a smooth transition
+      canvas.style.opacity = '0';
+      setTimeout(() => {
+        drawFrame(currentFrame);
+        canvas.style.opacity = '1';
+      }, 150);
+    }
+
+    // Start animation once the first skin loads
+    skinImages[0].onload = () => {
+      skinNameEl.textContent = SKINS[0].name;
+      drawFrame(0);
+      animId = requestAnimationFrame(animate);
+      // Start rotating skins
+      setInterval(switchSkin, SKIN_ROTATE_INTERVAL);
+    };
+
+    // --- Cycling speech ---
+    const quotes = [
+      "Welcome to my laboratory!",
+      "Ah, a fellow scientist! Come in, come in!",
+      "The experiment is going splendidly!",
+      "I've been expecting you...",
+      "Science waits for no one!",
+      "Every bug is just an undiscovered feature!",
+      "My goggles? Purely aesthetic. Mostly.",
+      "Did someone say... code review?",
+      "The beakers are bubbling nicely today!",
+      "Hypothesis: you're going to ship something great.",
+    ];
+
+    const speechEl = document.getElementById('speech');
+    let quoteIndex = Math.floor(Math.random() * quotes.length);
+    speechEl.textContent = `"${quotes[quoteIndex]}"`;
+
+    setInterval(() => {
+      quoteIndex = (quoteIndex + 1) % quotes.length;
+      speechEl.style.opacity = '0';
+      setTimeout(() => {
+        speechEl.textContent = `"${quotes[quoteIndex]}"`;
+        speechEl.style.opacity = '1';
+      }, 300);
+    }, SKIN_ROTATE_INTERVAL);
+
+    // --- Check for Updates ---
+    (function () {
+      if (!window.__TAURI__) return;
+      const invoke = window.__TAURI__?.core?.invoke;
+      const listen = window.__TAURI__?.event?.listen;
+      if (!invoke || !listen) return;
+
+      const btn = document.getElementById('check-updates-btn');
+      const statusEl = document.getElementById('update-status');
+
+      listen('update-check-status', (event) => {
+        const { status, version, message } = event.payload;
+        statusEl.className = 'about-update-status';
+        switch (status) {
+          case 'up_to_date':
+            statusEl.textContent = "You're up to date!";
+            statusEl.classList.add('success');
+            btn.disabled = false;
+            btn.textContent = 'Check for Updates';
+            break;
+          case 'update_available':
+            statusEl.textContent = `v${version} available — downloading...`;
+            statusEl.classList.add('success');
+            break;
+          case 'restarting':
+            statusEl.textContent = 'Restarting...';
+            statusEl.classList.add('success');
+            break;
+          case 'error':
+            statusEl.textContent = message || 'Check failed.';
+            statusEl.classList.add('error');
+            btn.disabled = false;
+            btn.textContent = 'Check for Updates';
+            break;
+        }
+      });
+
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Checking...';
+        statusEl.textContent = '';
+        statusEl.className = 'about-update-status';
+        try {
+          await invoke('check_for_updates');
+        } catch (e) {
+          statusEl.textContent = 'Check failed.';
+          statusEl.classList.add('error');
+          btn.disabled = false;
+          btn.textContent = 'Check for Updates';
+        }
+      });
+    })();
+
+    // --- Close window ---
+    async function closeWindow() {
+      cancelAnimationFrame(animId);
+      try {
+        const win = window.__TAURI__.window.getCurrentWindow();
+        await win.close();
+      } catch (e) {
+        window.close();
+      }
+    }
+
+    document.getElementById('about-close').addEventListener('click', closeWindow);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeWindow();
+    });
+
+    // --- Version ---
+    (async () => {
+      try {
+        const version = await window.__TAURI__.app.getVersion();
+        document.getElementById('app-version').textContent = `v${version}`;
+      } catch (_) {}
+    })();
+
+    // --- External links ---
+    document.querySelectorAll('.about-link[data-url]').forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = e.currentTarget.dataset.url;
+        try {
+          await window.__TAURI__.opener.openUrl(url);
+        } catch {
+          window.open(url, '_blank');
+        }
+      });
+    });
+  </script>
+  <script>
+    // Sync theme when another window changes it
+    (async () => {
+      try {
+        const listen = window.__TAURI__?.event?.listen;
+        if (!listen) return;
+        await listen('theme-changed', (event) => {
+          const t = event?.payload?.theme;
+          if (t === 'dark' || t === 'light') {
+            localStorage.setItem('drvibe-theme', t);
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        });
+      } catch (_) {}
+    })();
+  </script>
+</body>
+</html>

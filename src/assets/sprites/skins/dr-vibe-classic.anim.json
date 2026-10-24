@@ -1,0 +1,72 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Classic Dr. Vibe — refined, understated variant with muted tones and a scholarly vibe",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 1400,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 900,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 1800,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 1200,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 65000,
+    "minInterval": 28000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 3800,
+      "scaleY": 0.016
+    },
+    "sway": {
+      "offsetX": 0.6,
+      "period": 6500
+    }
+  },
+  "squashStretch": {
+    "coding": {
+      "scaleX": 0.004,
+      "scaleY": 0.008,
+      "speed": 1.0
+    },
+    "excited": {
+      "scaleX": 0.025,
+      "scaleY": 0.05,
+      "speed": 2.5
+    },
+    "idle": {
+      "scaleX": 0.008,
+      "scaleY": 0.016,
+      "speed": 0.7
+    }
+  },
+  "vibeId": "cca800c2-efb9-4902-b4c1-681a333c6138",
+  "walk": {
+    "maxIdleMs": 52000,
+    "maxSpeed": 1.8,
+    "minIdleMs": 22000
+  }
+}

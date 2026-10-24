@@ -1,0 +1,160 @@
+/* Dr. Vibe - Shared Panel Window Styles */
+/* Base styles for all standalone panel windows */
+
+@import url('styles/panel.css');
+
+
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-main);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  transition: background .2s, color .2s;
+}
+
+body::-webkit-scrollbar {
+  width: 4px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--border-solid);
+  border-radius: 2px;
+}
+
+h3 {
+  color: var(--green);
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+/* Common button styles */
+.panel-btn {
+  background: var(--bg-input);
+  color: var(--muted);
+  border: 1px solid var(--border-solid);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.panel-btn:hover {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.panel-btn-primary {
+  background: var(--green-dim);
+  color: var(--green);
+  border-color: var(--green-border);
+}
+
+.panel-btn-primary:hover {
+  background: rgba(74, 222, 128, 0.18);
+}
+
+/* Stats grid pattern */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--green);
+  display: block;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Card pattern */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+/* Button row */
+.button-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 4px;
+  background: var(--bg-input);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--green);
+  transition: width 0.3s ease;
+}
+
+/* Section label */
+.section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin: 16px 0 8px;
+  display: block;
+}
+
+/* Links */
+a {
+  color: var(--green);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Subtitle / muted text */
+.muted {
+  color: var(--muted);
+  font-size: 11px;
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "toast-item",
+  "description": "Minimal capabilities for per-toast popup windows (toast-item-N)",
+  "windows": ["toast-item-*"],
+  "permissions": [
+    "core:event:default",
+    "core:event:allow-emit-to",
+    "core:window:allow-set-size",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-close",
+    "opener:default"
+  ]
+}

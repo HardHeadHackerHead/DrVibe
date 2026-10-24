@@ -1,0 +1,188 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DrVibe",
+  "version": "2.0.0",
+  "identifier": "com.drvibe.companion",
+  "build": {
+    "beforeDevCommand": "npx live-server src --port=1425 --no-browser --quiet",
+    "devUrl": "http://localhost:1425",
+    "beforeBuildCommand": "",
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Dr. Vibe",
+        "label": "main",
+        "width": 128,
+        "height": 151,
+        "minWidth": 116,
+        "minHeight": 100,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Speech",
+        "label": "speech",
+        "url": "speech.html",
+        "width": 200,
+        "height": 100,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Visitor",
+        "label": "visitor",
+        "url": "visitor.html",
+        "width": 128,
+        "height": 151,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Notifications",
+        "label": "toast",
+        "url": "toast.html",
+        "width": 350,
+        "height": 1,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Character Workshop",
+        "label": "character-workshop",
+        "url": "character-workshop.html",
+        "width": 780,
+        "height": 560,
+        "decorations": false,
+        "shadow": false,
+        "resizable": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false
+      },
+      {
+        "title": "Dr. Vibe Sprite Editor",
+        "label": "sprite-editor",
+        "url": "sprite-editor.html",
+        "width": 950,
+        "height": 680,
+        "decorations": true,
+        "resizable": true,
+        "skipTaskbar": false,
+        "visible": false,
+        "center": false
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "img-src": "'self' data: blob: https: asset: http://asset.localhost",
+        "media-src": "'self' data: blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost asset: http://asset.localhost https://drvibe.io https://*.drvibe.io",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-src": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self' 'unsafe-inline'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "img-src": "'self' data: blob: https: asset: http://asset.localhost",
+        "media-src": "'self' data: blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost asset: http://asset.localhost https://drvibe.io https://*.drvibe.io http://localhost:8080 ws://localhost:1425 ws://127.0.0.1:1425",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-src": "'none'"
+      },
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "dmg"
+    ],
+    "createUpdaterArtifacts": "v1Compatible",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../tools/claude-code-hook.sh": "tools/claude-code-hook.sh",
+      "../tools/claude-code-hook.cmd": "tools/claude-code-hook.cmd",
+      "../tools/generate-character.md": "commands/generate-character.md",
+      "../src/assets/sprites/skins/": "assets/sprites/skins/"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "tsp": true,
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "nsis/header.bmp",
+        "sidebarImage": "nsis/sidebar.bmp",
+        "installMode": "currentUser",
+        "compression": "lzma"
+      }
+    },
+    "macOS": {
+      "entitlements": "./entitlements.plist",
+      "signingIdentity": "Developer ID Application: DAVID MICHAEL HACKER (X83LY7NA33)",
+      "providerShortName": "X83LY7NA33",
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "dr-vibe"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4MkY0OEY5M0E0OURBMTEKUldRUjJrazYrVWd2U0d5U2JYa0FGWkZVTG9ZekxNV0RnRFRtVEdUZ0RZdmhqK1NJUVdtM1c5N08K",
+      "endpoints": [
+        "https://drvibe.io/api/v1/downloads/latest.json"
+      ]
+    }
+  }
+}

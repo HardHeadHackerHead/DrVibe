@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Make your own Dr. Vibe</title>
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-size: 12px; overflow: hidden; }
+    .make { display: grid; grid-template-columns: 290px minmax(0, 1fr) 260px; gap: 12px; height: 100%; padding: 12px; }
+    .pane { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-card); padding: 14px; overflow-y: auto; min-height: 0; }
+    .pane::-webkit-scrollbar { width: 6px; }
+    .pane::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    h1 { font-family: var(--font-display); font-size: 19px; font-weight: 700; line-height: 1.15; }
+    h2 { font-family: var(--font-display); font-size: 13px; font-weight: 700; margin: 16px 0 6px; display: flex; align-items: baseline; gap: 6px; }
+    h2 .count { font-family: var(--font-body); font-size: 11px; color: var(--muted); font-weight: 500; }
+    .lede { color: var(--text-soft); margin-top: 4px; line-height: 1.45; }
+    .note { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 6px; }
+    .note code { font-size: 10px; background: var(--inset); padding: 1px 4px; border-radius: 4px; user-select: all; }
+    a, .link { color: var(--link); text-decoration: none; cursor: pointer; background: none; border: none; font: inherit; padding: 0; }
+    a:hover, .link:hover { color: var(--link-hover); text-decoration: underline; }
+    :focus-visible { outline: 2px solid var(--beaker-cyan); outline-offset: 2px; }
+
+    /* Buttons: the app's pressable style */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+      margin-top: 6px; padding: 7px 10px; font: inherit; font-weight: 600; line-height: 1.2;
+      border-radius: var(--radius-btn); cursor: pointer;
+      background: var(--surface-2); color: var(--text); border: 2px solid var(--border-strong); border-bottom-width: var(--press-edge);
+      transition: filter var(--dur-fast) var(--ease-out);
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.12); }
+    .btn:active:not(:disabled) { border-bottom-width: 2px; transform: translateY(2px); }
+    .btn.primary { background: var(--lab-green); color: var(--on-lab-green); border-color: var(--lab-green-press); }
+    .btn.violet { background: var(--spark-violet); color: var(--on-spark-violet); border-color: var(--spark-violet-press); }
+    .btn.danger { color: var(--danger); }
+    .btn.danger.confirming { background: var(--danger-tint); border-color: var(--danger); }
+    .btn.big { padding: 10px 12px; font-size: 13px; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 6px; }
+    .btn-row .btn { flex: 1; }
+    .btn-row.tight { margin-top: 6px; }
+    .btn-row.tight .btn { margin-top: 0; }
+
+    /* The three ways in */
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .tab {
+      display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px 7px;
+      font: inherit; font-size: 11px; font-weight: 600; color: var(--text-soft); cursor: pointer;
+      background: var(--inset); border: 2px solid var(--border); border-radius: var(--radius-btn);
+      transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+    }
+    .tab .glyph { font-size: 16px; line-height: 1; }
+    .tab:hover { color: var(--text); border-color: var(--border-strong); }
+    .tab[aria-selected="true"] { color: var(--green-text); border-color: var(--lab-green); background: var(--green-tint); }
+    .tab-panel { margin-top: 12px; }
+    .tab-panel[hidden] { display: none; }
+
+    label.field { display: block; margin-top: 10px; color: var(--text-soft); font-size: 11px; font-weight: 600; }
+    label.field:first-child { margin-top: 0; }
+    input[type=text], textarea, select {
+      width: 100%; margin-top: 4px; padding: 7px 9px; font: inherit; font-weight: 400; color: var(--text);
+      background: var(--inset); border: 2px solid var(--border); border-radius: 8px;
+    }
+    input[type=text]:focus, textarea:focus, select:focus { outline: none; border-color: var(--lab-green); }
+    textarea { resize: vertical; line-height: 1.45; }
+    #prompt { min-height: 92px; }
+    select { cursor: pointer; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .chip {
+      font: inherit; font-size: 10.5px; color: var(--text-soft); cursor: pointer; padding: 3px 8px;
+      background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 999px;
+    }
+    .chip:hover { color: var(--text); border-color: var(--lab-green); }
+    .agent-line { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--text-soft); }
+    .agent-line select { width: auto; margin: 0; padding: 3px 6px; font-size: 11px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lab-green); flex-shrink: 0; }
+    .callout {
+      margin-top: 10px; padding: 10px; border-radius: 10px; line-height: 1.5; font-size: 11px;
+      background: var(--violet-tint); border: 1px solid var(--violet-tint-border); color: var(--text-soft);
+    }
+    .callout strong { color: var(--text); display: block; margin-bottom: 2px; }
+    .callout .links { display: flex; gap: 12px; margin-top: 6px; }
+    .callout.warn { background: var(--danger-tint); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+    .divider { height: 2px; background: var(--border); margin: 14px 0 0; border-radius: 1px; }
+
+    /* Your Dr. Vibes */
+    .designs { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+    .design {
+      display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 8px;
+      padding: 4px 6px; border-radius: 10px; border: 2px solid transparent; background: var(--inset);
+    }
+    .design:hover { border-color: var(--border-strong); }
+    .design.selected { border-color: var(--lab-green); background: var(--green-tint); }
+    .design canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+    .design .who { min-width: 0; cursor: pointer; background: none; border: none; font: inherit; color: inherit; text-align: left; padding: 2px 0; }
+    .design .who strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .design .who span { font-size: 10px; color: var(--muted); }
+    .design .who .wearing { color: var(--green-text); font-weight: 600; }
+    .design .acts { display: flex; gap: 4px; }
+    .mini {
+      font: inherit; font-size: 10.5px; font-weight: 600; padding: 3px 7px; cursor: pointer; color: var(--text);
+      background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 7px;
+    }
+    .mini:hover:not(:disabled) { border-color: var(--lab-green); }
+    .mini:disabled { opacity: 0.4; cursor: default; }
+    .empty-designs { color: var(--muted); font-size: 11px; padding: 6px 2px; line-height: 1.45; }
+
+    /* Bench */
+    .bench { display: flex; flex-direction: column; }
+    .bench-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .bench-head h2 { margin: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .summary { font-size: 11px; white-space: nowrap; }
+    .summary.good { color: var(--green-text); }
+    .summary.bad { color: var(--danger); }
+    .errors { margin-top: 6px; color: var(--danger); font-size: 11px; line-height: 1.5; }
+    .hint-bar { margin-top: 8px; padding: 7px 10px; font-size: 11px; line-height: 1.45; color: var(--text-soft); background: var(--green-tint); border: 1px solid var(--green-tint-border); border-radius: 8px; }
+    .grid-wrap { flex: 1; overflow: auto; margin-top: 8px; background: var(--inset); border-radius: 10px; padding: 8px; }
+    .rows { display: grid; grid-template-columns: 92px minmax(0, 1fr) 18px; gap: 3px 8px; align-items: center; max-width: 384px; margin: 0 auto; }
+    .row-name { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-align: right; }
+    .row-frames { background: none; border: 2px solid transparent; border-radius: 6px; padding: 0; cursor: pointer; display: block; line-height: 0; }
+    .row-frames:hover { border-color: var(--border-strong); }
+    .row-frames.on { border-color: var(--lab-green); }
+    .row-frames canvas { width: 100%; height: auto; aspect-ratio: 4 / 1; image-rendering: pixelated; display: block; }
+    @media (max-width: 900px) { .make { grid-template-columns: 236px minmax(0, 1fr) 216px; gap: 8px; padding: 8px; } .rows { grid-template-columns: 70px minmax(0, 1fr) 14px; } .row-name { font-size: 9px; } }
+    .row-ok { font-size: 12px; text-align: center; }
+    .row-ok.good { color: var(--green-text); }
+    .row-ok.bad { color: var(--danger); }
+
+    .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 20px; }
+    .welcome canvas { width: 128px; height: 128px; image-rendering: pixelated; }
+    .welcome h2 { margin: 0; font-size: 17px; justify-content: center; }
+    .welcome p { color: var(--text-soft); max-width: 340px; line-height: 1.5; }
+    .steps-mini { display: flex; gap: 8px; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .steps-mini span { padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: 999px; }
+
+    .working { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; }
+    .working h2 { margin: 0; font-size: 16px; }
+    .working .elapsed { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+    .steps { list-style: none; display: flex; flex-direction: column; gap: 6px; min-width: 250px; }
+    .steps li { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .steps li .mark { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); flex-shrink: 0; display: grid; place-items: center; font-size: 9px; }
+    .steps li.done { color: var(--text-soft); }
+    .steps li.done .mark { background: var(--lab-green); border-color: var(--lab-green); color: var(--on-lab-green); }
+    .steps li.now { color: var(--text); font-weight: 600; }
+    .steps li.now .mark { border-color: var(--lab-green); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    details.log { width: 100%; max-width: 420px; }
+    details.log summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+    #log { margin-top: 6px; max-height: 150px; overflow-y: auto; background: var(--inset); border-radius: 8px; padding: 6px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); white-space: pre-wrap; word-break: break-word; user-select: text; }
+
+    /* Right pane */
+    .stage { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 8px; background: var(--inset); border-radius: 10px; }
+    .stage canvas { width: 128px; height: 128px; image-rendering: pixelated; }
+    .stage .row-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+    .placeholder { color: var(--muted); line-height: 1.5; padding: 4px 2px; }
+    .group-label { margin-top: 14px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+    .rules { margin: 6px 0 0 16px; color: var(--text-soft); font-size: 11px; line-height: 1.5; }
+    .check { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; font-size: 11px; color: var(--text-soft); line-height: 1.4; }
+    .check input { margin-top: 2px; }
+    #design-desc { min-height: 54px; }
+    .status { margin-top: 8px; font-size: 11px; min-height: 16px; color: var(--text-soft); line-height: 1.45; }
+    .status:empty { min-height: 0; margin-top: 0; }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--green-text); }
+    #file-input { display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  </style>
+</head>
+<body>
+  <div class="make">
+    <!-- Left: three ways to make one, then the player's own Dr. Vibes -->
+    <section class="pane" aria-label="Make one">
+      <h1>Make your own Dr. Vibe</h1>
+      <p class="lede">Wear it on your desktop right away. Sharing it is optional.</p>
+
+      <div class="tabs" role="tablist" aria-label="How to make it">
+        <button class="tab" role="tab" id="tab-generate" aria-controls="panel-generate" data-tab="generate"><span class="glyph" aria-hidden="true">✦</span>Generate with AI</button>
+        <button class="tab" role="tab" id="tab-draw" aria-controls="panel-draw" data-tab="draw"><span class="glyph" aria-hidden="true">✎</span>Draw it</button>
+        <button class="tab" role="tab" id="tab-import" aria-controls="panel-import" data-tab="import"><span class="glyph" aria-hidden="true">⇪</span>Import a sheet</button>
+      </div>
+
+      <!-- Generate with AI -->
+      <div class="tab-panel" role="tabpanel" id="panel-generate" aria-labelledby="tab-generate">
+        <div class="callout warn" id="no-agent" style="margin:0 0 10px" hidden>
+          <strong>Generating needs Claude Code or Codex on this computer.</strong>
+          It runs on your own plan, so it costs nothing extra here. Install one, sign in to it once in a terminal, then reopen this window.
+          <div class="links">
+            <button class="link" type="button" data-open="claude">Get Claude Code ↗</button>
+            <button class="link" type="button" data-open="codex">Get Codex ↗</button>
+          </div>
+          <div class="note">No AI? <button class="link" type="button" data-goto="draw">Draw one</button> or <button class="link" type="button" data-goto="import">import a sheet</button> instead.</div>
+        </div>
+        <label class="field" for="prompt">Describe your Dr. Vibe</label>
+        <textarea id="prompt" maxlength="600" placeholder="Describe your Dr. Vibe…&#10;e.g. a tiny space captain with a glowing visor, a red scarf and freckles"></textarea>
+        <div class="chips" aria-label="Ideas">
+          <button class="chip" type="button" data-idea="a cozy wizard in a starry purple robe with round glasses and a long white beard">Cozy wizard</button>
+          <button class="chip" type="button" data-idea="a cheerful retro robot with a teal screen face and antenna that blinks">Retro robot</button>
+          <button class="chip" type="button" data-idea="a frog pirate with an eye patch, a tricorn hat and a tiny cutlass">Frog pirate</button>
+          <button class="chip" type="button" data-idea="a sleepy astronaut cat in a white suit with a fishbowl helmet">Astronaut cat</button>
+        </div>
+        <label class="field" for="start-from">Start from</label>
+        <select id="start-from">
+          <option value="">Nothing — a brand new Dr. Vibe</option>
+        </select>
+        <div class="agent-line" id="agent-line" hidden>
+          <span class="dot" aria-hidden="true"></span>
+          <span id="agent-text">Runs on your Claude Code</span>
+          <select id="agent-select" aria-label="AI to use" hidden>
+            <option value="claude">Claude Code</option>
+            <option value="codex">Codex</option>
+          </select>
+        </div>
+        <div class="btn-row" id="generate-row">
+          <button class="btn primary big" id="btn-generate" disabled>Generate ▶</button>
+          <button class="btn" id="btn-cancel" hidden>Cancel</button>
+        </div>
+        <p class="note" id="generate-note">Takes a few minutes. Your AI draws all 17 animations, then you can check them, name it and wear it.</p>
+      </div>
+
+      <!-- Draw it -->
+      <div class="tab-panel" role="tabpanel" id="panel-draw" aria-labelledby="tab-draw" hidden>
+        <p class="note" style="margin-top:0">Paint every frame by hand in the sprite editor. Save from the editor and it shows up under Your Dr. Vibes.</p>
+        <button class="btn" id="btn-draw-blank">Start with a blank sheet ↗</button>
+        <label class="field" for="template-from">Or start from a Lab Original</label>
+        <select id="template-from"></select>
+        <button class="btn" id="btn-draw-template">Open it in the editor ↗</button>
+        <div class="divider"></div>
+        <p class="note">Prefer your own art app? Download the template: a 128 × 544 sheet and a guide to its 17 rows.</p>
+        <button class="btn" id="btn-template">Download the template</button>
+      </div>
+
+      <!-- Import a sheet -->
+      <div class="tab-panel" role="tabpanel" id="panel-import" aria-labelledby="tab-import" hidden>
+        <p class="note" style="margin-top:0">Already drew one? Bring in the PNG. It is checked here before you wear or save it.</p>
+        <button class="btn primary" id="btn-import">Choose a PNG…</button>
+        <input type="file" id="file-input" accept="image/png">
+        <p class="note">128 × 544 px (17 rows of 32 × 32 frames, 4 columns), or 128 × 512 without the levitating row. Up to 2 MB.</p>
+        <button class="btn" id="btn-template-2">Download the template</button>
+      </div>
+
+      <h2>Your Dr. Vibes <span class="count" id="designs-count"></span></h2>
+      <div class="designs" id="designs"><div class="empty-designs">Loading…</div></div>
+    </section>
+
+    <!-- Middle: the bench -->
+    <section class="pane bench" id="bench" aria-label="Preview" aria-live="polite">
+      <div class="welcome" id="welcome">
+        <canvas id="welcome-canvas" width="32" height="32" aria-hidden="true"></canvas>
+        <h2>Your new Dr. Vibe appears here</h2>
+        <p>Describe one on the left, draw one or import a sheet. All 17 animations show up here so you can check them before Dr. Vibe wears it.</p>
+        <div class="steps-mini" aria-hidden="true"><span>1 Make</span><span>2 Check</span><span>3 Wear</span><span>4 Share</span></div>
+      </div>
+
+      <div class="working" id="working" hidden>
+        <h2 id="working-title">Generating your Dr. Vibe…</h2>
+        <ol class="steps" id="steps"></ol>
+        <div class="elapsed" id="elapsed">0:00</div>
+        <details class="log"><summary>Show what the AI is doing</summary><div id="log"></div></details>
+      </div>
+
+      <div id="design-view" hidden style="display:flex;flex-direction:column;min-height:0;flex:1">
+        <div class="bench-head">
+          <h2 id="grid-title">Untitled</h2>
+          <span class="summary" id="summary"></span>
+        </div>
+        <div class="errors" id="errors"></div>
+        <div class="hint-bar" id="hint-bar" hidden></div>
+        <div class="grid-wrap"><div class="rows" id="rows"></div></div>
+      </div>
+    </section>
+
+    <!-- Right: wear, change, share -->
+    <section class="pane" aria-label="Wear and share">
+      <div class="stage" id="stage" hidden>
+        <canvas id="preview" width="32" height="32" aria-label="Animated preview"></canvas>
+        <div class="row-label" id="preview-label">idle</div>
+      </div>
+
+      <div id="no-design" class="placeholder" style="margin-top:10px">Make one, or pick one of yours, to wear it, change it or share it.</div>
+      <div class="status" id="status" role="status"></div>
+
+      <div id="design-actions" hidden>
+        <label class="field" for="design-name" style="margin-top:12px">Name</label>
+        <input type="text" id="design-name" maxlength="40" placeholder="My Dr. Vibe">
+        <button class="btn primary big" id="btn-wear" disabled>Wear it</button>
+        <button class="btn" id="btn-save" hidden>Save to my Dr. Vibes</button>
+        <button class="btn" id="btn-remix" hidden>Remix it as my own</button>
+
+        <div class="group-label" id="change-label">Change it</div>
+        <div class="btn-row tight">
+          <button class="btn" id="btn-edit-ai" title="Fix one animation or redo the whole character with your AI">With AI ↗</button>
+          <button class="btn" id="btn-edit-pixels" title="Open it in the sprite editor">Edit pixels ↗</button>
+        </div>
+        <div class="btn-row tight">
+          <button class="btn" id="btn-export" title="Save the PNG and its settings to Downloads">Export PNG</button>
+          <button class="btn danger" id="btn-delete">Delete</button>
+        </div>
+
+        <div id="submit-box">
+          <div class="group-label">Share it in the Incubator</div>
+          <p class="note">Players vote on new designs. Each season the favourites graduate into the Machines, credited to you.</p>
+          <ul class="rules">
+            <li>Signed in for at least 7 days; one design a week.</li>
+            <li>All 16 standard rows drawn (levitating is optional).</li>
+            <li>Your own work: no real people, no well-known characters.</li>
+          </ul>
+          <label class="field" for="design-desc">Description <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <textarea id="design-desc" maxlength="280" placeholder="What makes this Dr. Vibe special?"></textarea>
+          <label class="check"><input type="checkbox" id="license-ok"> <span>I made this art (or have the right to share it). Dr. Vibe may show and share it in the game under the <button class="link" type="button" id="terms-link">upload terms</button>.</span></label>
+          <button class="btn violet" id="btn-submit" disabled>Submit to the Incubator</button>
+          <div class="note" id="submit-hint"></div>
+          <div class="status" id="submit-status" role="status"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="make.js"></script>
+</body>
+</html>

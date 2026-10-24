@@ -1,0 +1,26 @@
+/*
+ * Base for the transparent, always-on-top windows (character, speech
+ * bubble, toasts, visitor): fonts + tokens without panel chrome.
+ * tokens.css sets color-scheme, which would give the page an opaque
+ * canvas, so it is reset here to keep these windows see-through.
+ */
+
+@import url('fonts.css');
+@import url('tokens.css');
+
+:root,
+[data-theme='dark'],
+[data-theme='light'],
+[data-theme='system'] {
+  color-scheme: normal;
+}
+
+html,
+body {
+  background: transparent;
+  font-family: var(--font-body);
+}
+
+canvas {
+  image-rendering: pixelated;
+}

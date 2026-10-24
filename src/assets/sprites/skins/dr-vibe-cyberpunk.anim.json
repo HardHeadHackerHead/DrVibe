@@ -1,0 +1,89 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Cyberpunk Dr. Vibe — neon-lit, high-energy hacker with fast twitchy movements and glowing accents",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 900,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 600,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 1200,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 4
+      },
+      {
+        "duration": 800,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 2
+      }
+    ],
+    "maxInterval": 18000,
+    "minInterval": 7000,
+    "timeOfDay": {
+      "eveningHours": [
+        20,
+        24
+      ],
+      "eveningScale": 0.6,
+      "morningHours": [
+        6,
+        9
+      ],
+      "morningScale": 1.3
+    }
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 1700,
+      "scaleY": 0.024
+    },
+    "sway": {
+      "offsetX": 1.3,
+      "period": 2100
+    }
+  },
+  "squashStretch": {
+    "alert": {
+      "scaleX": 0.04,
+      "scaleY": 0.06,
+      "speed": 4.5
+    },
+    "celebrating": {
+      "scaleX": 0.06,
+      "scaleY": 0.11,
+      "speed": 6.0
+    },
+    "excited": {
+      "scaleX": 0.05,
+      "scaleY": 0.09,
+      "speed": 5.0
+    },
+    "idle": {
+      "scaleX": 0.015,
+      "scaleY": 0.025,
+      "speed": 1.8
+    }
+  },
+  "vibeId": "8a56ed65-92d1-4034-a762-bd8ecfba7491",
+  "walk": {
+    "maxIdleMs": 18000,
+    "maxSpeed": 2.8,
+    "minIdleMs": 6000
+  }
+}

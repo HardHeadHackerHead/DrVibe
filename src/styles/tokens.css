@@ -1,0 +1,181 @@
+/*
+ * Dr. Vibe shared design tokens.
+ *
+ * One file for the website and every desktop window (copy it verbatim into
+ * drvibe-desktop/src/styles/). Plain CSS custom properties only, no build step.
+ *
+ * Theme selection:
+ *   <html>                      dark (default)
+ *   <html data-theme="dark">    dark
+ *   <html data-theme="light">   light
+ *   <html data-theme="system">  follows prefers-color-scheme
+ *
+ * The --rarity-* values mirror web/src/lib/rarity.ts; a unit test fails if
+ * they drift apart, so change both together.
+ */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Ground and surfaces */
+  --bg: #0b0d12;
+  --surface: #12151c;
+  --surface-2: #1a1f2b; /* raised controls: secondary buttons, chips */
+  --inset: #0e1118; /* wells: sprite stages, code, tracks */
+  --border: #1f2430;
+  --border-strong: #2a3142;
+
+  /* Text */
+  --text: #f1f5f9;
+  --text-soft: #a3b1c6; /* body copy on cards */
+  --muted: #94a3b8; /* meta, timestamps */
+
+  /* Brand */
+  --lab-green: #00ffa3;
+  --lab-green-press: #00a86b; /* the pressable bottom edge */
+  --on-lab-green: #04120c;
+  --green-text: #6ee7b7;
+  --green-tint: #0f1d19;
+  --green-tint-border: #1f3b33;
+  --beaker-cyan: #00f0ff;
+  --link: #7dd3fc;
+  --link-hover: #bae6fd;
+  --spark-violet: #8b5cf6;
+  --spark-violet-press: #6d28d9;
+  --on-spark-violet: #ffffff;
+  --violet-text: #c4b5fd;
+  --violet-tint: #1e1a33;
+  --violet-tint-border: #5b4b9a;
+  --streak: #facc15;
+  --danger: #f87171;
+  --danger-tint: #2a1215;
+
+  /* Rarity: fill for frames, bars and dots; text for labels on --surface */
+  --rarity-common-fill: #94a3b8;
+  --rarity-common-text: #cbd5e1;
+  --rarity-uncommon-fill: #3b82f6;
+  --rarity-uncommon-text: #60a5fa;
+  --rarity-rare-fill: #a855f7;
+  --rarity-rare-text: #c084fc;
+  --rarity-epic-fill: #f97316;
+  --rarity-epic-text: #fb923c;
+  --rarity-legendary-fill: #facc15;
+  --rarity-legendary-text: #facc15;
+  --rarity-mythic-fill: #f472b6;
+  --rarity-mythic-text: #f9a8d4;
+
+  /* Type */
+  --font-display: 'Pixelify Sans', 'Geist', system-ui, sans-serif;
+  --font-body: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-btn: 10px;
+  --radius-card: 12px;
+  --radius-lg: 16px;
+  --border-w: 2px;
+  --press-edge: 4px;
+
+  /* Motion: UI transitions stay at 200 ms or less */
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --shadow-lift: 0 6px 20px rgb(0 0 0 / 0.35);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #fafaf7;
+  --surface: #ffffff;
+  --surface-2: #f1f1ec;
+  --inset: #f4f4ef;
+  --border: #e4e4e0;
+  --border-strong: #d0d0ca;
+
+  --text: #0f172a;
+  --text-soft: #475569;
+  --muted: #64748b;
+
+  --lab-green: #00b373;
+  --lab-green-press: #00875a;
+  --on-lab-green: #04120c;
+  --green-text: #047857;
+  --green-tint: #e7f8f0;
+  --green-tint-border: #b5e8d2;
+  --beaker-cyan: #0891b2;
+  --link: #0369a1;
+  --link-hover: #075985;
+  --spark-violet: #7c3aed;
+  --spark-violet-press: #5b21b6;
+  --on-spark-violet: #ffffff;
+  --violet-text: #6d28d9;
+  --violet-tint: #f3effe;
+  --violet-tint-border: #c9b8f5;
+  --streak: #a16207;
+  --danger: #dc2626;
+  --danger-tint: #fdecec;
+
+  --rarity-common-fill: #94a3b8;
+  --rarity-common-text: #475569;
+  --rarity-uncommon-fill: #3b82f6;
+  --rarity-uncommon-text: #1d4ed8;
+  --rarity-rare-fill: #a855f7;
+  --rarity-rare-text: #7e22ce;
+  --rarity-epic-fill: #f97316;
+  --rarity-epic-text: #c2410c;
+  --rarity-legendary-fill: #facc15;
+  --rarity-legendary-text: #a16207;
+  --rarity-mythic-fill: #f472b6;
+  --rarity-mythic-text: #be185d;
+
+  --shadow-lift: 0 6px 20px rgb(15 23 42 / 0.12);
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme='system'] {
+    color-scheme: light;
+
+    --bg: #fafaf7;
+    --surface: #ffffff;
+    --surface-2: #f1f1ec;
+    --inset: #f4f4ef;
+    --border: #e4e4e0;
+    --border-strong: #d0d0ca;
+
+    --text: #0f172a;
+    --text-soft: #475569;
+    --muted: #64748b;
+
+    --lab-green: #00b373;
+    --lab-green-press: #00875a;
+    --on-lab-green: #04120c;
+    --green-text: #047857;
+    --green-tint: #e7f8f0;
+    --green-tint-border: #b5e8d2;
+    --beaker-cyan: #0891b2;
+    --link: #0369a1;
+    --link-hover: #075985;
+    --spark-violet: #7c3aed;
+    --spark-violet-press: #5b21b6;
+    --on-spark-violet: #ffffff;
+    --violet-text: #6d28d9;
+    --violet-tint: #f3effe;
+    --violet-tint-border: #c9b8f5;
+    --streak: #a16207;
+    --danger: #dc2626;
+    --danger-tint: #fdecec;
+
+    --rarity-common-text: #475569;
+    --rarity-uncommon-text: #1d4ed8;
+    --rarity-rare-text: #7e22ce;
+    --rarity-epic-text: #c2410c;
+    --rarity-legendary-text: #a16207;
+    --rarity-mythic-text: #be185d;
+
+    --shadow-lift: 0 6px 20px rgb(15 23 42 / 0.12);
+  }
+}

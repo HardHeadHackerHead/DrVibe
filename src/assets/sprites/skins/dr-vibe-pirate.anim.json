@@ -1,0 +1,82 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Pirate Dr. Vibe — eye patch, captain hat, swaggering sea-dog with bold bouncy movements",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 1600,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1000,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1400,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 1200,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 3
+      }
+    ],
+    "maxInterval": 28000,
+    "minInterval": 11000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 3200,
+      "scaleY": 0.022
+    },
+    "sway": {
+      "offsetX": 2.2,
+      "period": 4200
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.05,
+      "scaleY": 0.09,
+      "speed": 4.0
+    },
+    "excited": {
+      "scaleX": 0.04,
+      "scaleY": 0.075,
+      "speed": 3.5
+    },
+    "idle": {
+      "scaleX": 0.014,
+      "scaleY": 0.025,
+      "speed": 1.1
+    },
+    "walkLeft": {
+      "scaleX": 0.022,
+      "scaleY": 0.04,
+      "speed": 3.0
+    },
+    "walkRight": {
+      "scaleX": 0.022,
+      "scaleY": 0.04,
+      "speed": 3.0
+    }
+  },
+  "vibeId": "b260dc5f-860b-498a-9add-c59e029036c2",
+  "walk": {
+    "maxIdleMs": 28000,
+    "maxSpeed": 2.2,
+    "minIdleMs": 10000
+  }
+}

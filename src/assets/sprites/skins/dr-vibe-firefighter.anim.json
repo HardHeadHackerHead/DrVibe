@@ -1,0 +1,82 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Firefighter Dr. Vibe — helmet, turnout gear, alert and action-ready with fast responsive movements",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 1000,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 700,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1200,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 900,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 24000,
+    "minInterval": 9000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 2400,
+      "scaleY": 0.024
+    },
+    "sway": {
+      "offsetX": 1.0,
+      "period": 3500
+    }
+  },
+  "squashStretch": {
+    "alert": {
+      "scaleX": 0.035,
+      "scaleY": 0.055,
+      "speed": 3.5
+    },
+    "excited": {
+      "scaleX": 0.04,
+      "scaleY": 0.07,
+      "speed": 4.0
+    },
+    "idle": {
+      "scaleX": 0.014,
+      "scaleY": 0.024,
+      "speed": 1.5
+    },
+    "walkLeft": {
+      "scaleX": 0.02,
+      "scaleY": 0.035,
+      "speed": 3.5
+    },
+    "walkRight": {
+      "scaleX": 0.02,
+      "scaleY": 0.035,
+      "speed": 3.5
+    }
+  },
+  "vibeId": "894e3e9f-b11f-4751-ba8e-c6912ec24bc7",
+  "walk": {
+    "maxIdleMs": 20000,
+    "maxSpeed": 2.7,
+    "minIdleMs": 7000
+  }
+}

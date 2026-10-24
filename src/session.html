@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Stats</title>
+  <!-- Apply saved theme before paint to avoid flash -->
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 14px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      letter-spacing: 0.02em;
+    }
+    .titlebar-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+      align-items: center;
+    }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+
+    /* ── Content shell — fixed height, no scroll ── */
+    .session-shell {
+      height: calc(100% - 32px);
+      overflow: hidden;
+      padding: 10px 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 0;
+    }
+    .page-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .session-project {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .session-start-time {
+      font-size: 11px;
+      color: var(--muted-2);
+      margin-top: 2px;
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.3), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .stat-card:hover::before { opacity: 1; }
+    .stat-value {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--green);
+      display: block;
+    }
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+      display: block;
+      margin-top: 2px;
+    }
+    .stat-sub {
+      font-size: 10px;
+      color: var(--muted-2);
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* ── Section card ── */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 12px;
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      color: var(--muted);
+      display: block;
+    }
+
+    /* ── Coding ratio bar ── */
+    .coding-ratio-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .coding-ratio-pct {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 600;
+    }
+    .coding-ratio-bar {
+      height: 6px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .coding-ratio-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), #22c55e);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── Timeline ── */
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+    }
+    .timeline-legend {
+      display: flex;
+      gap: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+      color: var(--muted-2);
+    }
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 2px;
+    }
+    .legend-dot.coding { background: var(--green); }
+    .legend-dot.idle { background: var(--bg-input); border: 1px solid var(--border); }
+
+    .session-timeline-bar {
+      position: relative;
+      width: 100%;
+      height: 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: default;
+    }
+    .session-timeline-segment {
+      position: absolute;
+      top: 0; height: 100%;
+      transition: filter 0.15s;
+    }
+    .session-timeline-segment.coding { background: var(--green); }
+    .session-timeline-segment.idle { background: rgba(255,255,255,0.04); }
+    .session-timeline-segment:hover { filter: brightness(1.3); }
+
+    /* Mood strip */
+    .mood-strip {
+      position: relative;
+      width: 100%;
+      height: 5px;
+      margin-top: 3px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: var(--bg-input);
+    }
+    .mood-strip-seg {
+      position: absolute;
+      top: 0; height: 100%;
+      transition: filter 0.15s;
+      cursor: default;
+    }
+    .mood-strip-seg:hover { filter: brightness(1.5); }
+
+    .session-timeline-empty {
+      font-size: 11px;
+      color: var(--muted-2);
+      font-style: italic;
+    }
+
+    .timeline-markers {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      padding: 0 2px;
+    }
+    .timeline-marker {
+      font-size: 9px;
+      color: var(--muted-2);
+    }
+
+    /* ── Timeline tooltip ── */
+    .timeline-tooltip {
+      position: fixed;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--text);
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.12s;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      font-family: var(--font-body);
+    }
+    .timeline-tooltip.visible { opacity: 1; }
+    .tooltip-type { font-weight: 600; margin-bottom: 3px; }
+    .tooltip-type.coding { color: var(--green); }
+    .tooltip-type.idle { color: var(--muted); }
+    .tooltip-time { color: var(--muted); font-size: 10px; }
+    .tooltip-duration { color: var(--text-2); font-size: 10px; margin-top: 1px; }
+
+    /* ── Summary row ── */
+    .session-summary {
+      display: flex;
+      gap: 16px;
+      padding: 7px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .summary-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .summary-dot.coding { background: var(--green); }
+    .summary-dot.idle { background: var(--muted-2); }
+    .summary-dot.total { background: var(--muted); }
+    .summary-value { color: var(--text-2); font-weight: 500; }
+
+    /* ── Recent files ── */
+    .recent-files-list { list-style: none; }
+    .recent-file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-2);
+      transition: background 0.15s;
+    }
+    .recent-file-item:hover { background: rgba(127,127,127,0.05); }
+    .file-icon {
+      font-size: 10px;
+      color: var(--muted-2);
+      flex-shrink: 0;
+      width: 14px;
+      text-align: center;
+    }
+    .file-name { font-weight: 500; color: var(--text); white-space: nowrap; }
+    .file-dir {
+      color: var(--muted-2);
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .no-files { font-size: 11px; color: var(--muted-2); font-style: italic; padding: 4px 0; }
+
+    /* ── Footer ── */
+    .button-row {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .panel-btn {
+      padding: 6px 18px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      background: rgba(127,127,127,0.07);
+      color: var(--muted);
+      transition: background .15s, color .15s;
+    }
+    .panel-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <span class="titlebar-title">Session Stats</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn titlebar-close" id="tb-close" title="Close">✕</button>
+    </div>
+  </div>
+
+  <div class="session-shell">
+    <div>
+      <div class="page-header">
+        <span class="page-title">Session Stats</span>
+        <span class="session-project" id="session-project"></span>
+      </div>
+      <div class="session-start-time" id="session-start-time">Started --:--</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-value" id="session-coding-time">0m</span>
+        <span class="stat-label">Coding Time</span>
+        <span class="stat-sub" id="session-coding-sub"></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="session-streak">--</span>
+        <span class="stat-label">Streak</span>
+        <span class="stat-sub" id="session-streak-sub"></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="session-files-created">0</span>
+        <span class="stat-label">New Files</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="session-files-modified">0</span>
+        <span class="stat-label">Changed Files</span>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="coding-ratio-header">
+        <span class="section-label">Session Efficiency</span>
+        <span class="coding-ratio-pct" id="coding-ratio-pct">--%</span>
+      </div>
+      <div class="coding-ratio-bar">
+        <div class="coding-ratio-fill" id="coding-ratio-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="timeline-header">
+        <span class="section-label">Activity Timeline</span>
+        <div class="timeline-legend">
+          <span class="legend-item"><span class="legend-dot coding"></span>Coding</span>
+          <span class="legend-item"><span class="legend-dot idle"></span>Idle</span>
+        </div>
+      </div>
+      <div id="session-timeline">
+        <span class="session-timeline-empty">No activity yet</span>
+      </div>
+      <div id="mood-strip"></div>
+      <div class="timeline-markers" id="timeline-markers"></div>
+    </div>
+
+    <div class="session-summary" id="session-summary" style="display: none;">
+      <span class="summary-item"><span class="summary-dot total"></span>Total <span class="summary-value" id="summary-total">--</span></span>
+      <span class="summary-item"><span class="summary-dot coding"></span>Coding <span class="summary-value" id="summary-coding">--</span></span>
+      <span class="summary-item"><span class="summary-dot idle"></span>Idle <span class="summary-value" id="summary-idle">--</span></span>
+    </div>
+
+    <div class="section-card">
+      <span class="section-label" style="margin-bottom: 6px;">Recent Files</span>
+      <ul class="recent-files-list" id="recent-files-list">
+        <li class="no-files">No file changes yet</li>
+      </ul>
+    </div>
+
+    <div class="button-row">
+      <button class="panel-btn" id="session-close">Close</button>
+    </div>
+  </div>
+
+  <div class="timeline-tooltip" id="timeline-tooltip">
+    <div class="tooltip-type" id="tooltip-type"></div>
+    <div class="tooltip-time" id="tooltip-time"></div>
+    <div class="tooltip-duration" id="tooltip-duration"></div>
+  </div>
+
+  <script type="module" src="session-page.js"></script>
+</body>
+</html>
