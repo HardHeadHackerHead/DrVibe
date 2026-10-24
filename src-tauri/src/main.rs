@@ -10,9 +10,11 @@ mod deeplink;
 mod e2e_bridge;
 mod error_reports;
 mod generator;
+mod gitignore;
 mod panels;
 mod presence;
 mod projects;
+mod repo_scan;
 mod skins;
 mod sync;
 mod system;
@@ -117,7 +119,7 @@ fn main() {
             system::is_coding_app,
             system::get_cursor_position,
             projects::scan_project_markers,
-            projects::scan_directories_for_projects,
+            repo_scan::scan_git_repos,
             projects::get_recent_git_repos,
             watcher::start_watching,
             watcher::stop_watching,

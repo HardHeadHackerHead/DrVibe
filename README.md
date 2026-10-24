@@ -41,7 +41,8 @@ works offline, with no account.
   out hotspot files, fix-test-fix loops, big refactors and new files, and sums up each
   session. [More below](#claude-code).
 - **Git.** Commit celebrations, branch changes, and reminders that get more insistent
-  the longer changes sit uncommitted.
+  the longer changes sit uncommitted. Repos are found by themselves, on every local
+  drive; switch that off in Settings → Tracking to track only folders you pick.
 - **Focus and wellness.** Pomodoro or activity-based breaks, focus mode
   (`Ctrl+Shift+F`), hydration, 20-20-20 eye breaks, posture checks, fatigue and stuck
   detection, overwork warnings, and late-night and weekend nudges. Every one can be

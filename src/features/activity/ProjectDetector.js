@@ -102,6 +102,7 @@ export class ProjectDetector {
 
     this._unsubActivity = null;
     this._unsubWindowChanged = null;
+    this._unsubRepos = null;
   }
 
   init() {
@@ -115,6 +116,22 @@ export class ProjectDetector {
       this._onWindowChanged(data);
     });
 
+    // Repos from the repo scanner (other drives included) let a window title
+    // that only names the project resolve to its path.
+    this._unsubRepos = eventBus.on(Events.PROJECTS_DISCOVERED, ({ repos }) => {
+      for (const repo of repos || []) {
+        if (!repo?.path || this.projectCache.has(repo.path)) continue;
+        this.projectCache.set(repo.path, {
+          name: repo.name,
+          path: repo.path,
+          source: 'repo_scan',
+          projectType: null,
+          typeInfo: null,
+          detectedAt: Date.now(),
+        });
+      }
+    });
+
     console.log('ProjectDetector initialized (5s debounce)');
   }
 
@@ -126,6 +143,10 @@ export class ProjectDetector {
     if (this._unsubWindowChanged) {
       this._unsubWindowChanged();
       this._unsubWindowChanged = null;
+    }
+    if (this._unsubRepos) {
+      this._unsubRepos();
+      this._unsubRepos = null;
     }
     if (this._debounceTimer) {
       clearTimeout(this._debounceTimer);

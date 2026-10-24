@@ -126,6 +126,8 @@ export const DEFAULT_SETTINGS = {
   gitReminderThresholdMinutes: 30,    // minutes before first gentle reminder
   gitReminderMinChanges: 3,           // minimum changed files before reminding
   projectFolders: [],              // user-configured directories to scan for git repos
+  autoDetectRepos: true,           // also find repos on the home folder and every local drive
+  ignoredRepos: [],                // repo paths never tracked, scanned or auto-added
   // Activity overlay visibility
   momentumMeterEnabled: true,         // show/hide the heat bar
   momentumMeterPosition: 'bottom',    // 'top' | 'bottom' — where the heat bar appears relative to Dr. Vibe
