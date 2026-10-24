@@ -15,7 +15,7 @@ import { getPresetsForSkin, getDefaultTone, getToneCategory, SKIN_TONE_CATEGORIE
 import { WEB_BASE as SITE_URL, IS_DEV, syncWebBaseFromRust } from './core/config.js';
 import { getErrorReportsEnabled, installErrorReporter, setErrorReportsEnabled } from './core/errorReporter.js';
 import { makeUrl } from './features/make/makeHub.js';
-import { formatAgo, visibleRepos, scanSummary } from './ui/foundRepos.js';
+import { formatAgo, visibleRepos, trackedSummary, repoTag } from './ui/foundRepos.js';
 import { repoName } from './features/activity/repoPaths.js';
 
 installErrorReporter();
@@ -242,7 +242,7 @@ const SETTING_KEYS = [
   'soundVolume', 'soundTalkVoice',
   'claudeCodeHooksEnabled', 'gitTrackingEnabled', 'gitCommitNotificationsEnabled', 'gitBranchNotificationsEnabled', 'gitPollIntervalMinutes',
   'gitCommitRemindersEnabled', 'gitReminderThresholdMinutes', 'gitReminderMinChanges',
-  'hideWhenPresenting', 'shareWeeklyRecap', 'autoDetectRepos', 'ignoredRepos',
+  'hideWhenPresenting', 'shareWeeklyRecap', 'trackClaudeRepos', 'ignoredRepos',
 ];
 
 // --- Coding Apps management ---
@@ -250,12 +250,13 @@ let currentCodingApps = [];
 
 // --- Project Folders management ---
 let currentProjectFolders = [];
-// Cache of folder path → array of { name, path } repos (undefined = not yet scanned)
+// Cache of folder path → array of { name, root, worktree } repos, 'untracked'
+// for a place never tracked (undefined = not looked at yet)
 const folderRepoCache = new Map();
 
-// --- Found repos state ---
+// --- Tracked repos state ---
 let currentIgnoredRepos = [];
-let repoScanStatus = null; // FileSystemScanner.getStatus() from the main window
+let trackedStatus = null; // TrackedRepos.getStatus() from the main window
 
 // --- Account state (set by the dr-vibe://auth-callback deep link) ---
 let apiToken       = null;
@@ -273,12 +274,12 @@ let adminMode = false;
 // banner. See the Admin tab in settings.html.
 let _initialDevServerOverride = 'auto';
 
-async function scanFolder(folder) {
+async function loadFolderRepos(folder) {
   try {
     const invoke = window.__TAURI__?.core?.invoke;
     if (!invoke) return;
-    const repos = await invoke('get_recent_git_repos', { searchPaths: [folder] });
-    folderRepoCache.set(folder, repos || []);
+    const [untracked] = await invoke('untracked_places', { paths: [folder] });
+    folderRepoCache.set(folder, untracked ? 'untracked' : (await invoke('find_folder_repos', { folder })) || []);
   } catch {
     folderRepoCache.set(folder, []);
   }
@@ -510,7 +511,7 @@ const els = {
   soundTalkVoice: () => document.getElementById('sound-talk-voice'),
   claudeHooksEnabled: () => document.getElementById('claude-hooks-enabled'),
   gitTrackingEnabled: () => document.getElementById('git-tracking-enabled'),
-  autoDetectRepos: () => document.getElementById('auto-detect-repos'),
+  trackClaudeRepos: () => document.getElementById('track-claude-repos'),
   gitCommitNotifications: () => document.getElementById('git-commit-notifications'),
   gitBranchNotifications: () => document.getElementById('git-branch-notifications'),
   gitPollInterval: () => document.getElementById('git-poll-interval'),
@@ -1105,8 +1106,13 @@ function renderProjectFolders() {
     if (cached === undefined) {
       const scanning = document.createElement('span');
       scanning.className = 'project-folder-scanning';
-      scanning.textContent = 'scanning…';
+      scanning.textContent = 'looking…';
       repoArea.appendChild(scanning);
+    } else if (cached === 'untracked') {
+      const none = document.createElement('span');
+      none.className = 'project-folder-none';
+      none.textContent = 'never tracked: a temp, app-data or system folder, or your whole home folder';
+      repoArea.appendChild(none);
     } else if (cached.length === 0) {
       const none = document.createElement('span');
       none.className = 'project-folder-none';
@@ -1116,7 +1122,7 @@ function renderProjectFolders() {
       for (const repo of cached) {
         const row = document.createElement('div');
         row.className = 'project-folder-repo';
-        row.title = repo.path;
+        row.title = repo.worktree;
         const name = document.createElement('span');
         name.className = 'project-folder-repo-name';
         name.textContent = repo.name;
@@ -1135,42 +1141,43 @@ function addProjectFolder() {
   if (path && !currentProjectFolders.includes(path)) {
     currentProjectFolders.push(path);
     renderProjectFolders();
-    scanFolder(path); // kick off async scan; re-renders when done
+    loadFolderRepos(path); // re-renders when done
   }
   input.value = '';
 }
 
-// --- Found repos ("Find my repos automatically") ---
+// --- Tracked repos ("Track repos Claude Code works in") ---
 
-function applyRepoScanStatus(status) {
-  repoScanStatus = status || null;
-  renderFoundRepos();
+function applyTrackedStatus(status) {
+  trackedStatus = status || null;
+  renderTrackedRepos();
 }
 
-function updateAutoDetectDesc() {
-  const desc = document.getElementById('auto-detect-repos-desc');
+function updateTrackClaudeDesc() {
+  const desc = document.getElementById('track-claude-repos-desc');
   if (!desc) return;
-  desc.textContent = els.autoDetectRepos()?.checked !== false
-    ? 'Looks for git repos in your home folder and on every local drive once a day, and remembers repos you work in. Paths stay on this computer.'
-    : 'Off: only the project folders below are scanned and tracked.';
+  desc.textContent = els.trackClaudeRepos()?.checked !== false
+    ? 'Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.'
+    : 'Off: only the repos in your project folders below (and the project open in your editor) are tracked.';
 }
 
-function foundRepoRow(repo, { ignored }) {
+function trackedRepoRow(repo, { ignored }) {
   const row = document.createElement('div');
   row.className = 'found-repo';
-  row.title = repo.path;
+  row.title = [repo.path, ...(repo.worktrees || []).filter(w => w !== repo.path)].join('\n');
   const name = document.createElement('span');
   name.className = 'found-repo-name';
   name.textContent = repo.name;
-  if (repo.source === 'detected') {
+  const tagText = ignored ? '' : repoTag(repo);
+  if (tagText) {
     const tag = document.createElement('span');
     tag.className = 'found-repo-tag';
-    tag.textContent = 'seen while coding';
+    tag.textContent = tagText;
     name.appendChild(tag);
   }
   const when = document.createElement('span');
   when.className = 'found-repo-when';
-  when.textContent = repo.lastCommit ? formatAgo(repo.lastCommit * 1000) : '';
+  when.textContent = repo.lastSeen ? formatAgo(repo.lastSeen) : '';
   const btn = document.createElement('button');
   btn.textContent = ignored ? 'Track' : 'Ignore';
   btn.title = ignored ? `Track ${repo.name} again` : `Never track ${repo.name}`;
@@ -1178,7 +1185,7 @@ function foundRepoRow(repo, { ignored }) {
     currentIgnoredRepos = ignored
       ? currentIgnoredRepos.filter(p => p !== repo.path)
       : [...currentIgnoredRepos, repo.path];
-    renderFoundRepos();
+    renderTrackedRepos();
     debouncedSave();
   });
   const path = document.createElement('span');
@@ -1188,22 +1195,14 @@ function foundRepoRow(repo, { ignored }) {
   return row;
 }
 
-function renderFoundRepos() {
+function renderTrackedRepos() {
   const list = document.getElementById('found-repos-list');
   if (!list) return;
-  const repos = visibleRepos(repoScanStatus?.repos, currentIgnoredRepos);
-  document.getElementById('found-repos-summary').textContent = scanSummary(repoScanStatus, repos.length);
-  const scanBtn = document.getElementById('repo-scan-btn');
-  if (scanBtn) scanBtn.disabled = !!repoScanStatus?.scanning;
+  const repos = visibleRepos(trackedStatus?.repos, currentIgnoredRepos);
+  document.getElementById('found-repos-summary').textContent = trackedSummary(trackedStatus, repos.length);
 
   list.innerHTML = '';
-  for (const repo of repos) list.appendChild(foundRepoRow(repo, { ignored: false }));
-  if (repos.length === 0 && repoScanStatus?.lastScanTime && !repoScanStatus.scanning) {
-    const none = document.createElement('div');
-    none.className = 'found-repos-empty';
-    none.textContent = 'No repos found';
-    list.appendChild(none);
-  }
+  for (const repo of repos) list.appendChild(trackedRepoRow(repo, { ignored: false }));
 
   const wrap = document.getElementById('ignored-repos-wrap');
   const ignoredList = document.getElementById('ignored-repos-list');
@@ -1211,21 +1210,15 @@ function renderFoundRepos() {
   document.getElementById('ignored-repos-summary').textContent = `Ignored (${currentIgnoredRepos.length})`;
   ignoredList.innerHTML = '';
   for (const path of currentIgnoredRepos) {
-    ignoredList.appendChild(foundRepoRow({ name: repoName(path), path }, { ignored: true }));
+    ignoredList.appendChild(trackedRepoRow({ name: repoName(path), path }, { ignored: true }));
   }
 }
 
-async function initFoundRepos() {
-  // Last cached scan, until the main window answers with live status
-  const saved = await readSection('repoScan').catch(() => null);
-  if (saved && !repoScanStatus) {
-    applyRepoScanStatus({ repos: saved.repos || [], lastScanTime: saved.lastScan || 0, stats: saved.stats || null, scanning: false });
-  } else {
-    renderFoundRepos();
-  }
+function initTrackedRepos() {
+  renderTrackedRepos();
   const ev = window.__TAURI__?.event;
-  ev?.listen?.('repo-scan-status', e => applyRepoScanStatus(e.payload));
-  ev?.emit?.('request-repo-scan-status', {})?.catch?.(() => {});
+  ev?.listen?.('tracked-repos-status', e => applyTrackedStatus(e.payload));
+  ev?.emit?.('request-tracked-repos-status', {})?.catch?.(() => {});
 }
 
 // --- Load settings from store into form ---
@@ -1432,15 +1425,15 @@ async function loadSettings() {
     currentProjectFolders = [...v('projectFolders')];
   }
   renderProjectFolders();
-  // Kick off background scans for all saved folders so repo lists populate on open
+  // Look up the repos in each saved folder so their lists fill in on open
   for (const folder of currentProjectFolders) {
-    scanFolder(folder);
+    loadFolderRepos(folder);
   }
 
-  if (els.autoDetectRepos()) els.autoDetectRepos().checked = v('autoDetectRepos') !== false;
+  if (els.trackClaudeRepos()) els.trackClaudeRepos().checked = v('trackClaudeRepos') !== false;
   currentIgnoredRepos = Array.isArray(v('ignoredRepos')) ? [...v('ignoredRepos')] : [];
-  updateAutoDetectDesc();
-  initFoundRepos();
+  updateTrackClaudeDesc();
+  initTrackedRepos();
 
   // Developer mode (debug builds only)
   adminMode = IS_DEV && v('adminMode') === true;
@@ -1529,7 +1522,7 @@ function gatherSettings() {
     walkingBoundRightPercent: parseInt(els.walkingBoundRight().value) || 0,
     codingApps: [...currentCodingApps],
     projectFolders: [...currentProjectFolders],
-    autoDetectRepos: els.autoDetectRepos()?.checked !== false,
+    trackClaudeRepos: els.trackClaudeRepos()?.checked !== false,
     ignoredRepos: [...currentIgnoredRepos],
     soundReactionsEnabled: els.soundReactionsEnabled().checked,
     soundTalkEnabled: els.soundTalkEnabled().checked,
@@ -1728,11 +1721,7 @@ function setupListeners() {
     await applyHooksSwitch(els.claudeHooksEnabled().checked);
   });
 
-  els.autoDetectRepos()?.addEventListener('change', () => { updateAutoDetectDesc(); debouncedSave(); });
-  document.getElementById('repo-scan-btn')?.addEventListener('click', () => {
-    applyRepoScanStatus({ ...(repoScanStatus || {}), scanning: true });
-    window.__TAURI__?.event?.emit?.('repo-scan-now', {})?.catch?.(() => {});
-  });
+  els.trackClaudeRepos()?.addEventListener('change', () => { updateTrackClaudeDesc(); debouncedSave(); });
 
   document.getElementById('project-folder-add-btn').addEventListener('click', () => { addProjectFolder(); debouncedSave(); });
   document.getElementById('project-folder-input').addEventListener('keydown', (e) => {

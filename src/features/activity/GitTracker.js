@@ -1,11 +1,13 @@
 // Dr. Vibe - Git Tracker (Multi-Repo Watchlist)
-// Monitors ALL known git repos for commits, branch changes, and uncommitted work.
+// Monitors the tracked repos (TrackedRepos: the ones Claude Code works in and
+// the user's folders) for commits, branch changes, and uncommitted work. Each
+// working tree in use is polled; a linked worktree reports its main repo's name.
 // Polls discovered repos on a two-tier schedule (active vs idle) and fires
 // escalating commit reminders for any repo with stale uncommitted changes.
 
 import { eventBus, Events } from '../../core/EventBus.js';
 import { tauri } from '../../core/TauriBridge.js';
-import { isIgnoredRepo, isInside } from './repoPaths.js';
+import { isIgnoredRepo, isInside, repoKey } from './repoPaths.js';
 
 // How long to wait before re-sending a reminder at each urgency level.
 const REMINDER_COOLDOWNS = {
@@ -40,7 +42,6 @@ class RepoState {
     this.path = path;
     this.name = name;
     this.tier = 'idle';               // 'active' | 'idle'
-    this.detected = false;            // added from runtime detection, not the scan list
 
     // Git state
     this.lastCommitHash = null;
@@ -125,26 +126,29 @@ export class GitTracker {
     return p.replace(/\\/g, '/').replace(/\/+$/, '');
   }
 
-  _addToWatchlist(path, name, { detected = false } = {}) {
+  _addToWatchlist(path, name) {
     if (!path || !this._isAllowed(path)) return;
     const key = this._normalizePath(path);
     if (this._watchlist.has(key)) return;
 
-    const repo = new RepoState(key, name);
-    repo.detected = detected;
-    this._watchlist.set(key, repo);
-    console.log(`GitTracker: added "${name}" to watchlist (${this._watchlist.size} repos)`);
+    this._watchlist.set(key, new RepoState(key, name));
+    console.log(`GitTracker: added "${name}" to watchlist (${this._watchlist.size} working trees)`);
   }
 
-  /**
-   * Ignored repos are never tracked. With "Find my repos automatically" off,
-   * only repos inside the user's project folders are.
-   */
+  /** Ignored repos are never tracked. */
   _isAllowed(path) {
-    if (isIgnoredRepo(path, this.settings?.get('ignoredRepos'))) return false;
-    if (this.settings?.get('autoDetectRepos') !== false) return true;
-    const folders = this.settings?.get('projectFolders');
-    return Array.isArray(folders) && folders.some(f => isInside(path, f));
+    return !isIgnoredRepo(path, this.settings?.get('ignoredRepos'));
+  }
+
+  /** The watched working tree `path` is in (the deepest, for nested ones). */
+  _repoFor(path) {
+    let best = null;
+    for (const repo of this._watchlist.values()) {
+      if (isInside(path, repo.path) && (!best || repoKey(repo.path).length > repoKey(best.path).length)) {
+        best = repo;
+      }
+    }
+    return best;
   }
 
   /** Drop watched repos the settings no longer allow. */
@@ -166,20 +170,23 @@ export class GitTracker {
   }
 
   /**
-   * Sync the watchlist with the repo scanner's list ({ name, path }): new repos
-   * are added, repos no longer listed are dropped (runtime-detected ones stay
-   * while allowed). Called from app.js after init and on PROJECTS_DISCOVERED.
+   * Sync the watchlist with the tracked repos ({ name, path, worktrees }):
+   * each working tree in use is watched under the repo's name, and working
+   * trees no longer listed are dropped. Called from app.js after init and on
+   * REPOS_CHANGED.
    */
   populateFromRepos(repos) {
     if (!repos) return;
     const listed = new Set();
     for (const repo of repos) {
-      if (!repo?.path) continue;
-      listed.add(this._normalizePath(repo.path));
-      this._addToWatchlist(repo.path, repo.name);
+      if (!repo?.path || isIgnoredRepo(repo.path, this.settings?.get('ignoredRepos'))) continue;
+      for (const tree of repo.worktrees?.length ? repo.worktrees : [repo.path]) {
+        listed.add(this._normalizePath(tree));
+        this._addToWatchlist(tree, repo.name);
+      }
     }
-    for (const [key, repo] of this._watchlist) {
-      if (!listed.has(key) && !repo.detected) this._watchlist.delete(key);
+    for (const key of this._watchlist.keys()) {
+      if (!listed.has(key)) this._watchlist.delete(key);
     }
     this._pruneDisallowed();
     if (this._watchlist.size > 0) {
@@ -462,29 +469,24 @@ export class GitTracker {
   // ---- Lifecycle ----
 
   init() {
-    // Populate watchlist when FileSystemScanner reports discovered projects
+    // The watchlist follows the tracked repos
     this._unsubscribers.push(
-      eventBus.on(Events.PROJECTS_DISCOVERED, ({ repos }) => {
+      eventBus.on(Events.REPOS_CHANGED, ({ repos }) => {
         this.populateFromRepos(repos);
       })
     );
 
-    // Add repos dynamically from project detection (Claude Code sessions, IDE, etc.)
+    // The project being worked on (Claude Code session, IDE): if it's in a
+    // watched working tree, poll that one actively
     this._unsubscribers.push(
       eventBus.on(Events.PROJECT_DETECTED, (project) => {
-        if (project.path) {
-          this._currentProjectPath = project.path;
-          this._addToWatchlist(project.path, project.name, { detected: true });
-          this._promoteToActive(project.path);
-
-          // Mark as recently active — the user is working on this now
-          const key = this._normalizePath(project.path);
-          const repo = this._watchlist.get(key);
-          if (repo) {
-            repo.lastActivityTime = Date.now();
-            if (!repo.seeded) this._pollRepo(repo, true);
-          }
-        }
+        const repo = project.path ? this._repoFor(project.path) : null;
+        if (!repo) return;
+        this._currentProjectPath = repo.path;
+        this._promoteToActive(repo.path);
+        // Mark as recently active — the user is working on this now
+        repo.lastActivityTime = Date.now();
+        if (!repo.seeded) this._pollRepo(repo, true);
       })
     );
 
@@ -511,7 +513,7 @@ export class GitTracker {
             this._stopAllPolling();
           }
         }
-        if (key === 'ignoredRepos' || key === 'autoDetectRepos' || key === 'projectFolders') {
+        if (key === 'ignoredRepos') {
           this._pruneDisallowed();
         }
         if (key === 'gitPollIntervalMinutes' && this._activeTierTimer) {

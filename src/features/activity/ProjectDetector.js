@@ -1,6 +1,7 @@
 // Dr. Vibe - Project Detector
 // Automatically detects which project the user is working on by parsing
-// IDE window titles and falling back to filesystem scanning.
+// IDE window titles; a title naming only the project resolves to a tracked
+// repo of that name.
 // Includes debounced project switching to prevent flickering.
 
 import { eventBus, Events } from '../../core/EventBus.js';
@@ -94,7 +95,6 @@ export class ProjectDetector {
   constructor() {
     this.currentProject = null;   // { name, path, source, projectType, typeInfo, detectedAt }
     this.projectCache = new Map(); // path/name -> project info
-    this.fallbackScanDone = false;
 
     // Debounce state
     this._pendingProject = null;  // Project waiting to be committed
@@ -116,15 +116,15 @@ export class ProjectDetector {
       this._onWindowChanged(data);
     });
 
-    // Repos from the repo scanner (other drives included) let a window title
-    // that only names the project resolve to its path.
-    this._unsubRepos = eventBus.on(Events.PROJECTS_DISCOVERED, ({ repos }) => {
+    // Tracked repos let a window title that only names the project resolve
+    // to its path.
+    this._unsubRepos = eventBus.on(Events.REPOS_CHANGED, ({ repos }) => {
       for (const repo of repos || []) {
         if (!repo?.path || this.projectCache.has(repo.path)) continue;
         this.projectCache.set(repo.path, {
           name: repo.name,
           path: repo.path,
-          source: 'repo_scan',
+          source: 'tracked_repo',
           projectType: null,
           typeInfo: null,
           detectedAt: Date.now(),
@@ -287,7 +287,7 @@ export class ProjectDetector {
     }
 
     // If path is still null, search cache by name to find a known path
-    // (e.g. project was found by scanCommonDirectories but window title only had the name)
+    // (e.g. a tracked repo, when the window title only had the name)
     if (!path) {
       for (const cached of this.projectCache.values()) {
         if (cached.name === name && cached.path) {
@@ -339,58 +339,6 @@ export class ProjectDetector {
     const markers = await tauri.scanProjectMarkers(dirPath);
     if (markers && markers.project_name) {
       this._scheduleProjectSwitch(markers.project_name, dirPath, 'filesystem_scan');
-    }
-  }
-
-  async scanCommonDirectories(extraPaths = []) {
-    if (!this.fallbackScanDone) {
-      this.fallbackScanDone = true;
-
-      const homePaths = [
-        '~/code', '~/projects', '~/dev', '~/repos', '~/workspace',
-        '~/Documents/code', '~/Documents/projects',
-        '~/Desktop',
-      ];
-
-      const repos = await tauri.getRecentGitRepos(homePaths);
-      for (const repo of repos) {
-        this.projectCache.set(repo.path, {
-          name: repo.name,
-          path: repo.path,
-          source: 'git_scan',
-          projectType: null,
-          typeInfo: null,
-          detectedAt: Date.now(),
-        });
-      }
-
-      if (repos.length > 0) {
-        console.log(`Discovered ${repos.length} project(s) from common directories`);
-      }
-    }
-
-    if (extraPaths.length > 0) {
-      await this.scanExtraPaths(extraPaths);
-    }
-  }
-
-  async scanExtraPaths(paths) {
-    if (!paths || paths.length === 0) return;
-
-    const repos = await tauri.getRecentGitRepos(paths);
-    for (const repo of repos) {
-      this.projectCache.set(repo.path, {
-        name: repo.name,
-        path: repo.path,
-        source: 'user_folder',
-        projectType: null,
-        typeInfo: null,
-        detectedAt: Date.now(),
-      });
-    }
-
-    if (repos.length > 0) {
-      console.log(`Discovered ${repos.length} project(s) from user-configured folders`);
     }
   }
 

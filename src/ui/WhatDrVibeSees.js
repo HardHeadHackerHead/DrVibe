@@ -5,9 +5,9 @@
 
 export const STAYS_LOCAL = [
   'The names and titles of the windows you use, to tell when you are coding',
-  'File paths and file changes inside your project folders',
+  'File paths and file changes inside the repos Dr. Vibe tracks',
   'Git details: branches, commit messages and changed files',
-  'Where your git repos are, found on your drives if "Find my repos automatically" is on in Tracking',
+  'Where your git repos are: the ones Claude Code works in (if "Track repos Claude Code works in" is on in Tracking) and the ones in folders you add',
   'Claude Code activity from its hooks (which files it reads and edits, never prompts or code), if Claude Code is switched on in Tracking',
   'Whether Antigravity is the app in front, from its window',
   'Your break, hydration, posture and focus history',

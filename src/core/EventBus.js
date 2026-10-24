@@ -94,11 +94,8 @@ export const Events = {
   PROJECT_DETECTED: 'project:detected',
   PROJECT_LOST: 'project:lost',
 
-  // Filesystem scanner events
-  SCANNER_STARTED: 'scanner:started',
-  SCANNER_COMPLETE: 'scanner:complete',
-  SCANNER_ERROR: 'scanner:error',
-  PROJECTS_DISCOVERED: 'scanner:projectsDiscovered',
+  // The tracked repo list changed (TrackedRepos): { repos }
+  REPOS_CHANGED: 'repos:changed',
 
   // Momentum events
   MOMENTUM_CHANGED: 'momentum:changed',

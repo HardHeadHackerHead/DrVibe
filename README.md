@@ -41,8 +41,8 @@ works offline, with no account.
   out hotspot files, fix-test-fix loops, big refactors and new files, and sums up each
   session. [More below](#claude-code).
 - **Git.** Commit celebrations, branch changes, and reminders that get more insistent
-  the longer changes sit uncommitted. Repos are found by themselves, on every local
-  drive; switch that off in Settings → Tracking to track only folders you pick.
+  the longer changes sit uncommitted, in the repos Claude Code works in plus any
+  folders you add in Settings → Tracking. Temp and system folders are never tracked.
 - **Focus and wellness.** Pomodoro or activity-based breaks, focus mode
   (`Ctrl+Shift+F`), hydration, 20-20-20 eye breaks, posture checks, fatigue and stuck
   detection, overwork warnings, and late-night and weekend nudges. Every one can be
@@ -333,7 +333,8 @@ src-tauri/src/               Rust side (Tauri 2)
   skins.rs                   local skin library and imports
   generator.rs               Make your own Dr. Vibe via the claude / codex CLI
   presence.rs                screen share and fullscreen detection
-  projects.rs, watcher.rs    project discovery, git inspection, file watcher
+  projects.rs, watcher.rs    project markers, git inspection, file watcher
+  repos.rs                   which repo a path is in; places never tracked
   tray.rs, panels.rs         tray menu and panel windows
   updates.rs                 What's New and the auto-updater
   error_reports.rs           crash report queue and panic hook

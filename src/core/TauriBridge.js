@@ -206,23 +206,39 @@ class TauriBridge {
     }
   }
 
-  async getRecentGitRepos(searchPaths) {
+  // The repo a path is in (repos.rs): { name, root, worktree }; null when
+  // it's in no repo or in a place never tracked (temp, app data, system);
+  // undefined when Rust can't be asked.
+  async resolveRepo(path) {
+    if (!this.isAvailable || !this.invoke) return undefined;
+    try {
+      return (await this.invoke('resolve_repo', { path })) ?? null;
+    } catch (e) {
+      console.error('Failed to resolve repo:', e);
+      return undefined;
+    }
+  }
+
+  // Repos in a folder the user added: the folder's own repo, or the repos
+  // directly inside it.
+  async findFolderRepos(folder) {
     if (!this.isAvailable || !this.invoke) return [];
     try {
-      return await this.invoke('get_recent_git_repos', { searchPaths });
+      return await this.invoke('find_folder_repos', { folder });
     } catch (e) {
-      console.error('Failed to get recent git repos:', e);
+      console.error('Failed to find repos in folder:', e);
       return [];
     }
   }
 
-  // Git repo discovery (repo_scan.rs). Null when unavailable or already running.
-  async scanGitRepos(request) {
+  // For each path, true when it's a place never tracked. Null when
+  // unavailable.
+  async untrackedPlaces(paths) {
     if (!this.isAvailable || !this.invoke) return null;
     try {
-      return await this.invoke('scan_git_repos', { request });
+      return await this.invoke('untracked_places', { paths });
     } catch (e) {
-      console.error('Failed to scan for git repos:', e);
+      console.error('Failed to check places:', e);
       return null;
     }
   }

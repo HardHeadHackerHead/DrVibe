@@ -440,32 +440,31 @@ pub(crate) fn check_claude_code_hooks() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempDir;
     use std::io::Write;
 
     #[test]
     fn never_creates_claude_folder_for_non_users() {
-        let home = std::env::temp_dir().join(format!("drvibe-test-home-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&home);
-        std::fs::create_dir_all(&home).unwrap();
+        let dir = TempDir::new("home");
+        let home = dir.path();
         assert_eq!(
-            claude_settings_path(&home).unwrap_err(),
+            claude_settings_path(home).unwrap_err(),
             CLAUDE_CODE_NOT_FOUND
         );
         assert!(!home.join(".claude").exists());
         std::fs::create_dir_all(home.join(".claude")).unwrap();
         assert_eq!(
-            claude_settings_path(&home).unwrap(),
+            claude_settings_path(home).unwrap(),
             home.join(".claude").join("settings.json")
         );
-        let _ = std::fs::remove_dir_all(&home);
     }
 
-    fn temp_log(name: &str, contents: &[u8]) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("drvibe-test-{}-{}", name, std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+    /// The log path, and the folder holding it (removed when dropped).
+    fn temp_log(name: &str, contents: &[u8]) -> (PathBuf, TempDir) {
+        let dir = TempDir::new(name);
         let path = dir.join("events.jsonl");
         std::fs::write(&path, contents).unwrap();
-        path
+        (path, dir)
     }
 
     fn append(path: &Path, bytes: &[u8]) {
@@ -482,7 +481,7 @@ mod tests {
 
     #[test]
     fn reads_new_events_from_offset() {
-        let path = temp_log("offset", b"{\"type\":\"a\"}\n{\"type\":\"b\"}\n");
+        let (path, _dir) = temp_log("offset", b"{\"type\":\"a\"}\n{\"type\":\"b\"}\n");
         let first = read_events_from(&path, 0).unwrap();
         assert_eq!(first.events.len(), 2);
         assert!(read_events_from(&path, first.new_offset)
@@ -498,7 +497,7 @@ mod tests {
 
     #[test]
     fn partial_line_waits_for_the_writer() {
-        let path = temp_log("partial", b"{\"type\":\"a\"}\n{\"type\":");
+        let (path, _dir) = temp_log("partial", b"{\"type\":\"a\"}\n{\"type\":");
         let r = read_events_from(&path, 0).unwrap();
         assert_eq!(r.events.len(), 1);
         append(&path, b"\"b\"}\n");
@@ -512,7 +511,7 @@ mod tests {
         let body = "{\"path\":\"café.rs\"}\r\n{\"path\":\"x\"}\r\n"
             .as_bytes()
             .to_vec();
-        let path = temp_log("crlf", &body);
+        let (path, _dir) = temp_log("crlf", &body);
         let r = read_events_from(&path, 0).unwrap();
         assert_eq!(r.events.len(), 2);
         assert_eq!(r.new_offset, body.len() as u64);
@@ -520,14 +519,14 @@ mod tests {
 
     #[test]
     fn skips_garbage_lines() {
-        let path = temp_log("garbage", b"not json\n\n{\"ok\":true}\n");
+        let (path, _dir) = temp_log("garbage", b"not json\n\n{\"ok\":true}\n");
         let r = read_events_from(&path, 0).unwrap();
         assert_eq!(r.events.len(), 1);
     }
 
     #[test]
     fn rotated_log_starts_over() {
-        let path = temp_log("rotate", b"{}\n");
+        let (path, _dir) = temp_log("rotate", b"{}\n");
         assert_eq!(read_events_from(&path, 10_000).unwrap().new_offset, 0);
     }
 

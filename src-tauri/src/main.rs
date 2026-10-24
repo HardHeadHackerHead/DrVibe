@@ -14,10 +14,12 @@ mod gitignore;
 mod panels;
 mod presence;
 mod projects;
-mod repo_scan;
+mod repos;
 mod skins;
 mod sync;
 mod system;
+#[cfg(test)]
+mod test_util;
 mod tray;
 mod updates;
 mod visitors;
@@ -119,8 +121,9 @@ fn main() {
             system::is_coding_app,
             system::get_cursor_position,
             projects::scan_project_markers,
-            repo_scan::scan_git_repos,
-            projects::get_recent_git_repos,
+            repos::resolve_repo,
+            repos::find_folder_repos,
+            repos::untracked_places,
             watcher::start_watching,
             watcher::stop_watching,
             watcher::get_watched_path,

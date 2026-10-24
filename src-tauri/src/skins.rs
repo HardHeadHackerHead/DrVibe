@@ -1226,6 +1226,7 @@ pub(crate) fn is_bundled_skin(app_handle: &tauri::AppHandle, slug: &str) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempDir;
 
     fn blank_sheet(width: u32, height: u32) -> Vec<u8> {
         let mut out = Vec::new();
@@ -1266,8 +1267,8 @@ mod tests {
 
     #[test]
     fn generated_metadata_never_names_the_user() {
-        let dir = std::env::temp_dir().join(format!("drvibe-test-meta-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let tmp = TempDir::new("meta");
+        let dir = tmp.path().to_path_buf();
         std::fs::write(
             dir.join("neon.anim.json"),
             r#"{"generation":{"generatedBy":"jdoe"}}"#,
@@ -1288,7 +1289,6 @@ mod tests {
         assert!(anim["generation"].get("generatedBy").is_none());
         assert_eq!(anim["generation"]["agent"], "codex");
         assert_eq!(anim["generation"]["prompt"], "a neon coat");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1386,7 +1386,8 @@ mod tests {
 
     #[test]
     fn exports_keep_earlier_downloads() {
-        let root = std::env::temp_dir().join(format!("drvibe-export-{}", std::process::id()));
+        let tmp = TempDir::new("export");
+        let root = tmp.path().to_path_buf();
         let (skins, downloads) = (root.join("skins"), root.join("downloads"));
         std::fs::create_dir_all(&skins).unwrap();
         std::fs::create_dir_all(&downloads).unwrap();
@@ -1399,6 +1400,5 @@ mod tests {
         assert_eq!(second, downloads.join("neon (2).png"));
         assert!(downloads.join("neon (2).anim.json").exists());
         assert!(export_skin_files(&skins, &downloads, "missing").is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -25,7 +25,9 @@ const OLD_STORES = {
 // data, silently logging the user out a few minutes after every sign-in.
 export const NEW_SECTIONS = [
   'codingHourOfDay', 'setupWizard', 'companion', 'claudeCode',
-  'privacy', 'economy', 'weeklyRecap', 'repoScan',
+  'privacy', 'economy', 'weeklyRecap', 'trackedRepos',
+  // 2.0.x repo scan results: read once by repoMigration.js, then null
+  'repoScan',
 ];
 
 // Achievement IDs needed for migration (stored as top-level keys in old store)

@@ -1,20 +1,14 @@
 //! Project discovery and git inspection.
 
-use crate::system::dirs_home;
+use crate::repos::{git_repo_paths, repo_name};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMarkers {
     pub project_name: String,
     pub project_type: String,
     pub markers_found: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RepoInfo {
-    pub name: String,
-    pub path: String,
 }
 
 // Scan a directory for project marker files (.git, package.json, Cargo.toml, etc.)
@@ -96,96 +90,6 @@ pub(crate) fn scan_project_markers(dir_path: String) -> Result<ProjectMarkers, S
     })
 }
 
-// Recursively scan a directory up to `depth` levels for git repos.
-pub(crate) fn collect_git_repos(dir: &Path, depth: u32, repos: &mut Vec<RepoInfo>) {
-    let ignore: &[&str] = &[
-        "node_modules",
-        "target",
-        "__pycache__",
-        "venv",
-        ".venv",
-        "dist",
-        "build",
-        ".next",
-        "vendor",
-        "Pods",
-    ];
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let name = match path.file_name().and_then(|n| n.to_str()) {
-            Some(n) => n.to_string(),
-            None => continue,
-        };
-        // Skip hidden dirs and noisy build/dependency dirs
-        if name.starts_with('.') || ignore.contains(&name.as_str()) {
-            continue;
-        }
-
-        if path.join(".git").exists() {
-            repos.push(RepoInfo {
-                name,
-                path: path.to_string_lossy().to_string(),
-            });
-            // Don't recurse into repos — nested .git is unusual and expensive
-            continue;
-        }
-        if depth > 1 {
-            collect_git_repos(&path, depth - 1, repos);
-        }
-    }
-}
-
-// Scan configured directories for git repositories, up to 4 levels deep.
-// Catches repos nested several folders deep, e.g. ~/Desktop/work/projects/my-repo.
-#[tauri::command]
-pub(crate) async fn get_recent_git_repos(search_paths: Vec<String>) -> Vec<RepoInfo> {
-    tauri::async_runtime::spawn_blocking(move || get_recent_git_repos_blocking(search_paths))
-        .await
-        .unwrap_or_default()
-}
-
-pub(crate) fn get_recent_git_repos_blocking(search_paths: Vec<String>) -> Vec<RepoInfo> {
-    let mut repos = Vec::new();
-    let home = dirs_home();
-
-    for search in &search_paths {
-        let resolved = if let Some(rest) = search.strip_prefix("~/") {
-            match &home {
-                Some(h) => h.join(rest),
-                None => continue,
-            }
-        } else {
-            PathBuf::from(search)
-        };
-
-        if !resolved.is_dir() {
-            continue;
-        }
-
-        // If the user pasted the repo root itself (e.g. C:\code\my-project),
-        // add it directly instead of only scanning its children.
-        if resolved.join(".git").exists() {
-            if let Some(name) = resolved.file_name().and_then(|n| n.to_str()) {
-                repos.push(RepoInfo {
-                    name: name.to_string(),
-                    path: resolved.to_string_lossy().to_string(),
-                });
-            }
-        } else {
-            // Otherwise treat it as a parent folder and scan up to 4 levels deep.
-            collect_git_repos(&resolved, 4, &mut repos);
-        }
-    }
-
-    repos
-}
-
 // Helper: run a git command in a working directory and return stdout on success.
 pub(crate) fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
     #[cfg(target_os = "windows")]
@@ -220,8 +124,12 @@ pub struct CommitInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitInfo {
+    /// Name of the repo; a linked worktree reports its main repo's name.
     pub repo_name: String,
+    /// The working tree containing the path.
     pub git_root: String,
+    /// The main worktree: the repo's identity.
+    pub repo_root: String,
     pub branch: String,
     pub recent_commits: Vec<CommitInfo>,
     pub has_uncommitted_changes: bool,
@@ -239,14 +147,10 @@ pub(crate) async fn get_git_info(path: String) -> Result<GitInfo, String> {
 }
 
 pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
-    let git_root =
-        run_git(&path, &["rev-parse", "--show-toplevel"]).map(|s| s.trim().to_string())?;
-
-    let repo_name = Path::new(&git_root)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown")
-        .to_string();
+    let (toplevel, root) = git_repo_paths(Path::new(&path))?;
+    let git_root = toplevel.to_string_lossy().into_owned();
+    let repo_name = repo_name(&root);
+    let repo_root = root.to_string_lossy().into_owned();
 
     let branch = run_git(&git_root, &["rev-parse", "--abbrev-ref", "HEAD"])
         .map(|s| s.trim().to_string())
@@ -281,6 +185,7 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
     Ok(GitInfo {
         repo_name,
         git_root,
+        repo_root,
         branch,
         recent_commits,
         has_uncommitted_changes,
@@ -292,11 +197,11 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempDir;
 
-    fn temp_project(name: &str, files: &[&str]) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("drvibe-proj-{}-{}", std::process::id(), name));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+    /// A project folder (removed when dropped).
+    fn temp_project(name: &str, files: &[&str]) -> TempDir {
+        let dir = TempDir::new(&format!("proj-{name}"));
         for f in files {
             if f.ends_with('/') {
                 std::fs::create_dir_all(dir.join(f)).unwrap();
@@ -310,17 +215,20 @@ mod tests {
     #[test]
     fn rust_project_wins_over_git_marker() {
         let dir = temp_project("rust", &["Cargo.toml", ".git/"]);
-        let m = scan_project_markers(dir.to_string_lossy().into_owned()).unwrap();
+        let m = scan_project_markers(dir.path().to_string_lossy().into_owned()).unwrap();
         assert_eq!(m.project_type, "rust");
         assert!(m.markers_found.contains(&"Cargo.toml".to_string()));
         assert!(m.markers_found.contains(&".git".to_string()));
-        assert_eq!(m.project_name, dir.file_name().unwrap().to_string_lossy());
+        assert_eq!(
+            m.project_name,
+            dir.path().file_name().unwrap().to_string_lossy()
+        );
     }
 
     #[test]
     fn glob_markers_match_by_extension() {
         let dir = temp_project("dotnet", &["App.sln"]);
-        let m = scan_project_markers(dir.to_string_lossy().into_owned()).unwrap();
+        let m = scan_project_markers(dir.path().to_string_lossy().into_owned()).unwrap();
         assert_eq!(m.project_type, "dotnet");
         assert_eq!(m.markers_found, vec!["App.sln".to_string()]);
     }
@@ -328,7 +236,7 @@ mod tests {
     #[test]
     fn plain_folder_is_not_a_project() {
         let dir = temp_project("plain", &["notes.txt"]);
-        assert!(scan_project_markers(dir.to_string_lossy().into_owned()).is_err());
+        assert!(scan_project_markers(dir.path().to_string_lossy().into_owned()).is_err());
     }
 
     fn git_available() -> bool {
@@ -345,7 +253,8 @@ mod tests {
             eprintln!("git not installed; skipping");
             return;
         }
-        let dir = temp_project("git", &[]);
+        let tmp = temp_project("git", &[]);
+        let dir = tmp.path();
         let path = dir.to_string_lossy().into_owned();
         let git = |args: &[&str]| run_git(&path, args).unwrap();
         git(&["init", "-q", "-b", "main"]);
@@ -356,7 +265,7 @@ mod tests {
         git(&["commit", "-q", "-m", "first commit"]);
         std::fs::write(dir.join("b.txt"), "dirty").unwrap();
 
-        let info = get_git_info_blocking(path).unwrap();
+        let info = get_git_info_blocking(path.clone()).unwrap();
         assert_eq!(info.branch, "main");
         assert_eq!(info.recent_commits.len(), 1);
         assert_eq!(info.recent_commits[0].message, "first commit");
@@ -364,5 +273,15 @@ mod tests {
         assert!(info.has_uncommitted_changes);
         assert_eq!(info.uncommitted_count, 1);
         assert_eq!(info.remote_url, None);
+        assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
+
+        // A linked worktree reports its main repo's name and root
+        let wt = dir.join("wt-fix");
+        git(&["worktree", "add", "-q", "-b", "fix", &wt.to_string_lossy()]);
+        let info = get_git_info_blocking(wt.to_string_lossy().into_owned()).unwrap();
+        assert_eq!(info.branch, "fix");
+        assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
+        assert!(info.git_root.ends_with("wt-fix"), "{}", info.git_root);
+        assert!(!info.repo_root.ends_with("wt-fix"), "{}", info.repo_root);
     }
 }

@@ -8,8 +8,8 @@
 // WINDOW_MS are automatically pruned — the bar cools off on its own.
 //
 // Three input sources:
-//   1. Tauri file watcher  — watches configured project folders + any
-//      project path resolved by ProjectDetector from IDE window titles.
+//   1. Tauri file watcher  — watches the working trees of the tracked repos
+//      (TrackedRepos: the repos Claude Code works in and the user's folders).
 //   2. 'file-changed-synthetic' eventBus event — emitted by ClaudeCodeTracker
 //      for every file Claude Code touches (reads, writes) regardless of
 //      whether the Tauri watcher is running.
@@ -17,6 +17,7 @@
 
 import { eventBus, Events } from '../../core/EventBus.js';
 import { tauri } from '../../core/TauriBridge.js';
+import { repoKey } from './repoPaths.js';
 
 // Scoring weights per event type (applied once per unique file slot)
 const WEIGHTS = {
@@ -90,8 +91,8 @@ function getSessionMultiplier(count) {
 }
 
 export class MomentumTracker {
-  constructor(projectFolders = []) {
-    this._initialFolders = projectFolders;
+  constructor(repos = []) {
+    this._initialRepos = repos;
 
     // Map<normalizedPath, { timestamp, weight }>
     // One entry per unique file. Re-touching refreshes timestamp, never
@@ -102,11 +103,11 @@ export class MomentumTracker {
     this.level = 'cold';
     this.tickInterval = null;
     this.unlistenFile = null;
-    this.unsubProject = null;
-    this.unsubProjectChanged = null;
+    this.unsubRepos = null;
     this.unsubSynthetic = null;
     this.unsubSessions = null;
-    this.watchedPath = null;
+    this.watched = new Map();   // repoKey → working tree path
+    this._watching = Promise.resolve();
     this._concurrentSessions = 0;
   }
 
@@ -118,25 +119,11 @@ export class MomentumTracker {
       });
     }
 
-    // Auto-start watching configured project folders without waiting for
-    // project detection.
-    if (tauri.isAvailable && this._initialFolders.length > 0) {
-      for (const folder of this._initialFolders) {
-        if (folder) await this.watchProject(folder);
-      }
-    }
-
-    this.unsubProject = eventBus.on(Events.PROJECT_DETECTED, (project) => {
-      if (project.path && project.path !== this.watchedPath) {
-        this.watchProject(project.path);
-      }
+    // Watch the tracked repos now and whenever the list changes
+    this.unsubRepos = eventBus.on(Events.REPOS_CHANGED, ({ repos }) => {
+      this.watchRepos(repos);
     });
-
-    this.unsubProjectChanged = eventBus.on(Events.PROJECT_CHANGED, ({ current }) => {
-      if (current?.path && current.path !== this.watchedPath) {
-        this.watchProject(current.path);
-      }
-    });
+    await this.watchRepos(this._initialRepos);
 
     // --- Source 2: Synthetic events from ClaudeCodeTracker ---
     this.unsubSynthetic = eventBus.on('file-changed-synthetic', (event) => {
@@ -173,13 +160,9 @@ export class MomentumTracker {
       });
       this.unlistenFile = null;
     }
-    if (this.unsubProject) {
-      this.unsubProject();
-      this.unsubProject = null;
-    }
-    if (this.unsubProjectChanged) {
-      this.unsubProjectChanged();
-      this.unsubProjectChanged = null;
+    if (this.unsubRepos) {
+      this.unsubRepos();
+      this.unsubRepos = null;
     }
     if (this.unsubSynthetic) {
       this.unsubSynthetic();
@@ -196,13 +179,30 @@ export class MomentumTracker {
     tauri.stopWatching();
   }
 
-  async watchProject(path) {
-    if (this.watchedPath === path) return;
+  /**
+   * Watches every working tree of `repos` ({ path, worktrees }). The watcher
+   * can't drop a single folder, so it restarts when one leaves the list.
+   */
+  watchRepos(repos) {
+    this._watching = this._watching.then(() => this._syncWatched(repos || []));
+    return this._watching;
+  }
 
-    const result = await tauri.startWatching(path);
-    if (result) {
-      this.watchedPath = path;
-      console.log(`MomentumTracker watching: ${path}`);
+  async _syncWatched(repos) {
+    if (!tauri.isAvailable) return;
+    const paths = repos.flatMap(r => (r.worktrees?.length ? r.worktrees : [r.path])).filter(Boolean);
+    const keys = new Set(paths.map(repoKey));
+    if ([...this.watched.keys()].some(k => !keys.has(k))) {
+      await tauri.stopWatching();
+      this.watched.clear();
+    }
+    for (const path of paths) {
+      const key = repoKey(path);
+      if (this.watched.has(key)) continue;
+      if (await tauri.startWatching(path)) {
+        this.watched.set(key, path);
+        console.log(`MomentumTracker watching: ${path}`);
+      }
     }
   }
 
@@ -323,7 +323,7 @@ export class MomentumTracker {
       level: this.level,
       filesActive: this.activeFiles.size,
       recentEvents: this.activeFiles.size,
-      watchedPath: this.watchedPath,
+      watchedPaths: [...this.watched.values()],
       concurrentSessions: this._concurrentSessions,
       sessionMultiplier: getSessionMultiplier(this._concurrentSessions),
     };

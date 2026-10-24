@@ -1,4 +1,4 @@
-// Dr. Vibe - Found repos list (Settings → Tracking): pure helpers.
+// Dr. Vibe - Tracked repos list (Settings → Tracking): pure helpers.
 
 import { isIgnoredRepo } from '../features/activity/repoPaths.js';
 
@@ -18,20 +18,24 @@ export function formatAgo(ms, now = Date.now()) {
   return `${Math.round(d / 365)}y ago`;
 }
 
-/** Repos not ignored, most recently committed first, then by name. */
+/** Repos not ignored, most recently seen first, then by name. */
 export function visibleRepos(repos, ignored) {
   return (repos || [])
     .filter(r => r?.path && !isIgnoredRepo(r.path, ignored))
-    .sort((a, b) => (b.lastCommit || 0) - (a.lastCommit || 0) ||
+    .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0) ||
       String(a.name).localeCompare(String(b.name)));
 }
 
-/** One-line summary: how many, when, and whether a limit cut it short. */
-export function scanSummary(status, count, now = Date.now()) {
-  if (status?.scanning) return 'Scanning…';
-  if (!status?.lastScanTime) return 'Not scanned yet';
-  const parts = [`${count} repo${count === 1 ? '' : 's'} found`, `last scan ${formatAgo(status.lastScanTime, now)}`];
-  if (status.stats?.truncated) parts.push('stopped at the repo limit');
-  else if (status.stats?.timedOut) parts.push('stopped at the time limit');
-  return parts.join(' · ');
+/** One-line summary of the list. */
+export function trackedSummary(status, count) {
+  if (!status) return 'Loading…';
+  if (count === 0) return 'No repos tracked yet';
+  return `${count} repo${count === 1 ? '' : 's'} tracked`;
+}
+
+/** Why a repo is tracked, and how many working trees are in use. */
+export function repoTag(repo) {
+  const why = { claude: 'Claude Code', folder: 'your folder', editor: 'open in editor' }[repo?.source] || '';
+  const trees = repo?.worktrees?.length || 0;
+  return trees > 1 ? `${why} · ${trees} worktrees` : why;
 }

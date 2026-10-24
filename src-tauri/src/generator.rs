@@ -1634,6 +1634,7 @@ pub(crate) fn discard_character_draft(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempDir;
 
     #[test]
     fn one_generation_at_a_time() {
@@ -1649,7 +1650,8 @@ mod tests {
 
     #[test]
     fn generated_characters_never_overwrite_existing_skins() {
-        let root = std::env::temp_dir().join(format!("drvibe-adopt-{}", std::process::id()));
+        let tmp = TempDir::new("adopt");
+        let root = tmp.path().to_path_buf();
         let (staging, skins) = (root.join("staging"), root.join("skins"));
         std::fs::create_dir_all(&staging).unwrap();
         std::fs::create_dir_all(&skins).unwrap();
@@ -1673,12 +1675,12 @@ mod tests {
         );
         assert!(skins.join("grumpy-wizard-2.anim.json").exists());
         assert!(!staging.exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn copy_skin_files_copies_png_and_anim_sidecar() {
-        let root = std::env::temp_dir().join(format!("drvibe-copy-skin-{}", std::process::id()));
+        let tmp = TempDir::new("copy-skin");
+        let root = tmp.path().to_path_buf();
         let (from, to) = (root.join("bundled"), root.join("custom"));
         std::fs::create_dir_all(&from).unwrap();
         std::fs::write(from.join("dr-vibe-pirate.png"), b"png").unwrap();
@@ -1694,7 +1696,6 @@ mod tests {
             b"{}"
         );
         assert!(copy_skin_files(&from, &to, "missing").is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1855,8 +1856,8 @@ mod tests {
 
     #[test]
     fn checks_the_generated_file() {
-        let dir = std::env::temp_dir().join(format!("drvibe-gen-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let tmp = TempDir::new("gen-test");
+        let dir = tmp.path().to_path_buf();
         let good = dir.join("good.png");
         let bad = dir.join("bad.png");
         std::fs::write(&good, sheet_png(128, 544)).unwrap();
@@ -1864,7 +1865,6 @@ mod tests {
         assert!(check_sheet_file(&good).is_ok());
         assert!(check_sheet_file(&bad).is_err());
         assert!(check_sheet_file(&dir.join("missing.png")).is_err());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// One real generation through the player's `claude` CLI: the bundled
@@ -1875,7 +1875,8 @@ mod tests {
     #[test]
     #[ignore]
     fn real_claude_generation() {
-        let root = std::env::temp_dir().join(format!("drvibe-real-gen-{}", std::process::id()));
+        let tmp = TempDir::new("real-gen");
+        let root = tmp.path().to_path_buf();
         let skins = root.join("skins");
         let staging = root.join("staging");
         std::fs::create_dir_all(&staging).unwrap();

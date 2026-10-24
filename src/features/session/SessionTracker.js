@@ -111,14 +111,9 @@ export class SessionTracker {
     );
   }
 
+  // File changes arrive from the watcher on the tracked repos (MomentumTracker)
   _onProjectDetected(project) {
-    if (this.currentProject?.path === project.path) return;
     this.currentProject = project;
-
-    if (project.path) {
-      tauri.startWatching(project.path);
-      console.log(`SessionTracker: watching ${project.path}`);
-    }
   }
 
   _onFileChanged(event) {

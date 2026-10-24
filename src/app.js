@@ -16,7 +16,7 @@ import { BreakScheduler } from './features/timer/BreakScheduler.js';
 
 import { ActivityMonitor } from './features/activity/ActivityMonitor.js';
 import { ProjectDetector } from './features/activity/ProjectDetector.js';
-import { FileSystemScanner } from './features/activity/FileSystemScanner.js';
+import { TrackedRepos } from './features/activity/TrackedRepos.js';
 import { MomentumTracker } from './features/activity/MomentumTracker.js';
 import { StuckDetector } from './features/activity/StuckDetector.js';
 import { ClaudeCodeTracker } from './features/activity/ClaudeCodeTracker.js';
@@ -24,7 +24,6 @@ import { applyClaudeHooksSetting } from './features/activity/claudeHooks.js';
 import { AIPairTracker } from './features/activity/AIPairTracker.js';
 import { AntiGravityTracker } from './features/activity/AntiGravityTracker.js';
 import { GitTracker } from './features/activity/GitTracker.js';
-import { claudeFolderToAutoAdd } from './features/activity/repoPaths.js';
 import { Settings } from './features/settings/Settings.js';
 import { Notifier } from './features/notifications/Notifier.js';
 import { BoundaryAwareness } from './features/boundaries/BoundaryAwareness.js';
@@ -91,7 +90,7 @@ class App {
     this.breakScheduler = null;
     this.activityMonitor = null;
     this.projectDetector = null;
-    this.fileSystemScanner = null;
+    this.trackedRepos = null;
     this.momentumTracker = null;
     this.notifier = null;
     this.boundaryAwareness = null;
@@ -204,14 +203,11 @@ class App {
 
     // --- Optional modules: each wrapped so failures don't break the app ---
 
-    // ProjectDetector must initialize and finish scanning BEFORE ActivityMonitor
-    // starts polling. The scan populates the project path cache; if the first
-    // activity event fires before the scan completes, project.path will be null
-    // and the file watcher will never start.
+    // ProjectDetector listens before ActivityMonitor starts polling, and
+    // before TrackedRepos announces the repos it resolves names to.
     await this._initOptional('ProjectDetector', async () => {
       this.projectDetector = new ProjectDetector();
       this.projectDetector.init();
-      await this.projectDetector.scanCommonDirectories(this.settings.projectFolders || []);
     });
 
     await this._initOptional('ActivityMonitor', async () => {
@@ -220,23 +216,18 @@ class App {
       this.activityMonitor.start();
     });
 
-    await this._initOptional('FileSystemScanner', async () => {
-      this.fileSystemScanner = new FileSystemScanner(this.settings);
-      await this.fileSystemScanner.init();
+    await this._initOptional('TrackedRepos', async () => {
+      this.trackedRepos = new TrackedRepos(this.settings);
+      await this.trackedRepos.init();
 
-      // Settings -> Tracking shows the found repos and has "Scan now".
+      // Settings -> Tracking lists the tracked repos.
       const sendRepoStatus = () => {
         try {
-          window.__TAURI__.event.emitTo('settings', 'repo-scan-status', this.fileSystemScanner.getStatus());
+          window.__TAURI__.event.emitTo('settings', 'tracked-repos-status', this.trackedRepos.getStatus());
         } catch {}
       };
-      for (const ev of [Events.SCANNER_STARTED, Events.SCANNER_COMPLETE, Events.SCANNER_ERROR, Events.PROJECTS_DISCOVERED]) {
-        eventBus.on(ev, sendRepoStatus);
-      }
-      window.__TAURI__?.event?.listen?.('request-repo-scan-status', sendRepoStatus);
-      window.__TAURI__?.event?.listen?.('repo-scan-now', () => {
-        this.fileSystemScanner.scan().catch(e => console.error('Repo scan failed:', e));
-      });
+      eventBus.on(Events.REPOS_CHANGED, sendRepoStatus);
+      window.__TAURI__?.event?.listen?.('request-tracked-repos-status', sendRepoStatus);
     });
 
     await this._initOptional('ClaudeCodeHooks', async () => {
@@ -268,15 +259,15 @@ class App {
       this.gitTracker = new GitTracker(this.settings);
       this.gitTracker.init();
 
-      // If the repo scanner already emitted its list, seed the watchlist now
-      const discovered = this.fileSystemScanner?.getRepos();
-      if (discovered?.length > 0) {
-        this.gitTracker.populateFromRepos(discovered);
+      // TrackedRepos already announced its list: seed the watchlist now
+      const repos = this.trackedRepos?.getRepos();
+      if (repos?.length > 0) {
+        this.gitTracker.populateFromRepos(repos);
       }
     });
 
     await this._initOptional('MomentumTracker', async () => {
-      this.momentumTracker = new MomentumTracker(this.settings.projectFolders || []);
+      this.momentumTracker = new MomentumTracker(this.trackedRepos?.getRepos() || []);
       await this.momentumTracker.init();
       this.setupMomentumMeter();
     });
@@ -659,7 +650,6 @@ class App {
       // Listen for settings saved from the separate settings window
       tauri.window.listen('settings-saved', (event) => {
         const saved = event.payload;
-        const oldFolders = [...(this.settings.projectFolders || [])];
         const oldWork = this.settings.workInterval;
         const oldBreak = this.settings.breakInterval;
         for (const [key, value] of Object.entries(saved)) {
@@ -670,12 +660,6 @@ class App {
         // The settings window wrote only its form fields to the shared
         // section; write the full set back so hidden keys aren't lost.
         this.settings.save();
-        // Scan any newly added project folders immediately
-        const newFolders = this.settings.projectFolders || [];
-        const added = newFolders.filter(f => !oldFolders.includes(f));
-        if (added.length > 0 && this.projectDetector) {
-          this.projectDetector.scanExtraPaths(added);
-        }
         // Only touch the timer when an interval changed — setIntervals resets the pomodoro
         if (this.settings.workInterval !== oldWork || this.settings.breakInterval !== oldBreak) {
           this.timer.setIntervals(this.settings.workInterval, this.settings.breakInterval);
@@ -1226,31 +1210,11 @@ class App {
     });
 
     // Claude Code session start
-    eventBus.on(Events.CLAUDE_CODE_SESSION_START, ({ projectName, cwd }) => {
+    eventBus.on(Events.CLAUDE_CODE_SESSION_START, ({ projectName }) => {
       showSpeech(
         `Claude just joined the session!`,
         projectName ? `Working on: ${projectName}` : 'A new Claude Code session started.'
       );
-
-      // Auto-add the parent directory to projectFolders so momentum tracking
-      // persists across restarts, only with "Find my repos automatically" on.
-      // claudeFolderToAutoAdd guards against over-broad and malformed entries
-      // (e.g. `C:\Users\` from running Claude in the user home) that once had
-      // the file watcher watching all of AppData and Documents.
-      if (cwd && this.projectDetector) {
-        const { folder, skip } = claudeFolderToAutoAdd(cwd, {
-          autoDetect: this.settings.get('autoDetectRepos') !== false,
-          projectFolders: this.settings.projectFolders,
-          ignored: this.settings.get('ignoredRepos'),
-        });
-        if (folder) {
-          this.settings.addProjectFolder(folder);
-          this.projectDetector.scanExtraPaths([folder]);
-          console.log(`Auto-added project folder from Claude Code session: ${folder}`);
-        } else if (skip === 'too-shallow' || skip === 'malformed') {
-          console.warn(`Skipped auto-add (${skip}): ${cwd}`);
-        }
-      }
     });
 
     // Git commit — celebrate with a message about the commit
@@ -1795,7 +1759,7 @@ class App {
     gameLoop.stop();
     this.activityMonitor?.stop();
     this.projectDetector?.destroy();
-    this.fileSystemScanner?.destroy();
+    this.trackedRepos?.destroy();
     this.claudeCodeTracker?.destroy();
     this.aiPairTracker?.destroy();
     this.antiGravityTracker?.destroy();

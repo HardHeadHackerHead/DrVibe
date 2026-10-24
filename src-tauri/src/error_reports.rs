@@ -345,15 +345,7 @@ pub(crate) fn error_reports_set_enabled(enabled: bool) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn tmp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "drvibe-err-{name}-{}",
-            uuid::Uuid::new_v4().simple()
-        ));
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::test_util::TempDir;
 
     fn js(message: &str) -> Report {
         Report {
@@ -367,7 +359,8 @@ mod tests {
 
     #[test]
     fn queue_dedupes_caps_and_clears() {
-        let dir = tmp_dir("queue");
+        let tmp = TempDir::new("err-queue");
+        let dir = tmp.path().to_path_buf();
         assert!(enqueue(&dir, js("a")));
         assert!(!enqueue(&dir, js("a")), "the same error waits once");
         for i in 0..MAX_QUEUE * 2 {
@@ -376,7 +369,6 @@ mod tests {
         assert_eq!(read_queue(&dir).len(), MAX_QUEUE);
         clear_queue(&dir);
         assert!(read_queue(&dir).is_empty());
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -425,11 +417,11 @@ mod tests {
 
     #[test]
     fn the_switch_defaults_on_and_persists() {
-        let dir = tmp_dir("prefs");
+        let tmp = TempDir::new("err-prefs");
+        let dir = tmp.path().to_path_buf();
         assert!(read_enabled(&dir));
         fs::write(dir.join(SETTINGS_FILE), br#"{"enabled":false}"#).unwrap();
         assert!(!read_enabled(&dir));
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

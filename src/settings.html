@@ -424,7 +424,6 @@
       padding: 1px 7px; font-size: 9px; cursor: pointer; font-family: inherit; transition: color .15s, border-color .15s;
     }
     .found-repo button:hover { color: var(--text-2); border-color: rgba(127,127,127,0.3); }
-    .found-repos-empty { font-size: 10px; color: var(--muted-2); font-style: italic; padding: 4px 6px; }
     .ignored-repos { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
     .project-folders-add input {
       flex: 1; background: var(--bg-input); border: 1px solid var(--border);
@@ -1144,13 +1143,12 @@
               <div class="section-label">Git Repos</div>
               <div class="section-card found-repos-card">
                 <div class="toggle-row" style="margin-bottom:6px">
-                  <span style="font-weight:600;color:var(--text-2)">Find my repos automatically</span>
-                  <label class="toggle"><input type="checkbox" id="auto-detect-repos" checked><span class="track"></span></label>
+                  <span style="font-weight:600;color:var(--text-2)">Track repos Claude Code works in</span>
+                  <label class="toggle"><input type="checkbox" id="track-claude-repos" checked><span class="track"></span></label>
                 </div>
-                <div id="auto-detect-repos-desc" class="section-desc" style="margin:0 0 10px">Looks for git repos in your home folder and on every local drive once a day, and remembers repos you work in. Paths stay on this computer.</div>
+                <div id="track-claude-repos-desc" class="section-desc" style="margin:0 0 10px">Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.</div>
                 <div class="found-repos-head">
-                  <span id="found-repos-summary">Not scanned yet</span>
-                  <button id="repo-scan-btn" class="browse-btn">Scan now</button>
+                  <span id="found-repos-summary">Loading…</span>
                 </div>
                 <div id="found-repos-list" class="found-repos-list"></div>
                 <div id="ignored-repos-wrap" class="ignored-repos" hidden>
@@ -1159,7 +1157,7 @@
                 </div>
               </div>
               <div class="section-label">Project Folders</div>
-              <div class="section-desc">Scanned for git repos to enable momentum tracking</div>
+              <div class="section-desc">Repos here are tracked too: a folder that is a repo, or the repos directly inside it</div>
               <div id="project-folders-list" class="project-folders-list"></div>
               <div class="project-folders-add" style="flex-direction:column;gap:5px">
                 <input type="text" id="project-folder-input" placeholder="Or paste a folder path…" style="width:100%">

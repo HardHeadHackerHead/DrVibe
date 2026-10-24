@@ -743,7 +743,7 @@ function renderProjectFolders() {
       for (const repo of repos) {
         const el = document.createElement('div');
         el.className = 'project-folder-repo';
-        el.textContent = repo.name || repo.path;
+        el.textContent = repo.name || repo.root;
         repoArea.appendChild(el);
       }
     }
@@ -768,7 +768,8 @@ async function addProjectFolder() {
   try {
     const invoke = window.__TAURI__?.core?.invoke;
     if (invoke) {
-      const repos = await invoke('get_recent_git_repos', { searchPaths: [folderPath] });
+      // The folder's own repo, or the repos directly inside it
+      const repos = await invoke('find_folder_repos', { folder: folderPath });
       folderRepoCache.set(folderPath, repos || []);
     } else {
       folderRepoCache.set(folderPath, []);

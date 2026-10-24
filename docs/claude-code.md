@@ -84,8 +84,9 @@ If the heat bar stays cold while Claude is editing:
 
 1. Check the status in Settings → Tracking.
 2. Look for new lines in `~/.dr-vibe/claude-code-events.jsonl` while Claude edits a file.
-3. Make sure the edited files are inside one of your project folders, or that Claude Code
-   was started in one.
+3. Check that the repo shows up under Settings → Tracking → Git Repos. Dr. Vibe tracks
+   the git repo Claude Code starts in or edits files in (a worktree counts as its main
+   repo), but never one in a temp, app-data or system folder.
 
 ## Turning it off
 

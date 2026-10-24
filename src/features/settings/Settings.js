@@ -125,9 +125,9 @@ export const DEFAULT_SETTINGS = {
   gitCommitRemindersEnabled: true,    // nudge to commit when changes sit too long
   gitReminderThresholdMinutes: 30,    // minutes before first gentle reminder
   gitReminderMinChanges: 3,           // minimum changed files before reminding
-  projectFolders: [],              // user-configured directories to scan for git repos
-  autoDetectRepos: true,           // also find repos on the home folder and every local drive
-  ignoredRepos: [],                // repo paths never tracked, scanned or auto-added
+  projectFolders: [],              // folders whose repos are tracked (the folder's own, or one level down)
+  trackClaudeRepos: true,          // track the repos Claude Code works in
+  ignoredRepos: [],                // repo paths never tracked
   // Activity overlay visibility
   momentumMeterEnabled: true,         // show/hide the heat bar
   momentumMeterPosition: 'bottom',    // 'top' | 'bottom' — where the heat bar appears relative to Dr. Vibe
@@ -407,23 +407,6 @@ export class Settings {
       this.codingApps.splice(index, 1);
       this.save();
       eventBus.emit(Events.SETTINGS_CHANGED, { key: 'codingApps', value: this.codingApps });
-    }
-  }
-
-  addProjectFolder(folderPath) {
-    if (!this.projectFolders.includes(folderPath)) {
-      this.projectFolders.push(folderPath);
-      this.save();
-      eventBus.emit(Events.SETTINGS_CHANGED, { key: 'projectFolders', value: this.projectFolders });
-    }
-  }
-
-  removeProjectFolder(folderPath) {
-    const index = this.projectFolders.indexOf(folderPath);
-    if (index > -1) {
-      this.projectFolders.splice(index, 1);
-      this.save();
-      eventBus.emit(Events.SETTINGS_CHANGED, { key: 'projectFolders', value: this.projectFolders });
     }
   }
 

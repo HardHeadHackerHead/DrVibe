@@ -24,7 +24,7 @@ pub struct FileChangeEvent {
 }
 
 // Folders whose file changes are noise (whole path segments, compared
-// case-insensitively). The repo scan skips them too.
+// case-insensitively).
 pub(crate) const IGNORED_DIRS: &[&str] = &[
     "node_modules",
     ".git",
@@ -288,6 +288,7 @@ pub(crate) fn get_watched_path(app_handle: tauri::AppHandle) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::TempDir;
 
     fn p(parts: &[&str]) -> std::path::PathBuf {
         parts.iter().collect()
@@ -370,10 +371,9 @@ mod tests {
 
     // ---- ChangeFilter against a real tree ----
 
-    fn tree(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("drvibe-watch-{}-{}", std::process::id(), name));
-        let _ = std::fs::remove_dir_all(&dir);
+    /// A repo folder (removed when dropped).
+    fn tree(name: &str) -> TempDir {
+        let dir = TempDir::new(&format!("watch-{name}"));
         std::fs::create_dir_all(dir.join(".git")).unwrap();
         dir
     }
@@ -393,7 +393,8 @@ mod tests {
 
     #[test]
     fn rust_build_trees_never_count() {
-        let repo = tree("rust");
+        let tmp = tree("rust");
+        let repo = tmp.path().to_path_buf();
         let mut f = filter_for(&repo);
         let src = write(&repo, "src/main.rs", "fn main() {}");
         let artifact = write(&repo, "target/debug/deps/app-1234.rlib", "");
@@ -417,7 +418,8 @@ mod tests {
 
     #[test]
     fn node_modules_and_tauri_gen_never_count() {
-        let repo = tree("node");
+        let tmp = tree("node");
+        let repo = tmp.path().to_path_buf();
         let mut f = filter_for(&repo);
         assert!(f.is_ignored(&write(&repo, "web/node_modules/react/index.js", "")));
         assert!(f.is_ignored(&write(
@@ -430,7 +432,8 @@ mod tests {
 
     #[test]
     fn gitignored_output_never_counts() {
-        let repo = tree("gitignore");
+        let tmp = tree("gitignore");
+        let repo = tmp.path().to_path_buf();
         write(
             &repo,
             ".gitignore",
@@ -471,7 +474,8 @@ logs/
 
     #[test]
     fn gitignore_edits_take_effect() {
-        let repo = tree("refresh");
+        let tmp = tree("refresh");
+        let repo = tmp.path().to_path_buf();
         write(
             &repo,
             ".gitignore",
@@ -495,8 +499,7 @@ logs/
 
     #[test]
     fn fixed_rules_start_at_the_watched_folder() {
-        let outer = std::env::temp_dir().join(format!("drvibe-watch-{}-base", std::process::id()));
-        let _ = std::fs::remove_dir_all(&outer);
+        let outer = TempDir::new("watch-base");
         let repo = outer.join("build").join("my-app");
         std::fs::create_dir_all(repo.join(".git")).unwrap();
         let mut f = filter_for(&repo);
