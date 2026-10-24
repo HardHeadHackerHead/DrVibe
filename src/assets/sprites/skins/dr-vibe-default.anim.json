@@ -1,0 +1,55 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "The original Dr. Vibe — default companion character with goggles, lab coat, and friendly demeanor",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 1200,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 3
+      },
+      {
+        "duration": 800,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1500,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 2
+      },
+      {
+        "duration": 1000,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 55000,
+    "minInterval": 20000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 3200,
+      "scaleY": 0.018
+    },
+    "sway": {
+      "offsetX": 0.8,
+      "period": 5000
+    }
+  },
+  "vibeId": "7ef969f0-03c3-4bff-9bcf-24cd74e055e3",
+  "walk": {
+    "maxIdleMs": 45000,
+    "maxSpeed": 2.0,
+    "minIdleMs": 15000
+  }
+}

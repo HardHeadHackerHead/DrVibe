@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Dr. Vibe</title>
+  <!-- Apply saved theme before paint to avoid flash -->
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 14px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      letter-spacing: 0.02em;
+    }
+    .titlebar-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+      align-items: center;
+    }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+
+    /* ── Shell ── */
+    .wizard-shell {
+      display: flex;
+      flex-direction: column;
+      height: calc(100% - 32px);
+    }
+
+    /* ── Step indicator ── */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px 10px;
+      flex-shrink: 0;
+    }
+    .step-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      border: 1.5px solid var(--muted-2);
+      background: transparent;
+      transition: all 0.25s;
+    }
+    .step-dot.active {
+      border-color: var(--green);
+      background: var(--green);
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+    }
+    .step-dot.completed {
+      border-color: var(--green);
+      background: var(--green-dim);
+    }
+    .step-line {
+      width: 32px; height: 1.5px;
+      background: var(--border);
+      transition: background 0.25s;
+    }
+    .step-line.completed { background: var(--green); }
+
+    /* ── Step content ── */
+    .step-body {
+      flex: 1;
+      overflow: hidden;
+      padding: 0 28px 16px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-panel { display: none; }
+    .step-panel.active {
+      display: block;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .step-panel::-webkit-scrollbar { width: 4px; }
+    .step-panel::-webkit-scrollbar-track { background: transparent; }
+    .step-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Step 3: two-column look layout ── */
+    .step-panel[data-step="1"].active {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .look-cols {
+      display: flex;
+      gap: 14px;
+      flex: 1;
+      min-height: 0;
+    }
+    .look-left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .look-left .section-label { margin-top: 0; }
+    .look-left .skin-grid {
+      flex: 1;
+      max-height: none;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .look-right {
+      width: 160px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .look-right .skin-preview-area {
+      padding-top: 0;
+      margin-bottom: 2px;
+    }
+    .look-right .skin-preview-canvas { width: 64px; height: 64px; }
+    .look-right .skin-preview-glow { width: 44px; }
+    .look-right .section-label { margin-top: 10px; }
+    .look-right .section-label:first-child { margin-top: 0; }
+    /* Full-width controls for narrow right column */
+    .look-right-ctrl {
+      width: 100%;
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+      margin-bottom: 2px; display: block;
+    }
+    .look-right-ctrl:focus { outline: none; border-color: var(--green-border); }
+    .slider-right {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+    }
+    .slider-right input[type="range"] { flex: 1; min-width: 0; accent-color: var(--green); }
+    .slider-right .slider-value { flex-shrink: 0; font-size: 11px; color: var(--green); min-width: 34px; text-align: right; }
+    .look-right .voice-preview-btn { width: 100%; margin-top: 5px; }
+
+    .step-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .step-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* ── Footer ── */
+    .wizard-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      flex-shrink: 0;
+    }
+    .wizard-footer-left { display: flex; gap: 8px; }
+    .wizard-footer-right { display: flex; gap: 8px; }
+
+    .wiz-btn {
+      padding: 6px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+      border: 1px solid var(--border);
+    }
+    .wiz-btn-secondary {
+      background: rgba(127,127,127,0.07);
+      color: var(--muted);
+      border-color: var(--border);
+    }
+    .wiz-btn-secondary:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .wiz-btn-primary {
+      background: var(--green);
+      color: #071d07;
+      font-weight: 700;
+      border-color: transparent;
+    }
+    .wiz-btn-primary:hover { opacity: 0.88; }
+    .wiz-btn-skip {
+      background: transparent;
+      color: var(--muted-2);
+      border-color: transparent;
+      padding: 6px 12px;
+    }
+    .wiz-btn-skip:hover { color: var(--muted); }
+
+    /* ── Welcome step ── */
+    .welcome-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .welcome-character {
+      width: 96px; height: 96px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      margin-bottom: 8px;
+    }
+    .welcome-glow {
+      width: 64px; height: 10px;
+      background: radial-gradient(ellipse, rgba(74, 222, 128, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      margin-top: -6px;
+    }
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+    }
+    .feature-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+    .feature-text { flex: 1; }
+    .feature-text strong {
+      font-size: 12px;
+      color: var(--text-2);
+      font-weight: 600;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .feature-text span {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .tip-box {
+      background: var(--green-dim);
+      border: 1px solid var(--green-border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--green);
+    }
+
+    /* ── Skin live preview ── */
+    .skin-preview-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 12px 0 4px;
+    }
+    .skin-preview-canvas {
+      width: 96px; height: 96px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .skin-preview-glow {
+      width: 64px; height: 10px;
+      background: radial-gradient(ellipse, rgba(74, 222, 128, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      margin-top: -4px;
+    }
+    .skin-preview-name {
+      font-size: 11px;
+      color: var(--green);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      color: var(--muted);
+      margin: 14px 0 8px;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* ── Skin picker ── */
+    .skin-cat-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .skin-cat {
+      background: rgba(127,127,127,0.05); border: 1px solid var(--border); border-radius: 20px;
+      color: var(--muted); font-size: 10px; padding: 3px 10px;
+      cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s;
+    }
+    .skin-cat:hover { color: var(--text-2); border-color: rgba(127,127,127,0.2); }
+    .skin-cat.active { background: var(--green-dim); border-color: var(--green-border); color: var(--green); }
+
+    .skin-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 8px;
+      padding-right: 2px;
+    }
+    .skin-grid::-webkit-scrollbar { width: 3px; }
+    .skin-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .skin-grid-placeholder {
+      grid-column: 1 / -1; font-size: 11px; color: var(--muted-2);
+      padding: 24px 0; text-align: center;
+    }
+    .skin-card {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 5px 3px 4px; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--border); background: rgba(127,127,127,0.04);
+      transition: border-color .15s, background .15s;
+    }
+    .skin-card:hover { border-color: rgba(127,127,127,0.2); background: rgba(127,127,127,0.07); }
+    .skin-card.selected { border-color: var(--green-border); background: var(--green-dim); }
+    .skin-card canvas {
+      width: 100%; aspect-ratio: 1;
+      image-rendering: pixelated; display: block;
+    }
+    .skin-card-name {
+      font-size: 8px; color: var(--muted); text-align: center;
+      margin-top: 3px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      width: 100%; padding: 0 2px;
+    }
+    .skin-card.selected .skin-card-name { color: var(--green); }
+    .skin-card-author {
+      font-size: 7px; color: var(--muted-2); text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      width: 100%; padding: 0 2px;
+    }
+    .skin-card.selected .skin-card-author { color: var(--green-border); }
+
+    /* ── Toggle switch ── */
+    .toggle {
+      position: relative; display: inline-block;
+      width: 40px; height: 22px; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .track {
+      position: absolute; inset: 0;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      cursor: pointer; transition: background .2s, border-color .2s;
+    }
+    .track::after {
+      content: ''; position: absolute;
+      left: 3px; top: 3px;
+      width: 14px; height: 14px;
+      background: var(--muted); border-radius: 50%;
+      transition: transform .18s cubic-bezier(0.16,1,0.3,1), background .18s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .toggle input:checked + .track {
+      background: var(--green-dim);
+      border-color: var(--green-border);
+    }
+    .toggle input:checked + .track::after {
+      transform: translateX(18px);
+      background: var(--green);
+    }
+
+    /* ── Setting row ── */
+    .setting-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; font-size: 12px; gap: 8px;
+    }
+    .setting-row label { color: var(--muted); flex: 1; font-weight: 500; }
+    .setting-row select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .setting-row select:focus { outline: none; border-color: var(--green-border); }
+
+    /* ── Slider row ── */
+    .slider-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; font-size: 12px;
+    }
+    .slider-row label { color: var(--muted); flex: 1; font-weight: 500; }
+    .slider-row input[type="range"] { width: 90px; accent-color: var(--green); }
+    .slider-row .slider-value { font-size: 11px; color: var(--green); min-width: 32px; text-align: right; }
+
+    /* ── Voice preview ── */
+    .voice-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; font-size: 12px;
+    }
+    .voice-row label { color: var(--muted); font-weight: 500; }
+    .voice-row select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit; flex: 1;
+    }
+    .voice-row select:focus { outline: none; border-color: var(--green-border); }
+    .voice-preview-btn {
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); padding: 4px 10px; font-size: 11px; cursor: pointer;
+      font-family: inherit; transition: border-color .15s, color .15s;
+    }
+    .voice-preview-btn:hover { border-color: var(--green-border); color: var(--green); }
+
+    /* ── Coding apps ── */
+    .coding-apps-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .coding-app-check {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--muted); cursor: pointer;
+      padding: 4px 6px; border-radius: 6px;
+      transition: background .12s;
+    }
+    .coding-app-check:hover { background: rgba(127,127,127,0.05); }
+    .coding-app-check input[type="checkbox"] { accent-color: var(--green); }
+    .coding-apps-add {
+      display: flex; gap: 6px; margin-top: 4px;
+    }
+    .coding-apps-add input {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 5px 10px; border-radius: 6px;
+      font-size: 11px; font-family: inherit; transition: border-color .15s;
+    }
+    .coding-apps-add input:focus { outline: none; border-color: var(--green-border); }
+    .coding-apps-add button {
+      background: var(--green); color: #071d07; border: none;
+      border-radius: 6px; padding: 5px 12px; cursor: pointer;
+      font-size: 11px; font-weight: 700; font-family: inherit; transition: opacity .15s;
+    }
+    .coding-apps-add button:hover { opacity: 0.88; }
+
+    /* ── Project folders ── */
+    .project-folders-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .project-folder-tag {
+      display: flex; flex-direction: column;
+      background: rgba(127,127,127,0.04); border: 1px solid var(--border); border-radius: 7px;
+      padding: 6px 10px; font-size: 10px; color: var(--muted); font-family: var(--font-mono);
+    }
+    .project-folder-header { display: flex; align-items: center; gap: 4px; word-break: break-all; }
+    .project-folder-header span { flex: 1; }
+    .project-folder-tag button {
+      background: none; border: none; color: var(--muted-2);
+      cursor: pointer; font-size: 12px; padding: 0; line-height: 1; flex-shrink: 0; transition: color .15s;
+    }
+    .project-folder-tag button:hover { color: #ef4444; }
+    .project-folder-repos {
+      display: flex; flex-direction: column; gap: 1px;
+      margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border);
+    }
+    .project-folder-repo {
+      font-size: 9px; color: var(--green);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .project-folder-scanning { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
+    .project-folder-none { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
+    .project-folders-empty {
+      font-size: 11px; color: var(--muted-2); text-align: center;
+      padding: 16px 0;
+    }
+    .browse-btn {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 5px 10px;
+      cursor: pointer; font-size: 11px; font-weight: 500; font-family: inherit;
+      transition: border-color .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .browse-btn:hover { border-color: rgba(127,127,127,0.22); color: var(--text-2); }
+
+    /* ── Wellness cards ── */
+    .wellness-card {
+      background: rgba(127,127,127,0.04);
+      border: 1px solid var(--border);
+      border-radius: 7px; padding: 10px 12px; margin-bottom: 6px;
+    }
+    .wcard-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .wcard-info { flex: 1; min-width: 0; }
+    .wcard-name { font-size: 12px; color: var(--text-2); font-weight: 600; }
+    .wcard-desc { font-size: 10px; color: var(--muted-2); margin-top: 2px; line-height: 1.45; }
+    .wcard-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+      transition: opacity .15s;
+    }
+    .wcard-freq { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .freq-select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .freq-select:focus { outline: none; border-color: var(--green-border); }
+    .wellness-card:has(.toggle input:checked) { border-left: 2px solid #f87171; }
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-name,
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-desc { opacity: 0.4; }
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-footer { opacity: 0.3; pointer-events: none; }
+
+    /* ── Break mode cards ── */
+    .break-mode-options { display: flex; gap: 6px; margin-top: 4px; }
+    .break-mode-card {
+      flex: 1;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px;
+      cursor: pointer; transition: border-color .15s, background .15s;
+      text-align: center;
+    }
+    .break-mode-card:hover { border-color: rgba(127,127,127,0.2); }
+    .break-mode-card.selected { border-color: var(--green-border); background: var(--green-dim); }
+    .break-mode-card .mode-name {
+      font-size: 12px; font-weight: 600; color: var(--text-2);
+      margin-bottom: 4px;
+    }
+    .break-mode-card.selected .mode-name { color: var(--green); }
+    .break-mode-card .mode-desc { font-size: 9px; color: var(--muted-2); line-height: 1.4; }
+
+    /* ── Custom app tags ── */
+    .custom-apps-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    .custom-app-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--green-dim); border: 1px solid var(--green-border); border-radius: 20px;
+      padding: 3px 10px; font-size: 10px; color: var(--green); font-weight: 500;
+    }
+    .custom-app-tag button {
+      background: none; border: none; color: var(--green-border);
+      cursor: pointer; font-size: 13px; padding: 0; line-height: 1; transition: color .15s;
+    }
+    .custom-app-tag button:hover { color: #ef4444; }
+
+    /* ── Join the community ── */
+    .optional-tag {
+      font-size: 10px; font-weight: 500; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 10px; padding: 1px 7px; vertical-align: middle;
+    }
+    .join-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 6px; }
+    .join-btn { min-width: 220px; padding: 9px 20px; font-size: 13px; }
+    .join-note { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.5; }
+    .join-note a { color: var(--link); }
+    .join-error { color: var(--danger); }
+    .join-linked {
+      display: flex; align-items: center; gap: 8px; margin-top: 6px;
+      background: var(--green-dim); border: 1px solid var(--green-border); border-radius: 8px;
+      padding: 10px 14px; font-size: 12px; color: var(--green-text);
+    }
+    .join-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lab-green); flex-shrink: 0; }
+    .join-what-sees { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .join-dismiss { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--muted); cursor: pointer; }
+  </style>
+</head>
+<body>
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <span class="titlebar-title">Welcome to Dr. Vibe</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn titlebar-close" id="btn-close" title="Close">&#x2715;</button>
+    </div>
+  </div>
+
+  <div class="wizard-shell">
+    <!-- Step indicator -->
+    <div class="step-indicator">
+      <div class="step-dot active" data-step="0" title="Meet Dr. Vibe"></div>
+      <div class="step-line" data-line="0"></div>
+      <div class="step-dot" data-step="1" title="Pick your look"></div>
+      <div class="step-line" data-line="1"></div>
+      <div class="step-dot" data-step="2" title="Your coding setup"></div>
+      <div class="step-line" data-line="2"></div>
+      <div class="step-dot" data-step="3" title="Wellness"></div>
+      <div class="step-line" data-line="3"></div>
+      <div class="step-dot" data-step="4" title="Join the community (optional)"></div>
+    </div>
+
+    <!-- Step content -->
+    <div class="step-body">
+
+      <!-- Step 1: Meet Dr. Vibe -->
+      <div class="step-panel active" data-step="0">
+        <div class="welcome-hero">
+          <canvas class="welcome-character" id="welcome-character" width="32" height="32"></canvas>
+          <div class="welcome-glow"></div>
+        </div>
+        <div class="step-title" style="text-align:center;">Meet Dr. Vibe!</div>
+        <div class="step-subtitle" style="text-align:center;">Your pixel-art coding companion who lives on your desktop.</div>
+
+        <div class="feature-list">
+          <div class="feature-item">
+            <span class="feature-icon">&#x1F4BB;</span>
+            <div class="feature-text">
+              <strong>Watches your coding</strong>
+              <span>Detects when you're coding across 25+ editors and terminals</span>
+            </div>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#x1F389;</span>
+            <div class="feature-text">
+              <strong>Celebrates your wins</strong>
+              <span>Tracks streaks, personal bests, and unlockable achievements</span>
+            </div>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#x1F4A7;</span>
+            <div class="feature-text">
+              <strong>Keeps you healthy</strong>
+              <span>Hydration, posture, eye strain, and break reminders</span>
+            </div>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">&#x1F4CA;</span>
+            <div class="feature-text">
+              <strong>Tracks your progress</strong>
+              <span>Session stats, skill development, and weekly summaries</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tip-box">
+          No account needed: everything here works offline. Right-click the tray icon for settings, stats and more.
+        </div>
+      </div>
+
+      <!-- Step 2: Pick your look -->
+      <div class="step-panel" data-step="1">
+        <div class="step-title">Pick your look</div>
+        <div class="step-subtitle">Pick a look and Dr. Vibe changes on the spot. Size and voice too.</div>
+
+        <div class="look-cols">
+
+          <!-- Left: skin picker -->
+          <div class="look-left">
+            <div class="section-label">Character Skin</div>
+            <div id="skin-cat-bar" class="skin-cat-bar"></div>
+            <div id="skin-grid" class="skin-grid">
+              <div class="skin-grid-placeholder">Loading skins...</div>
+            </div>
+          </div>
+
+          <!-- Right: preview + controls -->
+          <div class="look-right">
+            <div class="skin-preview-area">
+              <canvas class="skin-preview-canvas" id="skin-preview" width="32" height="32"></canvas>
+              <div class="skin-preview-glow"></div>
+              <div class="skin-preview-name" id="skin-preview-name">Dr Vibe Default</div>
+            </div>
+
+            <div id="skin-tone-row">
+              <div class="section-label">Skin Tone</div>
+              <select id="sel-skin-tone" class="look-right-ctrl"></select>
+            </div>
+
+            <div class="section-label">Size</div>
+            <div class="slider-right">
+              <input type="range" id="slider-scale" min="75" max="150" value="100" step="25">
+              <span class="slider-value" id="scale-label">100%</span>
+            </div>
+
+            <div class="section-label">Voice</div>
+            <select id="sel-voice" class="look-right-ctrl"></select>
+            <button class="voice-preview-btn" id="btn-voice-preview">Preview ▶</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Step 3: Your coding setup -->
+      <div class="step-panel" data-step="2">
+        <div class="step-title">Your coding setup</div>
+        <div class="step-subtitle">Tell Dr. Vibe which apps and projects to watch.</div>
+
+        <div class="section-label">Coding Applications</div>
+        <div id="coding-apps-grid" class="coding-apps-grid"></div>
+        <div class="coding-apps-add">
+          <input type="text" id="input-custom-app" placeholder="Add custom app name...">
+          <button id="btn-add-app">Add</button>
+        </div>
+        <div id="custom-apps-list" class="custom-apps-list"></div>
+
+        <div class="section-label" style="margin-top: 16px;">Project Folders</div>
+        <div class="step-subtitle" style="margin-bottom:8px;">Add folders where your coding projects live. Dr. Vibe will scan them for git repos.</div>
+        <div id="project-folders-list" class="project-folders-list">
+          <div class="project-folders-empty">No folders added yet.</div>
+        </div>
+        <div class="coding-apps-add">
+          <input type="text" id="input-folder-path" placeholder="Or paste a path…">
+          <button id="btn-browse-folder" class="browse-btn">Browse…</button>
+          <button id="btn-add-folder">Add</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Wellness -->
+      <div class="step-panel" data-step="3">
+        <div class="step-title">Wellness</div>
+        <div class="step-subtitle">Choose which health reminders you'd like.</div>
+
+        <div class="wellness-card">
+          <div class="wcard-header">
+            <div class="wcard-info">
+              <div class="wcard-name">Hydration Reminders</div>
+              <div class="wcard-desc">Gentle reminders to drink water throughout your session</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="chk-hydration" checked><span class="track"></span></label>
+          </div>
+          <div class="wcard-footer">
+            <div class="wcard-freq">
+              Every
+              <select class="freq-select" id="sel-hydration-freq">
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45" selected>45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="wellness-card">
+          <div class="wcard-header">
+            <div class="wcard-info">
+              <div class="wcard-name">Eye Strain Breaks</div>
+              <div class="wcard-desc">20-20-20 rule: every 20 min, look 20 feet away for 20 seconds</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="chk-eyestrain" checked><span class="track"></span></label>
+          </div>
+        </div>
+
+        <div class="wellness-card">
+          <div class="wcard-header">
+            <div class="wcard-info">
+              <div class="wcard-name">Posture Reminders</div>
+              <div class="wcard-desc">Periodic nudges to check your posture and sit up straight</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="chk-posture" checked><span class="track"></span></label>
+          </div>
+          <div class="wcard-footer">
+            <div class="wcard-freq">
+              Every
+              <select class="freq-select" id="sel-posture-freq">
+                <option value="15">15 min</option>
+                <option value="30" selected>30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="wellness-card">
+          <div class="wcard-header">
+            <div class="wcard-info">
+              <div class="wcard-name">Overwork Prevention</div>
+              <div class="wcard-desc">Warns when you've been coding too long without a real break</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="chk-overwork" checked><span class="track"></span></label>
+          </div>
+        </div>
+
+        <div class="section-label" style="margin-top: 14px;">Break Mode</div>
+        <div class="break-mode-options">
+          <div class="break-mode-card selected" data-mode="pomodoro">
+            <div class="mode-name">Pomodoro</div>
+            <div class="mode-desc">Fixed work/break cycles (25 min work, 5 min break)</div>
+          </div>
+          <div class="break-mode-card" data-mode="smart">
+            <div class="mode-name">Smart</div>
+            <div class="mode-desc">Adapts to your activity and suggests breaks naturally</div>
+          </div>
+          <div class="break-mode-card" data-mode="manual">
+            <div class="mode-name">Manual</div>
+            <div class="mode-desc">Take breaks whenever you want, no automatic reminders</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Join the community (optional) -->
+      <div class="step-panel" data-step="4">
+        <div class="step-title">Join the community <span class="optional-tag">optional</span></div>
+        <div class="step-subtitle">Dr. Vibe is complete without an account. Link GitHub or Discord to earn Vibe Points by coding, collect new Dr. Vibes and see friends coding now.</div>
+
+        <!-- Not linked -->
+        <div id="join-out" class="join-actions">
+          <button id="btn-join-github" class="wiz-btn wiz-btn-primary join-btn" data-provider="github">Continue with GitHub</button>
+          <button id="btn-join-discord" class="wiz-btn wiz-btn-secondary join-btn" data-provider="discord">Continue with Discord</button>
+          <div id="join-waiting" class="join-note" style="display:none">
+            Finish signing in in your browser — you'll come right back here.
+          </div>
+          <div id="join-error" class="join-note join-error" style="display:none"></div>
+          <div class="join-note">You must be 13 or older. Read the <a href="#" id="link-privacy">privacy policy</a> and <a href="#" id="link-terms">terms</a>.</div>
+        </div>
+
+        <!-- Linked -->
+        <div id="join-in" class="join-linked" style="display:none">
+          <span class="join-dot"></span>
+          <span>Linked as <strong id="join-username">@you</strong>. 50 VP and a free pull are waiting at the machines.</span>
+        </div>
+
+        <div class="section-label" style="margin-top:14px;">What Dr. Vibe sees</div>
+        <div id="join-what-sees" class="join-what-sees"></div>
+
+        <label class="join-dismiss">
+          <input type="checkbox" id="chk-never-ask"> Don't ask me to join again
+        </label>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="wizard-footer">
+      <div class="wizard-footer-left">
+        <button class="wiz-btn wiz-btn-skip" id="btn-skip">Skip setup</button>
+      </div>
+      <div class="wizard-footer-right">
+        <button class="wiz-btn wiz-btn-secondary" id="btn-back" style="display:none;">Back</button>
+        <button class="wiz-btn wiz-btn-primary" id="btn-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="setup-wizard.js"></script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's New in Dr. Vibe</title>
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* Titlebar */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 14px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      letter-spacing: 0.02em;
+    }
+    .titlebar-controls { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+
+    /* Content */
+    .content {
+      height: calc(100% - 32px);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 20px 16px;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+      animation: fade-in 0.4s ease-out both;
+    }
+    .header-badge {
+      display: inline-block;
+      background: var(--green-dim);
+      border: 1px solid var(--green-border);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--green);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .header p {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Feature cards */
+    .features {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      animation: slide-in 0.4s ease-out both;
+    }
+    .feature-card:nth-child(1) { animation-delay: 0.05s; }
+    .feature-card:nth-child(2) { animation-delay: 0.10s; }
+    .feature-card:nth-child(3) { animation-delay: 0.15s; }
+    .feature-icon {
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .feature-text h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .feature-text p {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .footer {
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      margin-top: 14px;
+      animation: fade-in 0.4s ease-out 0.2s both;
+    }
+    .dont-show-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .dont-show-row input[type="checkbox"] {
+      width: 14px; height: 14px;
+      accent-color: var(--green);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .dont-show-row label {
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .btn-got-it {
+      width: 100%;
+      height: 36px;
+      background: var(--green);
+      color: #0f1117;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-got-it:hover { opacity: 0.88; }
+    .btn-got-it:active { opacity: 0.75; }
+    [data-theme="light"] .btn-got-it { color: #fff; }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="titlebar">
+    <span class="titlebar-title">What's New</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn titlebar-close" id="close-btn" title="Close">✕</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="header">
+      <div class="header-badge">New in this version</div>
+      <h1>Dr. Vibe is even better</h1>
+      <p>Here's what arrived with your latest update.</p>
+    </div>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">👗</div>
+        <div class="feature-text">
+          <h3>Equip Skins</h3>
+          <p>Give your companion a fresh look. Open the tray menu and choose from
+             your collection to equip a skin right from the desktop.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🗂️</div>
+        <div class="feature-text">
+          <h3>Your Collection</h3>
+          <p>Browse every skin you own in one place. Jump to your Collection from
+             the tray menu — it opens right in your browser.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🛒</div>
+        <div class="feature-text">
+          <h3>Marketplace</h3>
+          <p>Discover and pick up new skins from the community. Hit
+             "Open Marketplace" in the tray to browse what's available.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="dont-show-row">
+        <input type="checkbox" id="dont-show-again">
+        <label for="dont-show-again">Don't show again after future updates</label>
+      </div>
+      <button class="btn-got-it" id="got-it-btn">Got it!</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const invoke = window.__TAURI__?.core?.invoke;
+
+      async function dismiss() {
+        const disableForever = document.getElementById('dont-show-again').checked;
+        if (invoke) {
+          try {
+            await invoke('dismiss_whats_new', { disableForever });
+          } catch (e) {
+            console.error('dismiss_whats_new failed:', e);
+          }
+        }
+        window.__TAURI__?.window?.getCurrentWindow()?.close?.();
+      }
+
+      document.getElementById('got-it-btn').addEventListener('click', dismiss);
+      document.getElementById('close-btn').addEventListener('click', dismiss);
+
+      // Frameless window: drag by the custom title bar (-webkit-app-region has no effect in Tauri)
+      document.querySelector('.titlebar')?.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || e.target.closest('.titlebar-controls')) return;
+        window.__TAURI__?.window?.getCurrentWindow()?.startDragging()?.catch?.(() => {});
+      });
+    })();
+  </script>
+</body>
+</html>

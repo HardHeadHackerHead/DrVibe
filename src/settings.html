@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Vibe Settings</title>
+  <!-- Apply saved theme before paint to avoid flash -->
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+      transition: background .2s, color .2s;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 10px 0 14px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .titlebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      letter-spacing: 0.02em;
+    }
+    .titlebar-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+      align-items: center;
+    }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+    .tb-connected-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      margin-right: 6px;
+      flex-shrink: 0;
+      display: none;
+    }
+    .tb-connected-dot.visible { display: block; }
+
+    .settings-shell { display: flex; flex-direction: column; height: calc(100% - 32px); }
+    .settings-body   { display: flex; flex-direction: row; flex: 1; min-height: 0; }
+
+    /* ── Sidebar ── */
+    .tab-bar {
+      display: flex;
+      flex-direction: column;
+      width: 90px;
+      min-width: 90px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+      padding: 10px 6px;
+      gap: 2px;
+    }
+    .tab-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 6px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      color: var(--muted-2);
+      font-size: 10px;
+      font-family: inherit;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: color .15s, background .15s;
+      text-align: center;
+      line-height: 1.2;
+    }
+    .tab-btn:hover { color: var(--muted); background: rgba(127,127,127,0.07); }
+    .tab-btn.active { color: var(--text); background: rgba(127,127,127,0.1); }
+    .tab-icon { font-size: 18px; }
+    .tab-btn[data-tab="timer"]      .tab-icon { color: #60a5fa; }
+    .tab-btn[data-tab="tracking"]   .tab-icon { color: #a78bfa; }
+    .tab-btn[data-tab="behavior"]   .tab-icon { color: #facc15; }
+    .tab-btn[data-tab="appearance"] .tab-icon { color: #fb923c; }
+    .tab-btn[data-tab="admin"]      .tab-icon { color: #f87171; }
+    .tab-btn[data-tab="community"]  .tab-icon { color: #34d399; }
+    .tab-btn.active .tab-icon { filter: brightness(1.25); }
+    /* Community tab nudged to bottom */
+    .tab-btn[data-tab="community"] { margin-top: auto; }
+
+    /* ── Right-side column ── */
+    .settings-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* ── Titlebar profile / connect area ── */
+    .tb-sep {
+      width: 1px; height: 13px;
+      background: var(--border);
+      flex-shrink: 0;
+      margin: 0 3px;
+    }
+    /* Connected profile */
+    .sh-profile {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .sh-profile.visible { display: flex; }
+    .sh-avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #5865f2;
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    #sh-avatar-img {
+      width: 100%; height: 100%;
+      object-fit: cover; border-radius: 50%;
+      display: none;
+    }
+    .sh-display-name { font-size: 10px; font-weight: 600; color: var(--muted); line-height: 1; }
+    /* Disconnected connect button */
+    .sh-connect-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 3px 9px;
+      background: #5865f2;
+      border: none; border-radius: 5px;
+      color: white; font-size: 10px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      transition: opacity .15s;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+    .sh-connect-btn:hover { opacity: 0.88; }
+    .sh-connect-btn.hidden { display: none; }
+
+    /* ── Tab content ── */
+    .tab-body { flex: 1; overflow-y: auto; padding: 14px 16px; min-width: 0; }
+
+    /* ── Two-column panel layout (each col is its own card) ── */
+    .panel-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+    .panel-col {
+      min-width: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+    .panel-col .section-label:first-child { margin-top: 0; }
+
+    /* ── Inner two-column grid (inside a section-card, no extra card borders) ── */
+    .inner-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: start; }
+    .inner-cols > :first-child { padding-right: 16px; border-right: 1px solid var(--border); }
+    .inner-cols > :last-child  { padding-left: 16px; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Section card ── */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+      color: var(--muted);
+      margin: 14px 0 8px;
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* ── Toggle switch ── */
+    .toggle {
+      position: relative; display: inline-block;
+      width: 40px; height: 22px; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .track {
+      position: absolute; inset: 0;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      cursor: pointer; transition: background .2s, border-color .2s;
+    }
+    .track::after {
+      content: ''; position: absolute;
+      left: 3px; top: 3px;
+      width: 14px; height: 14px;
+      background: var(--muted); border-radius: 50%;
+      transition: transform .18s cubic-bezier(0.16,1,0.3,1), background .18s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .toggle input:checked + .track {
+      background: var(--green-dim);
+      border-color: var(--green-border);
+    }
+    .toggle input:checked + .track::after {
+      transform: translateX(18px);
+      background: var(--green);
+    }
+
+    /* ── Standard row ── */
+    .setting-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; font-size: 12px; gap: 8px;
+    }
+    .setting-row label { color: var(--muted); flex: 1; font-weight: 500; }
+    .setting-row select, .freq-select {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .setting-row select:focus, .freq-select:focus { outline: none; border-color: var(--green-border); }
+
+    /* ── Toggle row ── */
+    .toggle-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; font-size: 12px;
+      border-radius: 6px; padding: 3px 4px; margin-left: -4px; margin-right: -4px;
+      transition: background .12s;
+    }
+    .toggle-row:hover { background: rgba(127,127,127,0.05); }
+    .toggle-row span { color: var(--muted); font-weight: 500; }
+    .toggle-row:has(input:checked) > span { color: var(--text-2); }
+
+    /* ── Slider row ── */
+    .slider-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; font-size: 12px;
+    }
+    .slider-row label { color: var(--muted); flex: 1; font-weight: 500; }
+    .slider-row input[type="range"] { width: 90px; accent-color: var(--green); }
+    .slider-row .slider-value { font-size: 11px; color: var(--green); min-width: 16px; text-align: right; }
+
+    /* ── Two-column grid ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .grid-cell { display: flex; flex-direction: column; gap: 4px; }
+    .grid-cell label {
+      font-size: 10px; color: var(--muted-2);
+      font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .grid-cell select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 6px 8px; border-radius: 6px;
+      font-size: 12px; cursor: pointer; width: 100%; font-family: inherit;
+    }
+    .grid-cell select:focus { outline: none; border-color: var(--green-border); }
+
+    /* ── Indent row ── */
+    .indent-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; font-size: 11px; gap: 8px; padding-left: 12px;
+    }
+    .indent-row label { color: var(--muted); flex: 1; }
+    .indent-row select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--muted); padding: 3px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .indent-row select:focus { outline: none; border-color: var(--green-border); }
+
+    /* ── Wellness cards ── */
+    .wellness-card {
+      background: rgba(127,127,127,0.04);
+      border: 1px solid var(--border);
+      border-radius: 7px; padding: 10px 12px; margin-bottom: 6px;
+    }
+    .wcard-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .wcard-info { flex: 1; min-width: 0; }
+    .wcard-name { font-size: 12px; color: var(--text-2); font-weight: 600; }
+    .wcard-desc { font-size: 10px; color: var(--muted-2); margin-top: 2px; line-height: 1.45; }
+    .wcard-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border);
+      transition: opacity .15s;
+    }
+    .wcard-freq { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .wellness-card:has(.toggle input:checked) { border-left: 2px solid #f87171; }
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-name,
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-desc { opacity: 0.4; }
+    .wellness-card:has(.toggle input:not(:checked)) .wcard-footer { opacity: 0.3; pointer-events: none; }
+    .freq-select { flex-shrink: 0; }
+
+    /* ── Notification badge ── */
+    .notify-badge {
+      position: relative; display: flex; align-items: center;
+      gap: 3px; cursor: pointer; flex-shrink: 0;
+      padding: 3px 8px; border-radius: 6px;
+      background: rgba(127,127,127,0.05); border: 1px solid var(--border);
+      font-size: 11px; color: var(--muted-2); transition: all .15s;
+      user-select: none;
+    }
+    .notify-badge input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .notify-badge.active { color: var(--green); border-color: var(--green-border); background: var(--green-dim); }
+
+    /* ── Chips ── */
+    .chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .notify-chip {
+      position: relative; display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(127,127,127,0.05); border: 1px solid var(--border); border-radius: 20px;
+      padding: 4px 12px; font-size: 11px; color: var(--muted); cursor: pointer;
+      transition: all .15s; user-select: none; font-weight: 500;
+    }
+    .notify-chip input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .notify-chip.active { background: var(--green-dim); border-color: var(--green-border); color: var(--green); }
+
+    /* ── Sub rows ── */
+    .sub-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-left: 12px; margin-bottom: 7px; font-size: 11px; color: var(--muted);
+    }
+    .sub-row select {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--muted); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-family: inherit;
+    }
+    .sub-row select:focus { outline: none; border-color: var(--green-border); }
+
+    /* ── Coding apps ── */
+    .coding-apps-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .coding-app-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--green-dim); border: 1px solid var(--green-border); border-radius: 20px;
+      padding: 3px 10px; font-size: 11px; color: var(--green); font-weight: 500;
+    }
+    .coding-app-tag button {
+      background: none; border: none; color: var(--green-border);
+      cursor: pointer; font-size: 13px; padding: 0; line-height: 1; transition: color .15s;
+    }
+    .coding-app-tag button:hover { color: #ef4444; }
+    .coding-apps-add { display: flex; gap: 6px; }
+    .coding-apps-add input {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 11px; font-family: inherit;
+      transition: border-color .15s;
+    }
+    .coding-apps-add input:focus { outline: none; border-color: var(--green-border); }
+    .coding-apps-add button {
+      background: var(--green); color: #071d07; border: none;
+      border-radius: 6px; padding: 5px 12px; cursor: pointer;
+      font-size: 11px; font-weight: 700; font-family: inherit; transition: opacity .15s;
+    }
+    .coding-apps-add button:hover { opacity: 0.88; }
+
+    /* ── Project folders ── */
+    .project-folders-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .project-folder-tag {
+      display: flex; flex-direction: column;
+      background: rgba(127,127,127,0.04); border: 1px solid var(--border); border-radius: 7px;
+      padding: 6px 10px; font-size: 10px; color: var(--muted); font-family: var(--font-mono);
+    }
+    .project-folder-header { display: flex; align-items: center; gap: 4px; word-break: break-all; }
+    .project-folder-header span { flex: 1; }
+    .project-folder-tag button {
+      background: none; border: none; color: var(--muted-2);
+      cursor: pointer; font-size: 12px; padding: 0; line-height: 1; flex-shrink: 0; transition: color .15s;
+    }
+    .project-folder-tag button:hover { color: #ef4444; }
+    .project-folder-repos { display: flex; flex-direction: column; gap: 1px; margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); }
+    .project-folder-repo { font-size: 9px; color: var(--green); display: flex; align-items: center; gap: 4px; cursor: default; }
+    .project-folder-repo::before { content: '⬡'; font-size: 7px; opacity: 0.6; flex-shrink: 0; }
+    .project-folder-repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-folder-scanning { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
+    .project-folder-none { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
+    .project-folders-add { display: flex; gap: 6px; }
+    .project-folders-add input {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 11px; font-family: inherit; transition: border-color .15s;
+    }
+    .project-folders-add input:focus { outline: none; border-color: var(--green-border); }
+    .project-folders-add button.add-btn {
+      background: var(--green); color: #071d07; border: none;
+      border-radius: 6px; padding: 5px 12px; cursor: pointer;
+      font-size: 11px; font-weight: 700; font-family: inherit; transition: opacity .15s;
+    }
+    .project-folders-add button.add-btn:hover { opacity: 0.88; }
+    .browse-btn {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 5px 10px;
+      cursor: pointer; font-size: 11px; font-weight: 500; font-family: inherit;
+      transition: border-color .15s, color .15s; white-space: nowrap; flex-shrink: 0;
+    }
+    .browse-btn:hover { border-color: rgba(127,127,127,0.22); color: var(--text-2); }
+    .browse-btn:disabled { opacity: .45; cursor: default; }
+    .section-desc { font-size: 10px; color: var(--muted-2); margin: -4px 0 10px; line-height: 1.5; }
+    .privacy-btn {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text-2);
+      border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .privacy-btn:hover { border-color: var(--green-border); color: var(--text); }
+    .privacy-last-sync { margin-top: 8px; }
+    .privacy-last-sync-meta { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .privacy-last-sync pre {
+      max-height: 220px; overflow: auto; background: var(--inset); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px; font-family: var(--font-mono); font-size: 10px;
+      white-space: pre-wrap; word-break: break-all; color: var(--text-2); margin-bottom: 6px;
+      user-select: text;
+    }
+
+    /* ── Tracking overlay cards ── */
+    .track-card {
+      background: rgba(127,127,127,0.04); border: 1px solid var(--border);
+      border-radius: 7px; padding: 10px 12px; margin-bottom: 6px;
+    }
+    .track-card-body { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .track-card-info { flex: 1; min-width: 0; }
+    .track-card-name { font-size: 12px; color: var(--text-2); font-weight: 600; }
+    .track-card-desc { font-size: 10px; color: var(--muted-2); margin-top: 2px; line-height: 1.45; }
+    .track-card:has(.toggle input:checked) { border-left: 2px solid #a78bfa; }
+
+    /* ── Git groups ── */
+    .git-group {
+      background: rgba(127,127,127,0.03); border: 1px solid var(--border);
+      border-radius: 7px; padding: 8px 10px; margin-bottom: 8px;
+    }
+    .git-group-label { font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin-bottom: 6px; }
+    .git-group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .git-group-header .git-group-label { margin-bottom: 0; }
+    .git-group .sub-row { margin-left: 0; margin-bottom: 5px; }
+    .git-group .sub-row:last-child { margin-bottom: 0; }
+
+    /* ── Community tab ── */
+
+    /* Gate (unauthenticated) */
+    .community-gate {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 22px 20px 16px; text-align: center;
+    }
+    .community-gate-icon { font-size: 42px; margin-bottom: 14px; opacity: 0.35; line-height: 1; }
+    .community-gate-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .community-gate-desc {
+      font-size: 12px; color: var(--muted); line-height: 1.65;
+      max-width: 300px; margin-bottom: 22px;
+    }
+    .community-gate-connect-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 28px;
+      background: #5865f2; border: none; border-radius: 8px;
+      color: white; font-size: 13px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      transition: opacity .15s, box-shadow .15s;
+      margin-top: 4px; margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(88,101,242,0.35);
+    }
+    .community-gate-connect-btn:hover { opacity: 0.9; box-shadow: 0 4px 20px rgba(88,101,242,0.5); }
+    .community-gate-perks {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; width: 100%; max-width: 340px; margin-bottom: 20px;
+    }
+    .community-perk {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; text-align: left;
+    }
+    .community-perk-icon { font-size: 18px; margin-bottom: 5px; line-height: 1; }
+    .community-perk-title { font-size: 11px; font-weight: 700; color: var(--text-2); }
+    .community-perk-desc { font-size: 10px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+    .community-gate-links {
+      display: flex; align-items: center; gap: 6px;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .community-gate-link {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 10px;
+      background: rgba(127,127,127,0.06); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--muted); font-size: 11px; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: background .15s, color .15s, border-color .15s;
+    }
+    .community-gate-link:hover {
+      background: rgba(127,127,127,0.1); color: var(--text);
+      border-color: rgba(127,127,127,0.2);
+    }
+
+    /* Authenticated settings — hero card */
+    .comm-hero {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--green-dim);
+      border: 1px solid var(--green-border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 10px;
+    }
+    .comm-hero-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: #5865f2;
+      color: white; font-size: 24px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; overflow: hidden;
+      box-shadow: 0 0 0 3px var(--green-border), 0 4px 16px rgba(0,0,0,0.35);
+    }
+    #comm-avatar-img {
+      width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: none;
+    }
+    .comm-hero-info { flex: 1; min-width: 0; }
+    .comm-hero-name { font-size: 17px; font-weight: 700; color: var(--green); line-height: 1.2; }
+    .comm-hero-username { font-size: 11px; color: var(--green-border); margin-top: 3px; }
+    .comm-hero-badge {
+      display: flex; align-items: center; gap: 5px;
+      margin-top: 8px; font-size: 10px; color: var(--green-border);
+    }
+    .comm-hero-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      box-shadow: 0 0 5px rgba(74,222,128,0.5);
+      transition: background .2s, box-shadow .2s;
+    }
+    /* Sync (poll) state — overrides the default green */
+    .comm-hero-dot.sync-connecting {
+      background: #fbbf24;
+      box-shadow: 0 0 5px rgba(251,191,36,0.5);
+      animation: sync-dot-pulse 1.4s ease-in-out infinite;
+    }
+    .comm-hero-dot.sync-offline,
+    .comm-hero-dot.sync-unlinked {
+      background: #94a3b8;
+      box-shadow: 0 0 5px rgba(148,163,184,0.4);
+    }
+    .comm-hero-dot.sync-error {
+      background: #f87171;
+      box-shadow: 0 0 5px rgba(248,113,113,0.6);
+    }
+    @keyframes sync-dot-pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.45; }
+    }
+    .community-account-disconnect {
+      align-self: flex-start;
+      background: none; border: 1px solid var(--green-border);
+      color: var(--green-border); border-radius: 6px;
+      padding: 4px 11px; font-size: 10px;
+      cursor: pointer; font-family: inherit; font-weight: 500;
+      transition: color .15s, border-color .15s; flex-shrink: 0;
+    }
+    .community-account-disconnect:hover { color: #f87171; border-color: rgba(248,113,113,0.3); }
+
+    /* Profile note */
+    .comm-manage-note {
+      font-size: 10px; color: var(--muted-2);
+      margin-bottom: 10px; padding: 0 2px; line-height: 1.55;
+    }
+
+    /* VP balance panel */
+    .comm-vp-panel {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 14px 16px;
+      background: rgba(127,127,127,0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .comm-vp-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .comm-vp-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .comm-vp-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted-2); font-weight: 600;
+    }
+    .comm-vp-value {
+      font-size: 22px; font-weight: 700; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .comm-vp-value .comm-vp-unit {
+      font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px;
+    }
+    .comm-vp-shop-btn {
+      background: var(--green-dim);
+      color: var(--text);
+      border: 1px solid var(--green-border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px; font-weight: 500; font-family: inherit;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+    .comm-vp-shop-btn:hover {
+      background: var(--green);
+      border-color: var(--green);
+    }
+    .comm-vp-history-toggle {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      padding: 0;
+      font-size: 11px; font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      text-decoration: underline dotted;
+      text-underline-offset: 2px;
+      align-self: flex-start;
+    }
+    .comm-vp-history-toggle:hover { color: var(--text); }
+    .comm-vp-history {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .comm-vp-history.open { display: block; }
+    .comm-vp-history-empty {
+      font-size: 10px; color: var(--muted-2); text-align: center; padding: 8px;
+    }
+    .comm-vp-tx-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+    }
+    .comm-vp-tx-row:last-child { border-bottom: none; }
+    .comm-vp-tx-left {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    .comm-vp-tx-title {
+      color: var(--text); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .comm-vp-tx-meta { color: var(--muted-2); font-size: 9px; }
+    .comm-vp-tx-amount {
+      font-weight: 600; font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .comm-vp-tx-amount.positive { color: var(--green); }
+    .comm-vp-tx-amount.negative { color: var(--red, #ef4444); }
+
+    /* 2×2 link card grid */
+    .comm-links-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 7px;
+    }
+    .comm-link-card {
+      display: flex; flex-direction: column; align-items: flex-start;
+      padding: 13px 13px 11px;
+      background: rgba(127,127,127,0.04); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-family: inherit; text-align: left;
+      transition: background .15s, border-color .15s;
+      position: relative;
+    }
+    .comm-link-card:hover {
+      background: rgba(127,127,127,0.08); border-color: rgba(127,127,127,0.2);
+    }
+    .comm-link-card::after {
+      content: '↗'; position: absolute; top: 10px; right: 11px;
+      font-size: 11px; color: var(--muted-2);
+    }
+    .comm-link-card-icon { font-size: 22px; margin-bottom: 8px; line-height: 1; }
+    .comm-link-card-title { font-size: 12px; font-weight: 700; color: var(--text-2); line-height: 1.2; }
+    .comm-link-card-desc { font-size: 10px; color: var(--muted-2); margin-top: 3px; line-height: 1.4; }
+
+    /* ── Skin picker ── */
+    .skin-search-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .skin-search-input {
+      flex: 1; min-width: 0;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text-2); font-size: 11px; padding: 4px 8px;
+      font-family: inherit; outline: none; transition: border-color .15s;
+    }
+    .skin-search-input:focus { border-color: var(--green-border); }
+    .skin-search-input::placeholder { color: var(--muted-2); }
+    .skin-search-clear {
+      background: rgba(127,127,127,0.05); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-size: 10px; padding: 3px 10px;
+      cursor: pointer; font-family: inherit; font-weight: 600; transition: all .15s;
+    }
+    .skin-search-clear:hover { color: var(--text-2); border-color: rgba(127,127,127,0.2); }
+    .skin-cat-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+    .skin-cat {
+      background: rgba(127,127,127,0.05); border: 1px solid var(--border); border-radius: 20px;
+      color: var(--muted); font-size: 10px; padding: 3px 10px;
+      cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s;
+    }
+    .skin-cat:hover { color: var(--text-2); border-color: rgba(127,127,127,0.2); }
+    .skin-cat.active { background: var(--green-dim); border-color: var(--green-border); color: var(--green); }
+
+    .skin-grid {
+      display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 5px; max-height: 220px; overflow-y: auto; margin-bottom: 8px; padding-right: 2px;
+    }
+    .skin-grid::-webkit-scrollbar { width: 3px; }
+    .skin-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .skin-grid-placeholder { grid-column: 1 / -1; font-size: 11px; color: var(--muted-2); padding: 24px 0; text-align: center; }
+    .skin-grid-placeholder a { color: var(--muted); text-decoration: underline; cursor: pointer; }
+    .skin-section-header { grid-column: 1 / -1; font-size: 9px; font-weight: 600; color: var(--muted-2); text-transform: uppercase; letter-spacing: .06em; padding: 6px 0 2px; }
+    .skin-inv-refresh { color: var(--muted-2); text-decoration: none; cursor: pointer; font-size: 11px; margin-left: 4px; transition: color .2s; }
+    .skin-inv-refresh:hover { color: var(--green); }
+
+    .skin-card {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 5px 3px 4px; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--border); background: rgba(127,127,127,0.04);
+      transition: border-color .15s, background .15s;
+    }
+    .skin-card:hover { border-color: rgba(127,127,127,0.2); background: rgba(127,127,127,0.07); }
+    .skin-card.selected { border-color: var(--green-border); background: var(--green-dim); }
+    .skin-card canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; display: block; }
+    .skin-card-name {
+      font-size: 8px; color: var(--muted); text-align: center;
+      margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      width: 100%; padding: 0 2px;
+    }
+    .skin-card.selected .skin-card-name { color: var(--green); }
+    .skin-card-author {
+      font-size: 7px; color: var(--muted-2); text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; padding: 0 2px;
+    }
+    .skin-card.selected .skin-card-author { color: var(--green-border); }
+    /* Upload status outlines (My Skins only). Inset ring stays visible even
+       when the .selected border kicks in. */
+    .skin-card.uploaded { box-shadow: inset 0 0 0 2px rgba(34,197,94,0.55); }
+    .skin-card.draft    { box-shadow: inset 0 0 0 2px rgba(251,146,60,0.55); }
+
+    .skin-detail { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 8px; gap: 8px; }
+    .skin-detail-wrap { flex: 1; min-width: 0; }
+    .skin-detail-name { color: var(--text-2); font-weight: 600; }
+    .skin-detail-meta { font-size: 9px; color: var(--muted-2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #skin-delete-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 3px 10px; font-size: 10px;
+      cursor: pointer; flex-shrink: 0; font-family: inherit; font-weight: 500;
+      transition: color .15s, border-color .15s;
+    }
+    #skin-delete-btn:hover { color: #f87171; border-color: rgba(248,113,113,0.3); }
+    #gallery-submit-btn {
+      background: #a855f7; color: white; border: none;
+      border-radius: 6px; padding: 3px 10px; font-size: 10px; font-weight: 700;
+      cursor: pointer; transition: opacity .2s; flex-shrink: 0;
+    }
+    #gallery-submit-btn:hover { opacity: 0.85; }
+    #skin-import-status { font-size: 10px; color: var(--muted); margin-top: 4px; min-height: 13px; user-select: text; cursor: text; }
+    #skin-import-status.success { color: var(--green); }
+    #skin-import-status.error { color: #f87171; }
+    .skin-more-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+    #skin-get-more-btn, #make-drvibe-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 4px 10px; font-size: 10px;
+      cursor: pointer; font-family: inherit; font-weight: 500;
+      transition: color .15s, border-color .15s;
+    }
+    #skin-get-more-btn:hover, #make-drvibe-btn:hover { color: var(--text-2); border-color: rgba(127,127,127,0.2); }
+
+    /* ── Compact description toggle row (no card border) ── */
+    .desc-toggle-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 4px; margin-bottom: 4px;
+      margin-left: -4px; margin-right: -4px;
+      border-radius: 6px; transition: background .12s;
+    }
+    .desc-toggle-row:hover { background: rgba(127,127,127,0.05); }
+    .desc-toggle-row-info { flex: 1; min-width: 0; margin-right: 10px; }
+    .desc-toggle-row-name { font-size: 12px; color: var(--text-2); font-weight: 600; line-height: 1.2; }
+    .desc-toggle-row-desc { font-size: 10px; color: var(--muted-2); margin-top: 1px; line-height: 1.3; }
+    .desc-toggle-row:has(input:not(:checked)) .desc-toggle-row-name,
+    .desc-toggle-row:has(input:not(:checked)) .desc-toggle-row-desc { opacity: 0.45; }
+
+    /* ── Accordion ── */
+    .accordion-header {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; margin: 14px 0 0;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+      color: var(--muted); padding: 0; user-select: none;
+    }
+    .accordion-header:first-child { margin-top: 0; }
+    .accordion-arrow { font-size: 8px; color: var(--muted); transition: transform .2s; }
+    .accordion-header.open .accordion-arrow { transform: rotate(90deg); }
+    .accordion-body { display: none; padding-top: 8px; }
+    .accordion-body.open { display: block; }
+
+    /* ── Footer ── */
+    .setting-buttons {
+      display: flex; justify-content: flex-end;
+      padding: 8px 14px; border-top: 1px solid var(--border);
+      background: var(--bg-sidebar); flex-shrink: 0;
+    }
+    #settings-close {
+      padding: 6px 18px; border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer; font-size: 12px; font-weight: 500; font-family: inherit;
+      background: rgba(127,127,127,0.07); color: var(--muted);
+      transition: background .15s, color .15s;
+    }
+    #settings-close:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+
+    /* ── Scrollbar ── */
+    .tab-body::-webkit-scrollbar { width: 4px; }
+    .tab-body::-webkit-scrollbar-track { background: transparent; }
+    .tab-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Gallery modal ── */
+    .gallery-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.75);
+      z-index: 999; display: none; align-items: center; justify-content: center;
+    }
+    .gallery-modal-overlay.open { display: flex; }
+    .gallery-modal-panel {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px; width: 268px; max-height: 90vh; overflow-y: auto;
+    }
+    .gallery-modal-title { font-size: 12px; font-weight: 700; color: #a855f7; margin-bottom: 14px; letter-spacing: 0.02em; }
+    .gal-field { margin-bottom: 9px; }
+    .gal-field > label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .gal-field input, .gal-field textarea {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 6px 9px; border-radius: 6px; font-size: 11px; font-family: inherit;
+    }
+    .gal-field input:focus, .gal-field textarea:focus { outline: none; border-color: rgba(168,85,247,0.4); }
+    .gal-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .gal-tags label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); cursor: pointer; }
+    .gal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .gal-actions button { border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 11px; font-family: inherit; font-weight: 600; }
+    #gal-cancel-btn { background: rgba(127,127,127,0.1); color: var(--muted); }
+    #gal-cancel-btn:hover { background: rgba(127,127,127,0.15); }
+    #gal-submit-btn { background: #a855f7; color: white; }
+    #gal-submit-btn:hover:not(:disabled) { opacity: 0.88; }
+    #gal-submit-btn:disabled { background: var(--bg-input); color: var(--muted-2); cursor: not-allowed; }
+    #gal-status { font-size: 10px; color: var(--muted); margin-top: 8px; min-height: 14px; user-select: text; cursor: text; }
+    #gal-status.error { color: #f87171; }
+    #gal-status.success { color: var(--green); }
+
+    /* Admin feature gate — hidden by default, shown when admin mode is active */
+    .admin-only { display: none !important; }
+    body.admin-active .admin-only.setting-row { display: flex !important; }
+    body.admin-active .admin-only.section-card { display: block !important; }
+    body.admin-active .admin-only.tab-btn     { display: flex  !important; }
+
+    /* Admin toggle in titlebar — revealed via Ctrl+Shift+A */
+    .tb-admin-toggle {
+      display: none; align-items: center; gap: 3px;
+      cursor: pointer; -webkit-app-region: no-drag; margin-right: 4px;
+    }
+    .tb-admin-toggle input { width: 12px; height: 12px; accent-color: #a855f7; cursor: pointer; margin: 0; }
+    .tb-admin-label { font-size: 8px; font-weight: 700; color: var(--muted-2); letter-spacing: .05em; }
+    .tb-admin-toggle:has(input:checked) .tb-admin-label { color: #a855f7; }
+
+    /* Legacy admin panel styles removed — toggle is now in titlebar */
+    .admin-placeholder-unused {
+      display: none;
+      padding-left: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar" id="settings-titlebar">
+    <span class="titlebar-title">Settings</span>
+    <div class="titlebar-controls">
+      <!-- Theme toggle -->
+      <button id="sh-theme-btn" class="titlebar-btn" title="Toggle theme">
+        <span id="sh-theme-icon">☀</span>
+      </button>
+      <span class="tb-sep"></span>
+      <!-- Connected: avatar + display name -->
+      <div id="sh-profile" class="sh-profile">
+        <div id="sh-display-name" class="sh-display-name">—</div>
+        <div id="sh-avatar" class="sh-avatar">
+          <img id="sh-avatar-img" alt="">
+          <span id="sh-avatar-initials">?</span>
+        </div>
+      </div>
+      <!-- Disconnected: compact connect button -->
+      <button id="sh-connect-btn" class="sh-connect-btn">⬡ Connect</button>
+      <span class="tb-sep"></span>
+      <!-- Admin toggle — revealed via Ctrl+Shift+A -->
+      <label id="tb-admin-toggle" class="tb-admin-toggle" title="Admin Mode" style="display:none">
+        <input type="checkbox" id="admin-mode-toggle">
+        <span class="tb-admin-label">ADM</span>
+      </label>
+      <span id="tb-connected-dot" class="tb-connected-dot" title="Linked to drvibe.io"></span>
+      <button class="titlebar-btn titlebar-close" id="tb-close" title="Close">✕</button>
+    </div>
+  </div>
+
+  <div class="settings-shell">
+  <div class="settings-body">
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="timer">
+        <span class="tab-icon">⏱</span>Sessions
+      </button>
+      <button class="tab-btn" data-tab="tracking">
+        <span class="tab-icon">◉</span>Tracking
+      </button>
+      <button class="tab-btn" data-tab="behavior">
+        <span class="tab-icon">⭐</span>Behavior
+      </button>
+      <button class="tab-btn" data-tab="appearance">
+        <span class="tab-icon">✏</span>Appearance
+      </button>
+      <button class="tab-btn admin-only" data-tab="admin">
+        <span class="tab-icon">🛠</span>Developer
+      </button>
+      <button class="tab-btn" data-tab="privacy">
+        <span class="tab-icon">◎</span>Privacy
+      </button>
+      <!-- Account and community always at bottom via margin-top:auto -->
+      <button class="tab-btn" data-tab="community">
+        <span class="tab-icon">⬡</span>Account and community
+      </button>
+    </div>
+
+    <div class="settings-content">
+
+      <div class="tab-body">
+
+        <!-- ══════════ SESSIONS ══════════ -->
+        <div id="panel-timer" class="tab-panel active">
+
+          <!-- App startup -->
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">App</div>
+            <div class="toggle-row">
+              <span>Launch at Login</span>
+              <label class="toggle"><input type="checkbox" id="auto-start-enabled"><span class="track"></span></label>
+            </div>
+            <div class="setting-row" style="margin-bottom:0">
+              <label style="color:var(--muted);font-size:11px">Re-run the first-run setup wizard</label>
+              <button id="open-setup-wizard-btn" style="background:var(--bg-input);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Setup Wizard ↗</button>
+            </div>
+          </div>
+
+          <!-- Row 1: Work Sessions | Long Breaks -->
+          <div class="section-card">
+            <div class="inner-cols">
+              <div>
+                <div class="section-label" style="margin-top:0">Work Sessions</div>
+                <div class="section-desc">Work sprint and break cadence</div>
+                <div class="two-col">
+                  <div class="grid-cell">
+                    <label for="work-interval">Work (min)</label>
+                    <select id="work-interval">
+                      <option value="1">1</option><option value="2">2</option><option value="5">5</option>
+                      <option value="15">15</option><option value="25" selected>25</option><option value="50">50</option>
+                    </select>
+                  </div>
+                  <div class="grid-cell">
+                    <label for="break-interval">Break (min)</label>
+                    <select id="break-interval">
+                      <option value="1">1</option><option value="2">2</option><option value="5" selected>5</option>
+                      <option value="10">10</option><option value="15">15</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <label for="break-mode">Break Mode</label>
+                  <select id="break-mode">
+                    <option value="pomodoro" selected>Pomodoro — fixed intervals</option>
+                    <option value="smart">Smart — based on activity</option>
+                    <option value="manual">Manual — you decide</option>
+                  </select>
+                </div>
+                <div class="indent-row" id="idle-threshold-row" style="display:none">
+                  <label for="idle-threshold">↳ Idle Threshold (min)</label>
+                  <select id="idle-threshold">
+                    <option value="3">3</option><option value="5" selected>5</option>
+                    <option value="10">10</option><option value="15">15</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div class="section-label" style="margin-top:0">Long Breaks</div>
+                <div class="section-desc">A longer rest every N work cycles</div>
+                <div class="two-col">
+                  <div class="grid-cell">
+                    <label for="long-break-interval">Every N cycles</label>
+                    <select id="long-break-interval">
+                      <option value="3">3</option><option value="4" selected>4</option>
+                      <option value="5">5</option><option value="6">6</option>
+                    </select>
+                  </div>
+                  <div class="grid-cell">
+                    <label for="long-break-minutes">Duration (min)</label>
+                    <select id="long-break-minutes">
+                      <option value="10">10</option><option value="15" selected>15</option>
+                      <option value="20">20</option><option value="30">30</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Focus Mode + Body | Smart Detection + Balance -->
+          <div class="section-card" style="margin-bottom:0">
+            <div class="inner-cols">
+              <div>
+                <div class="section-label" style="margin-top:0">Focus Mode</div>
+                <div class="section-desc">Deep work session — no break interruptions</div>
+                <div class="setting-row">
+                  <label for="focus-duration">Duration (min)</label>
+                  <select id="focus-duration">
+                    <option value="15">15</option><option value="25" selected>25</option><option value="45">45</option>
+                    <option value="60">60</option><option value="90">90</option><option value="120">120</option>
+                  </select>
+                </div>
+                <div class="section-label">Body</div>
+                <div class="desc-toggle-row">
+                  <div class="desc-toggle-row-info">
+                    <div class="desc-toggle-row-name">Eye Care</div>
+                    <div class="desc-toggle-row-desc">Look away 20 sec every 20 min to reduce eye strain</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="eye-strain-enabled" checked><span class="track"></span></label>
+                </div>
+                <div class="wellness-card">
+                  <div class="wcard-header">
+                    <div class="wcard-info"><div class="wcard-name">Posture</div><div class="wcard-desc">Reminder to sit up straight and check your posture</div></div>
+                    <label class="toggle"><input type="checkbox" id="posture-enabled" checked><span class="track"></span></label>
+                  </div>
+                  <div class="wcard-footer">
+                    <span class="wcard-freq">Every <select id="posture-frequency" class="freq-select"><option value="15">15m</option><option value="30" selected>30m</option><option value="45">45m</option><option value="60">60m</option></select></span>
+                  </div>
+                </div>
+                <div class="wellness-card" style="margin-bottom:0">
+                  <div class="wcard-header">
+                    <div class="wcard-info"><div class="wcard-name">Hydration</div><div class="wcard-desc">Gentle reminders to drink water throughout the day</div></div>
+                    <label class="toggle"><input type="checkbox" id="hydration-enabled" checked><span class="track"></span></label>
+                  </div>
+                  <div class="wcard-footer">
+                    <span class="wcard-freq">Every <select id="hydration-frequency" class="freq-select"><option value="30">30m</option><option value="45" selected>45m</option><option value="60">60m</option><option value="90">90m</option></select></span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="section-label" style="margin-top:0">Smart Detection</div>
+                <div class="desc-toggle-row">
+                  <div class="desc-toggle-row-info">
+                    <div class="desc-toggle-row-name">Fatigue</div>
+                    <div class="desc-toggle-row-desc">Detects when productivity is dropping and suggests a break</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="fatigue-detection" checked><span class="track"></span></label>
+                </div>
+                <div class="desc-toggle-row">
+                  <div class="desc-toggle-row-info">
+                    <div class="desc-toggle-row-name">Stuck Detection</div>
+                    <div class="desc-toggle-row-desc">Nudges you when you've been spinning your wheels too long</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="stuck-detection" checked><span class="track"></span></label>
+                </div>
+                <div class="desc-toggle-row">
+                  <div class="desc-toggle-row-info">
+                    <div class="desc-toggle-row-name">Overwork</div>
+                    <div class="desc-toggle-row-desc">Warns you when you're exceeding healthy daily coding hours</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="overwork-prevention" checked><span class="track"></span></label>
+                </div>
+                <div class="section-label">Balance</div>
+                <div class="desc-toggle-row">
+                  <div class="desc-toggle-row-info">
+                    <div class="desc-toggle-row-name">Work-Life Balance</div>
+                    <div class="desc-toggle-row-desc">Gentle reminders to step away and recharge</div>
+                  </div>
+                  <label class="toggle"><input type="checkbox" id="boundary-awareness" checked><span class="track"></span></label>
+                </div>
+                <div class="wellness-card" style="margin-bottom:0">
+                  <div class="wcard-header">
+                    <div class="wcard-info"><div class="wcard-name">Celebrate Wins</div><div class="wcard-desc">Recognition and encouragement for your progress</div></div>
+                    <label class="toggle"><input type="checkbox" id="encouragement-enabled" checked><span class="track"></span></label>
+                  </div>
+                  <div class="wcard-footer">
+                    <span class="wcard-freq">Cheer every <select id="encouragement-frequency" class="freq-select"><option value="30">30m</option><option value="60" selected>60m</option><option value="90">90m</option><option value="120">120m</option></select></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /panel-timer -->
+
+        <!-- ══════════ TRACKING ══════════ -->
+        <div id="panel-tracking" class="tab-panel">
+          <div class="panel-cols">
+
+            <div class="panel-col">
+              <div class="section-label">Coding Apps</div>
+              <div class="section-desc">Apps counted as active coding time</div>
+              <div id="coding-apps-list" class="coding-apps-list"></div>
+              <div class="coding-apps-add">
+                <input type="text" id="coding-app-input" placeholder="App name…">
+                <button id="coding-app-add-btn">Add</button>
+              </div>
+            </div>
+
+            <div class="panel-col">
+              <div class="section-label">Project Folders</div>
+              <div class="section-desc">Scanned for git repos to enable momentum tracking</div>
+              <div id="project-folders-list" class="project-folders-list"></div>
+              <div class="project-folders-add" style="flex-direction:column;gap:5px">
+                <input type="text" id="project-folder-input" placeholder="Or paste a folder path…" style="width:100%">
+                <div style="display:flex;gap:5px">
+                  <button id="project-folder-browse-btn" class="browse-btn" style="flex:1">Browse…</button>
+                  <button id="project-folder-add-btn" class="add-btn" style="flex:1">Add Path</button>
+                </div>
+              </div>
+              <div class="section-label">Claude Code</div>
+              <div class="section-card" style="margin-bottom:14px">
+                <div class="toggle-row" style="margin-bottom:6px">
+                  <span style="font-weight:600;color:var(--text-2)">Follow Claude Code</span>
+                  <label class="toggle"><input type="checkbox" id="claude-hooks-enabled" checked><span class="track"></span></label>
+                </div>
+                <div class="section-desc" style="margin-bottom:10px">Adds hooks to Claude Code's settings that log which files it reads and edits, so its work fills the heat bar. Only file paths and event names are logged, on this computer. Off removes the hooks.</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span id="hooks-status" style="font-size:11px;color:var(--muted-2)">Checking…</span>
+                  <button id="hooks-install-btn" class="browse-btn">Install / Fix</button>
+                </div>
+                <div id="hooks-result" style="font-size:10px;color:var(--muted-2);margin-top:6px;min-height:14px"></div>
+              </div>
+              <div class="section-label">Git Tracking</div>
+              <div class="toggle-row" style="margin-bottom:10px">
+                <span style="font-weight:600;color:var(--text-2)">Enable Git Tracking</span>
+                <label class="toggle"><input type="checkbox" id="git-tracking-enabled" checked><span class="track"></span></label>
+              </div>
+              <div id="git-tracking-sub-rows">
+                <div class="git-group">
+                  <div class="git-group-label">Notifications</div>
+                  <div class="sub-row"><span>Commits</span><label class="toggle"><input type="checkbox" id="git-commit-notifications" checked><span class="track"></span></label></div>
+                  <div class="sub-row"><span>Branch Changes</span><label class="toggle"><input type="checkbox" id="git-branch-notifications" checked><span class="track"></span></label></div>
+                </div>
+                <div class="git-group">
+                  <div class="git-group-header">
+                    <div class="git-group-label">Commit Reminders</div>
+                    <label class="toggle"><input type="checkbox" id="git-commit-reminders" checked><span class="track"></span></label>
+                  </div>
+                  <div id="git-reminder-sub-rows">
+                    <div class="sub-row"><span>Remind after</span><select id="git-reminder-threshold" class="freq-select"><option value="15">15m</option><option value="30" selected>30m</option><option value="60">60m</option><option value="90">90m</option></select></div>
+                    <div class="sub-row"><span>Min changes</span><select id="git-reminder-min-changes" class="freq-select"><option value="1">1</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10</option></select></div>
+                  </div>
+                </div>
+                <div class="git-group">
+                  <div class="git-group-label">Polling</div>
+                  <div class="sub-row"><span>Check every</span><select id="git-poll-interval" class="freq-select"><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option></select></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div><!-- /panel-tracking -->
+
+        <!-- ══════════ BEHAVIOR ══════════ -->
+        <div id="panel-behavior" class="tab-panel">
+          <div class="panel-cols">
+
+            <div class="panel-col">
+              <div class="section-label">Sound</div>
+              <div class="section-desc">Sounds Dr. Vibe makes as you code</div>
+              <div class="toggle-row"><span>Reaction Sounds</span><label class="toggle"><input type="checkbox" id="sound-reactions-enabled"><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Talking Sounds</span><label class="toggle"><input type="checkbox" id="sound-talk-enabled"><span class="track"></span></label></div>
+              <div class="sub-row" id="sound-volume-row" style="display:none">
+                <span>Volume</span>
+                <select id="sound-volume"><option value="10">10%</option><option value="25">25%</option><option value="50" selected>50%</option><option value="75">75%</option><option value="100">100%</option></select>
+              </div>
+              <div class="sub-row" id="sound-talk-voice-row" style="display:none">
+                <span>Voice Style</span>
+                <select id="sound-talk-voice"><option value="mumble" selected>Mumble</option><option value="squeaky">Squeaky</option><option value="gruff">Gruff</option><option value="alien">Alien</option><option value="robot">Robot</option><option value="mystic">Mystic</option><option value="hyper">Hyper</option><option value="retro">Retro</option></select>
+              </div>
+              <div class="section-label">Suggestions</div>
+              <div class="section-desc">Contextual tips and resources from Dr. Vibe</div>
+              <div class="toggle-row"><span>Resume Suggestions</span><label class="toggle"><input type="checkbox" id="resume-suggestions" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Learning Resources</span><label class="toggle"><input type="checkbox" id="learning-resources"><span class="track"></span></label></div>
+
+              <div class="section-label">Heat Bar</div>
+              <div class="section-desc">Momentum bar showing your coding intensity</div>
+              <div class="toggle-row"><span>Show Heat Bar</span><label class="toggle"><input type="checkbox" id="momentum-meter-enabled" checked><span class="track"></span></label></div>
+              <div class="sub-row" id="momentum-meter-position-row" style="display:none">
+                <span>Position</span>
+                <select id="momentum-meter-position"><option value="bottom" selected>Below Dr. Vibe</option><option value="top">Above Dr. Vibe</option></select>
+              </div>
+            </div>
+
+            <div class="panel-col">
+              <div class="section-label">Notifications</div>
+              <div class="section-desc">Toast popups shown during your session</div>
+              <div class="toggle-row"><span>Enable Popups</span><label class="toggle"><input type="checkbox" id="notifications" checked><span class="track"></span></label></div>
+              <div class="setting-row">
+                <label for="notification-position">Position</label>
+                <select id="notification-position"><option value="top-left">Top Left</option><option value="top-center">Top Center</option><option value="top-right">Top Right</option><option value="bottom-left">Bottom Left</option><option value="bottom-center">Bottom Center</option><option value="bottom-right" selected>Bottom Right</option></select>
+              </div>
+              <div class="setting-row">
+                <label for="popup-duration">Show for (sec)</label>
+                <select id="popup-duration"><option value="3">3</option><option value="5">5</option><option value="8" selected>8</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="30">30</option></select>
+              </div>
+              <div style="font-size:10px;color:var(--muted-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:700">Alert on</div>
+              <div class="chip-row">
+                <label class="notify-chip"><input type="checkbox" id="notify-breaks" checked>Breaks</label>
+                <label class="notify-chip"><input type="checkbox" id="notify-achievements" checked>Achievements</label>
+                <label class="notify-chip"><input type="checkbox" id="notify-vp-earned" checked>VP Earned</label>
+                <label class="notify-chip"><input type="checkbox" id="notify-trades" checked>Trades</label>
+              </div>
+
+              <div class="section-label">Movement</div>
+              <div class="section-desc">How Dr. Vibe moves and reacts on screen</div>
+              <div class="toggle-row"><span>Ghost on Hover</span><label class="toggle"><input type="checkbox" id="click-through-ghost" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Nudge on Hover</span><label class="toggle"><input type="checkbox" id="mouse-nudge-enabled"><span class="track"></span></label></div>
+              <div class="slider-row" id="mouse-nudge-speed-row">
+                <label for="mouse-nudge-speed">Nudge Speed</label>
+                <input type="range" id="mouse-nudge-speed" min="1" max="10" value="7" step="1">
+                <span class="slider-value" id="mouse-nudge-speed-label">7</span>
+              </div>
+              <div class="toggle-row"><span>Walking</span><label class="toggle"><input type="checkbox" id="walking-enabled" checked><span class="track"></span></label></div>
+              <div class="toggle-row" id="walking-locked-row"><span>Lock to Screen</span><label class="toggle"><input type="checkbox" id="walking-locked" checked><span class="track"></span></label></div>
+              <div class="setting-row" id="walking-bound-left-row"><label for="walking-bound-left">Left margin (%)</label><select id="walking-bound-left"><option value="0" selected>0</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option></select></div>
+              <div class="setting-row" id="walking-bound-right-row"><label for="walking-bound-right">Right margin (%)</label><select id="walking-bound-right"><option value="0" selected>0</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option></select></div>
+            </div>
+
+          </div>
+        </div><!-- /panel-behavior -->
+
+        <!-- ══════════ APPEARANCE ══════════ -->
+        <div id="panel-appearance" class="tab-panel">
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Character</div>
+            <div class="skin-search-row">
+              <input type="text" id="skin-search-input" class="skin-search-input" placeholder="Search by name…" autocomplete="off" />
+              <button type="button" id="skin-search-clear" class="skin-search-clear">Clear</button>
+            </div>
+            <div class="skin-cat-bar" id="skin-cat-bar"></div>
+            <div class="skin-grid" id="skin-grid"><div class="skin-grid-placeholder">Loading skins…</div></div>
+            <div class="skin-more-row">
+              <button id="make-drvibe-btn">Make your own Dr. Vibe ↗</button>
+              <button id="skin-get-more-btn" style="margin-left:8px">Get More Skins ↗</button>
+            </div>
+            <div class="skin-detail" id="skin-detail" style="display:none">
+              <div class="skin-detail-wrap">
+                <div class="skin-detail-name" id="skin-detail-name"></div>
+                <div class="skin-detail-meta" id="skin-detail-meta" style="display:none"></div>
+              </div>
+              <button id="gallery-submit-btn" style="display:none">Submit to the Incubator ↗</button>
+              <button id="skin-delete-btn" style="display:none">Delete</button>
+            </div>
+            <div id="skin-import-status"></div>
+            <div class="setting-row" id="skin-tone-row" style="display:none">
+              <label for="skin-tone">Tone</label>
+              <select id="skin-tone"></select>
+            </div>
+            <div class="setting-row">
+              <label for="character-scale">Size</label>
+              <select id="character-scale"><option value="75">Small</option><option value="100" selected>Normal</option><option value="125">Large</option><option value="150">Extra Large</option></select>
+            </div>
+            <div class="setting-row" id="edit-character-row" style="display:none;margin-bottom:0">
+              <label style="color:var(--muted);font-size:11px">Change, remix or share this one</label>
+              <button id="edit-character-btn" style="background:var(--bg-input);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Edit this character ↗</button>
+            </div>
+            <select id="selected-skin" style="display:none"></select>
+          </div>
+
+        </div><!-- /panel-appearance -->
+
+        <!-- ══════════ ADMIN ══════════ -->
+        <div id="panel-admin" class="tab-panel">
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Dev Server</div>
+            <div class="section-desc">Which Dr. Vibe web server the app talks to. Applied at startup — a restart is required for the change to take effect.</div>
+
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:6px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+                <input type="radio" name="dev-server" value="auto">
+                <span>Auto <span style="color:var(--muted-2);font-size:10px">(match build — dev build → localhost, release build → production)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+                <input type="radio" name="dev-server" value="production">
+                <span>Production <span style="color:var(--muted-2);font-size:10px">(drvibe.io)</span></span>
+              </label>
+              <label id="dev-server-localhost-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+                <input type="radio" name="dev-server" value="localhost">
+                <span>Localhost <span style="color:var(--muted-2);font-size:10px">(http://localhost:8080 — a local Dr. Vibe server)</span></span>
+              </label>
+            </div>
+
+            <div id="dev-server-restart-banner" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.35);border-radius:6px;font-size:11px;color:#93c5fd">
+              <div style="margin-bottom:8px">Click Apply to hot-swap the active server. You'll be signed out of your current account — auth tokens don't transfer between environments, so you'll need to sign in again on the new server. The app won't restart.</div>
+              <button id="dev-server-restart-btn" style="background:#60a5fa;color:#071225;border:none;border-radius:4px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Apply</button>
+            </div>
+
+            <div id="dev-server-current" style="margin-top:10px;font-size:10px;color:var(--muted-2);font-family:ui-monospace,monospace"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">AI Agent</div>
+            <div class="section-desc">CLI used for character generation</div>
+            <div class="setting-row" style="margin-bottom:4px">
+              <label for="ai-agent">Agent</label>
+              <select id="ai-agent"><option value="claude">Claude Code</option><option value="codex">OpenAI Codex</option></select>
+            </div>
+            <div id="ai-agent-status" style="font-size:11px;color:var(--muted-2);padding:0 0 8px 0;display:none"></div>
+            <div class="setting-row" id="create-character-row" style="margin-bottom:0">
+              <label style="color:var(--muted);font-size:11px">AI-generated character</label>
+              <button id="create-character-btn" style="background:var(--green);color:#071d07;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .2s">Make your own Dr. Vibe ↗</button>
+            </div>
+          </div>
+
+          <div class="section-card" style="margin-bottom:0">
+            <div class="section-label" style="margin-top:0">Sprite Editor</div>
+            <div class="section-desc">Edit and create custom Dr. Vibe sprite sheets.</div>
+            <div class="setting-row" style="margin-bottom:0">
+              <label style="color:var(--muted);font-size:11px">Custom sprite editing</label>
+              <button id="open-sprite-editor-btn" style="background:var(--bg-input);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Sprite Editor ↗</button>
+            </div>
+          </div>
+
+        </div><!-- /panel-admin -->
+
+        <!-- ══════════ PRIVACY ══════════ -->
+        <div id="panel-privacy" class="tab-panel">
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Who sees what</div>
+            <div class="section-desc">Saved here and sent to drvibe.io only when you change something. Choices you make on the website are never overwritten.</div>
+            <div class="setting-row">
+              <label for="privacy-visibility">Profile visibility</label>
+              <select id="privacy-visibility">
+                <option value="public">Public</option>
+                <option value="followers">Followers</option>
+                <option value="private">Private</option>
+              </select>
+            </div>
+            <div class="toggle-row">
+              <span>Show project names</span>
+              <label class="toggle"><input type="checkbox" id="privacy-project-names"><span class="track"></span></label>
+            </div>
+            <div class="toggle-row">
+              <span>Show me on the Vibe Map</span>
+              <label class="toggle"><input type="checkbox" id="privacy-vibe-map"><span class="track"></span></label>
+            </div>
+            <div class="toggle-row">
+              <span>Appear in leaderboards</span>
+              <label class="toggle"><input type="checkbox" id="privacy-leaderboards"><span class="track"></span></label>
+            </div>
+            <div class="setting-row" style="margin-bottom:0">
+              <label for="privacy-visits">Who can visit me</label>
+              <select id="privacy-visits">
+                <option value="everyone">Everyone</option>
+                <option value="followers">Followers</option>
+                <option value="nobody">Nobody</option>
+              </select>
+            </div>
+            <div class="section-desc" id="privacy-status" style="margin:8px 0 0"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">On screen</div>
+            <div class="toggle-row" style="margin-bottom:0">
+              <span>Hide Dr. Vibe during screen shares and fullscreen apps <span style="color:var(--muted)">(visits and toasts wait)</span></span>
+              <label class="toggle"><input type="checkbox" id="hide-when-presenting" checked><span class="track"></span></label>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Weekly recap</div>
+            <div class="toggle-row" style="margin-bottom:0">
+              <span>Share my weekly recap <span style="color:var(--muted)">(once a week when linked: last week's coding time, active days, files, longest session and streak for a share card and a feed post; never project names. Not sent while your profile is private)</span></span>
+              <label class="toggle"><input type="checkbox" id="privacy-weekly-recap" checked><span class="track"></span></label>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Crash reports</div>
+            <div class="toggle-row" style="margin-bottom:0">
+              <span>Send crash reports to drvibe.io <span style="color:var(--muted)">(the error text and app version, never your files or windows)</span></span>
+              <label class="toggle"><input type="checkbox" id="privacy-error-reports" checked><span class="track"></span></label>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">What Dr. Vibe sees</div>
+            <div id="privacy-what-sees"></div>
+            <div class="setting-row" style="margin:10px 0 0">
+              <label style="color:var(--muted);font-size:11px">The exact data sent in the last sync</label>
+              <button id="privacy-last-sync-btn" class="privacy-btn">Show my last sync</button>
+            </div>
+            <div id="privacy-last-sync" class="privacy-last-sync" style="display:none">
+              <div class="privacy-last-sync-meta" id="privacy-last-sync-meta"></div>
+              <pre id="privacy-last-sync-body"></pre>
+              <button id="privacy-last-sync-copy" class="privacy-btn">Copy full payload</button>
+            </div>
+            <div class="setting-row" style="margin:10px 0 0">
+              <label style="color:var(--muted);font-size:11px">Privacy policy and terms on drvibe.io</label>
+              <span>
+                <button id="privacy-policy-btn" class="privacy-btn">Privacy ↗</button>
+                <button id="privacy-terms-btn" class="privacy-btn">Terms ↗</button>
+              </span>
+            </div>
+          </div>
+
+        </div><!-- /panel-privacy -->
+
+        <!-- ══════════ COMMUNITY ══════════ -->
+        <div id="panel-community" class="tab-panel">
+
+          <!-- ── Gate: shown when disconnected ── -->
+          <div id="community-gate">
+            <div class="community-gate">
+              <div class="community-gate-icon">⬡</div>
+              <div class="community-gate-title">Join the community <span style="color:var(--muted);font-weight:400">(optional)</span></div>
+              <div class="community-gate-desc">Dr. Vibe works fully without an account. Link GitHub or Discord to earn Vibe Points, collect new Dr. Vibes and see friends coding. See the Privacy tab for exactly what is sent.</div>
+
+              <div class="community-gate-perks">
+                <div class="community-perk">
+                  <div class="community-perk-icon">🧪</div>
+                  <div class="community-perk-title">Collect Dr. Vibes</div>
+                  <div class="community-perk-desc">Earn Vibe Points by coding and pull new Dr. Vibes from the machines</div>
+                </div>
+                <div class="community-perk">
+                  <div class="community-perk-icon">👋</div>
+                  <div class="community-perk-title">Friends and visits</div>
+                  <div class="community-perk-desc">See who is coding now and send your Dr. Vibe to visit</div>
+                </div>
+                <div class="community-perk">
+                  <div class="community-perk-icon">🎨</div>
+                  <div class="community-perk-title">The Incubator</div>
+                  <div class="community-perk-desc">Submit the Dr. Vibes you make; the best graduate into the machines</div>
+                </div>
+                <div class="community-perk">
+                  <div class="community-perk-icon">🏆</div>
+                  <div class="community-perk-title">Rankings</div>
+                  <div class="community-perk-desc">Streaks, hours and seasons on the leaderboards</div>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:8px;justify-content:center">
+                <button id="account-connect-btn" class="community-gate-connect-btn" data-provider="github">
+                  Continue with GitHub
+                </button>
+                <button id="account-connect-discord-btn" class="community-gate-connect-btn" data-provider="discord">
+                  Continue with Discord
+                </button>
+              </div>
+              <div class="section-desc" style="margin:8px 0 0;text-align:center">You must be 13 or older. Linking opens drvibe.io in your browser.</div>
+
+              <div class="community-gate-links">
+                <button class="community-gate-link" id="community-leaderboard-btn">🏆 Browse Leaderboard ↗</button>
+                <button class="community-gate-link" id="community-gallery-btn">🎨 Explore Gallery ↗</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Settings: shown when connected ── -->
+          <div id="community-settings" style="display:none">
+
+            <!-- Profile hero -->
+            <div class="comm-hero">
+              <div class="comm-hero-avatar" id="comm-avatar">
+                <img id="comm-avatar-img" alt="">
+                <span id="comm-avatar-initials">?</span>
+              </div>
+              <div class="comm-hero-info">
+                <div id="comm-display-name" class="comm-hero-name">—</div>
+                <div id="account-username" class="comm-hero-username"></div>
+                <div class="comm-hero-badge" id="sync-status-badge">
+                  <span class="comm-hero-dot" id="sync-status-dot"></span>
+                  <span id="sync-status-text">Signed in</span>
+                </div>
+              </div>
+              <button id="account-disconnect-btn" class="community-account-disconnect">Sign out</button>
+            </div>
+
+            <p class="comm-manage-note">Profile visibility and other privacy settings live in the Privacy tab.</p>
+
+            <!-- Vibe Points balance + shop link + collapsible history -->
+            <div class="comm-vp-panel">
+              <div class="comm-vp-row">
+                <div class="comm-vp-left">
+                  <div class="comm-vp-label">Vibe Points</div>
+                  <div class="comm-vp-value" id="comm-vp-balance">—<span class="comm-vp-unit">VP</span></div>
+                </div>
+                <button class="comm-vp-shop-btn" id="comm-vp-shop-btn">Open the Machines</button>
+              </div>
+              <button class="comm-vp-history-toggle" id="comm-vp-history-toggle" aria-expanded="false">
+                Show recent activity ▾
+              </button>
+              <div class="comm-vp-history" id="comm-vp-history">
+                <div class="comm-vp-history-empty">No activity yet.</div>
+              </div>
+            </div>
+
+            <!-- 2×2 link grid -->
+            <div class="comm-links-grid">
+              <button class="comm-link-card" id="community-profile-btn-auth">
+                <span class="comm-link-card-icon">👤</span>
+                <span class="comm-link-card-title">My Profile</span>
+                <span class="comm-link-card-desc">Your public page on drvibe.io</span>
+              </button>
+              <button class="comm-link-card" id="community-shrine-btn-auth">
+                <span class="comm-link-card-icon">⬡</span>
+                <span class="comm-link-card-title">Streaks</span>
+                <span class="comm-link-card-desc">The longest living coding streaks</span>
+              </button>
+              <button class="comm-link-card" id="community-leaderboard-btn-auth">
+                <span class="comm-link-card-icon">🏆</span>
+                <span class="comm-link-card-title">Leaderboard</span>
+                <span class="comm-link-card-desc">Daily &amp; weekly charts across all devs</span>
+              </button>
+              <button class="comm-link-card" id="community-gallery-btn-auth">
+                <span class="comm-link-card-icon">🎨</span>
+                <span class="comm-link-card-title">Skin Gallery</span>
+                <span class="comm-link-card-desc">Browse &amp; install community characters</span>
+              </button>
+            </div>
+
+            <!-- keep unused gate IDs in DOM so JS listeners don't throw -->
+            <span id="community-profile-btn" style="display:none"></span>
+            <span id="community-shrine-btn" style="display:none"></span>
+
+          </div><!-- /community-settings -->
+
+        </div><!-- /panel-community -->
+
+      </div><!-- /tab-body -->
+
+
+      <div class="setting-buttons">
+        <button id="settings-close">Close</button>
+      </div>
+    </div><!-- /settings-content -->
+
+  </div><!-- /settings-body -->
+  </div><!-- /settings-shell -->
+
+
+  <script type="module" src="settings-page.js"></script>
+</body>
+</html>

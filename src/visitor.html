@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dr. Vibe Visitor</title>
+  <link rel="icon" href="data:,">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/overlay.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; user-select: none; }
+    #stage {
+      position: relative; width: 100%; height: 100%;
+      display: flex; align-items: flex-end; justify-content: center;
+    }
+    #visitor-canvas { display: block; cursor: pointer; }
+    #name-tag {
+      position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+      max-width: 100%; padding: 1px 6px; border-radius: 6px;
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      border: 1px solid var(--border); color: var(--text);
+      font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #menu {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      display: none; flex-direction: column; gap: 4px; width: 112px;
+      padding: 6px; border-radius: 8px;
+      background: var(--surface); border: 2px solid var(--border); box-shadow: var(--shadow-lift);
+    }
+    #menu.open { display: flex; }
+    #menu button {
+      font: inherit; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; cursor: pointer;
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    }
+    #menu button.primary { background: var(--lab-green); color: var(--on-lab-green); border-color: var(--lab-green-press); }
+    #menu button:disabled { opacity: 0.6; cursor: default; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div id="name-tag" hidden></div>
+    <div id="menu" role="menu">
+      <button id="btn-wave-back" class="primary" role="menuitem">Wave back</button>
+      <button id="btn-view-profile" role="menuitem">View profile</button>
+    </div>
+    <canvas id="visitor-canvas" width="128" height="140"></canvas>
+  </div>
+  <script type="module" src="visitor.js"></script>
+</body>
+</html>

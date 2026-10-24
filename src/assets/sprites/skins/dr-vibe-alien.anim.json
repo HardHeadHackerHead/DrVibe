@@ -1,0 +1,77 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Alien Dr. Vibe — extraterrestrial skin with otherworldly colors, antenna, and curious scanning movements",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 2200,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 1400,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 2000,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 1800,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 2
+      }
+    ],
+    "maxInterval": 32000,
+    "minInterval": 14000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 4700,
+      "scaleY": 0.011
+    },
+    "sway": {
+      "offsetX": 1.6,
+      "period": 3700
+    }
+  },
+  "squashStretch": {
+    "alert": {
+      "scaleX": 0.035,
+      "scaleY": 0.05,
+      "speed": 3.5
+    },
+    "excited": {
+      "scaleX": 0.045,
+      "scaleY": 0.07,
+      "speed": 4.0
+    },
+    "idle": {
+      "scaleX": 0.006,
+      "scaleY": 0.012,
+      "speed": 0.6
+    },
+    "thinking": {
+      "scaleX": 0.012,
+      "scaleY": 0.02,
+      "speed": 0.4
+    }
+  },
+  "vibeId": "7eb6c3d7-5ef2-4c0a-baa3-03511eebb42a",
+  "walk": {
+    "maxIdleMs": 32000,
+    "maxSpeed": 2.2,
+    "minIdleMs": 12000
+  }
+}

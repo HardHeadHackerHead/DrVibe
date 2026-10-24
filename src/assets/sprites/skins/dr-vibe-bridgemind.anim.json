@@ -1,0 +1,159 @@
+{
+  "bonusAnimations": {
+    "coldPlunge": {
+      "frameCount": 5,
+      "frameDuration": 280,
+      "frameDurations": [
+        600,
+        200,
+        180,
+        300,
+        800
+      ],
+      "row": 20
+    },
+    "pushups": {
+      "frameCount": 5,
+      "frameDuration": 260,
+      "frameDurations": [
+        500,
+        220,
+        200,
+        220,
+        550
+      ],
+      "row": 18
+    },
+    "smoothie": {
+      "frameCount": 4,
+      "frameDuration": 300,
+      "frameDurations": [
+        400,
+        320,
+        600,
+        500
+      ],
+      "row": 19
+    },
+    "sunglasses": {
+      "frameCount": 4,
+      "frameDuration": 220,
+      "frameDurations": [
+        400,
+        180,
+        220,
+        600
+      ],
+      "row": 17
+    }
+  },
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Bridgemind Dr. Vibe — zen master variant with sunglasses, pushups, smoothie, and cold plunge routines",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 3000,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 4
+      },
+      {
+        "name": "sunglasses",
+        "type": "animation",
+        "weight": 3
+      },
+      {
+        "name": "pushups",
+        "type": "animation",
+        "weight": 2
+      },
+      {
+        "name": "smoothie",
+        "type": "animation",
+        "weight": 2
+      },
+      {
+        "name": "coldPlunge",
+        "type": "animation",
+        "weight": 2
+      },
+      {
+        "duration": 1200,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 2500,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      }
+    ],
+    "maxInterval": 120000,
+    "minInterval": 48000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 6500,
+      "scaleY": 0.013
+    },
+    "sway": {
+      "offsetX": 0.2,
+      "period": 11000
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.025,
+      "scaleY": 0.05,
+      "speed": 2.2
+    },
+    "coding": {
+      "scaleX": 0.003,
+      "scaleY": 0.006,
+      "speed": 0.6
+    },
+    "coldPlunge": {
+      "scaleX": 0.008,
+      "scaleY": 0.03,
+      "speed": 5.0
+    },
+    "excited": {
+      "scaleX": 0.018,
+      "scaleY": 0.035,
+      "speed": 1.8
+    },
+    "focused": {
+      "scaleX": 0.002,
+      "scaleY": 0.004,
+      "speed": 0.3
+    },
+    "idle": {
+      "scaleX": 0.005,
+      "scaleY": 0.01,
+      "speed": 0.4
+    },
+    "pushups": {
+      "scaleX": 0.02,
+      "scaleY": 0.015,
+      "speed": 3.5
+    },
+    "thinking": {
+      "scaleX": 0.006,
+      "scaleY": 0.012,
+      "speed": 0.3
+    }
+  },
+  "vibeId": "8c22555a-cf89-4323-8b8f-3c56913b26ff",
+  "walk": {
+    "maxIdleMs": 85000,
+    "maxSpeed": 1.5,
+    "minIdleMs": 38000
+  }
+}

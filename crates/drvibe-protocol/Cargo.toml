@@ -1,0 +1,23 @@
+[package]
+name = "drvibe-protocol"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+rust-version = "1.80"
+description = "Payload types shared by the Dr. Vibe server and desktop app"
+# Canonical copy: the desktop repo, crates/drvibe-protocol. The website repo
+# keeps a byte-identical mirror at server/crates/drvibe-protocol (refreshed with
+# `sh scripts/sync-protocol.sh`), so this manifest stands alone and inherits
+# nothing from either workspace.
+
+[features]
+default = []
+# Request signing helpers (HMAC-SHA256). The desktop app and the server enable it.
+signing = ["dep:hmac", "dep:sha2", "dep:hex"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+hex = { version = "0.4", optional = true }

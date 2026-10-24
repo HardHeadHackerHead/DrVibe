@@ -1,0 +1,82 @@
+{
+  "generation": {
+    "agent": "manual",
+    "generatedAt": "2025-01-01T00:00:00Z",
+    "model": "hand-crafted",
+    "prompt": "Wizard Dr. Vibe — pointy hat, flowing robes, mystical and contemplative with slow wise movements",
+    "scriptFile": "original-bundled"
+  },
+  "idleFlourishes": {
+    "actions": [
+      {
+        "duration": 2500,
+        "name": "lookAround",
+        "type": "transform",
+        "weight": 5
+      },
+      {
+        "duration": 1500,
+        "name": "adjustGoggles",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 2000,
+        "name": "tapFoot",
+        "type": "transform",
+        "weight": 1
+      },
+      {
+        "duration": 2000,
+        "name": "smallWave",
+        "type": "transform",
+        "weight": 2
+      }
+    ],
+    "maxInterval": 85000,
+    "minInterval": 32000
+  },
+  "idleMicroMotion": {
+    "breathing": {
+      "period": 5800,
+      "scaleY": 0.024
+    },
+    "sway": {
+      "offsetX": 0.4,
+      "period": 9000
+    }
+  },
+  "squashStretch": {
+    "celebrating": {
+      "scaleX": 0.03,
+      "scaleY": 0.06,
+      "speed": 2.8
+    },
+    "coding": {
+      "scaleX": 0.006,
+      "scaleY": 0.012,
+      "speed": 0.8
+    },
+    "excited": {
+      "scaleX": 0.022,
+      "scaleY": 0.045,
+      "speed": 2.2
+    },
+    "idle": {
+      "scaleX": 0.009,
+      "scaleY": 0.018,
+      "speed": 0.6
+    },
+    "thinking": {
+      "scaleX": 0.012,
+      "scaleY": 0.022,
+      "speed": 0.5
+    }
+  },
+  "vibeId": "a718792d-10b6-4ae8-99f2-32a31c1adb57",
+  "walk": {
+    "maxIdleMs": 72000,
+    "maxSpeed": 1.4,
+    "minIdleMs": 30000
+  }
+}

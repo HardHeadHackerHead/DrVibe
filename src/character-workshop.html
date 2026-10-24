@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>Change with AI</title>
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('drvibe-theme') || 'dark');</script>
+  <link rel="stylesheet" href="styles/panel.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-main);
+      font-family: var(--font-body);
+      color: var(--text);
+      user-select: none;
+      overflow: hidden;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 32px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 8px 0 8px;
+      gap: 8px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+    }
+    .titlebar-controls {
+      margin-left: auto;
+      display: flex;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-btn {
+      width: 26px; height: 20px;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--muted-2); font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+    .titlebar-btn:hover { background: rgba(127,127,127,0.12); color: var(--text); }
+    .titlebar-close:hover { background: #c0392b !important; color: white !important; }
+
+    .back-btn {
+      -webkit-app-region: no-drag;
+      background: none; border: none;
+      color: var(--muted-2); font-size: 11px; cursor: pointer;
+      padding: 2px 6px; border-radius: 4px;
+      flex-shrink: 0; font-family: inherit;
+      transition: color 0.15s, background 0.15s;
+    }
+    .back-btn:hover { color: var(--muted); background: rgba(127,127,127,0.07); }
+
+    #thumb-canvas {
+      width: 20px; height: 20px;
+      image-rendering: pixelated;
+      border-radius: 2px;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+    .skin-name-label {
+      font-size: 12px; color: var(--text-2); font-weight: 600;
+      flex-shrink: 0; cursor: text;
+      padding: 1px 4px; border-radius: 4px;
+      border: 1px solid transparent;
+    }
+    .skin-name-label:hover { border-color: var(--border); }
+    .vibe-id-label {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 9px; color: var(--muted-2);
+      padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px;
+      cursor: pointer; user-select: all; flex-shrink: 0;
+      transition: color .15s, border-color .15s;
+    }
+    .vibe-id-label:hover { color: var(--text-2); border-color: rgba(127,127,127,0.35); }
+    .vibe-id-label.copied { color: var(--green); border-color: var(--green-border); }
+    .skin-name-label:focus {
+      outline: none; border-color: var(--green-border); background: var(--bg-input);
+      color: var(--text);
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-title-center {
+      font-size: 10px; color: var(--muted-2);
+      flex: 1;
+      -webkit-app-region: drag;
+    }
+
+    /* ── Workshop body ── */
+    .workshop-body {
+      display: flex;
+      height: calc(100vh - 32px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .anim-sidebar {
+      width: 180px; min-width: 180px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding: 8px 0;
+    }
+    .anim-sidebar::-webkit-scrollbar { width: 3px; }
+    .anim-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 1px; }
+
+    .sidebar-section-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      padding: 8px 10px 4px;
+      font-weight: 700;
+    }
+    .sidebar-section-label:first-child { padding-top: 2px; }
+
+    .anim-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px 4px 12px;
+      font-size: 11px; color: var(--muted-2);
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: color 0.12s, background 0.12s, border-color 0.12s;
+    }
+    .anim-row:hover { color: var(--muted); background: rgba(127,127,127,0.05); }
+    .anim-row.selected {
+      color: var(--green);
+      border-left-color: var(--green);
+      background: var(--green-dim);
+    }
+    .anim-row .anim-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted-2); flex-shrink: 0;
+      transition: background 0.12s;
+    }
+    .anim-row.selected .anim-dot { background: var(--green); }
+    .anim-row .anim-label { flex: 1; }
+    .anim-row .anim-frames {
+      font-size: 9px; color: var(--muted-2);
+      margin-left: auto; flex-shrink: 0;
+    }
+    .anim-row.selected .anim-frames { color: var(--green-border); }
+    .anim-row .draft-badge {
+      font-size: 8px; color: #f59e0b;
+      margin-left: 4px;
+    }
+
+    /* ── Main area ── */
+    .main-area {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center;
+      padding: 16px; gap: 10px;
+      overflow-y: auto;
+    }
+    .main-area::-webkit-scrollbar { width: 3px; }
+    .main-area::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .preview-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px;
+      flex-shrink: 0;
+    }
+    #preview-canvas {
+      width: 128px; height: 128px;
+      image-rendering: pixelated;
+      display: block;
+    }
+
+    .anim-info { font-size: 11px; color: var(--muted-2); }
+    .anim-info.has-anim { color: var(--muted); }
+
+    .fix-section {
+      width: 100%; max-width: 380px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .fix-label {
+      font-size: 10px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+    }
+
+    #fix-description {
+      width: 100%; height: 64px;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: inherit; font-size: 11px;
+      padding: 6px 8px; resize: none;
+      transition: border-color 0.15s;
+    }
+    #fix-description:focus { outline: none; border-color: var(--green-border); }
+    #fix-description::placeholder { color: var(--muted-2); }
+
+    #fix-btn {
+      align-self: flex-start;
+      background: var(--green); color: #071d07; border: none;
+      border-radius: 6px; padding: 6px 14px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s; font-family: inherit;
+    }
+    #fix-btn:hover:not(:disabled) { opacity: 0.88; }
+    #fix-btn:disabled { background: var(--bg-input); color: var(--muted-2); cursor: not-allowed; }
+    .cancel-btn {
+      background: rgba(220,38,38,0.15); color: #f87171;
+      border: 1px solid rgba(248,113,113,0.25);
+      border-radius: 6px; padding: 6px 14px;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s;
+    }
+    .cancel-btn:hover { background: rgba(220,38,38,0.25); }
+
+    .progress-log-wrap { width: 100%; max-width: 380px; }
+    #progress-log {
+      display: none;
+      background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 8px; font-size: 10px;
+      font-family: var(--font-mono); color: var(--muted);
+      max-height: 120px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-all;
+      user-select: text; -webkit-user-select: text; cursor: text;
+    }
+    #progress-log::-webkit-scrollbar { width: 3px; }
+    #progress-log::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* ── Comparison area ── */
+    .compare-area {
+      flex: 1; display: flex;
+      justify-content: center; align-items: center;
+      gap: 32px; padding: 16px;
+    }
+    .compare-col {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px;
+    }
+    .compare-label {
+      font-size: 10px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+    }
+    .compare-col canvas {
+      width: 128px; height: 128px;
+      image-rendering: pixelated;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px;
+      display: block;
+    }
+
+    .discard-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 6px 14px; font-size: 11px;
+      cursor: pointer; font-family: inherit;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .discard-btn:hover { color: #f87171; border-color: rgba(248,113,113,0.3); }
+
+    .accept-btn {
+      background: var(--green); color: #071d07; border: none;
+      border-radius: 6px; padding: 6px 14px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s; font-family: inherit;
+    }
+    .accept-btn:hover { opacity: 0.88; }
+    .accept-btn:disabled { background: var(--bg-input); color: var(--muted-2); cursor: not-allowed; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block; width: 10px; height: 10px;
+      border: 2px solid var(--border); border-top-color: var(--green);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 4px;
+    }
+
+    /* ── Empty state ── */
+    .sidebar-empty {
+      padding: 6px 10px;
+      font-size: 10px; color: var(--muted-2);
+    }
+
+    /* ── Regenerate section ── */
+    .regen-section {
+      width: 100%; max-width: 380px;
+      display: flex; flex-direction: column; gap: 6px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px; margin-top: 4px;
+    }
+    #regen-description {
+      width: 100%; height: 52px;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: inherit; font-size: 11px;
+      padding: 6px 8px; resize: none;
+      transition: border-color 0.15s;
+    }
+    #regen-description:focus { outline: none; border-color: rgba(245,158,11,0.4); }
+    #regen-description::placeholder { color: var(--muted-2); }
+    #regen-btn {
+      align-self: flex-start;
+      background: #f59e0b; color: #1a0e00; border: none;
+      border-radius: 6px; padding: 6px 14px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s; font-family: inherit;
+    }
+    #regen-btn:hover:not(:disabled) { opacity: 0.88; }
+    #regen-btn:disabled { background: var(--bg-input); color: var(--muted-2); cursor: not-allowed; }
+
+  </style>
+</head>
+<body>
+  <!-- Titlebar -->
+  <div class="titlebar" id="titlebar">
+    <button id="back-btn" class="back-btn">&#8592; Back</button>
+    <canvas id="thumb-canvas" width="32" height="32"></canvas>
+    <span id="skin-name-label" class="skin-name-label" title="Click to rename">Loading&#x2026;</span>
+    <span id="vibe-id-label" class="vibe-id-label" title="Vibe ID — click to copy" style="display:none"></span>
+    <span class="titlebar-title-center">Change with AI</span>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="tb-copy" title="Make a copy (new ID)" style="font-size:11px;display:none">&#x29C9;</button>
+      <button class="titlebar-btn" id="tb-delete" title="Delete character" style="color:#f87171;font-size:11px;display:none">&#x1F5D1;</button>
+      <button class="titlebar-btn titlebar-close" id="tb-close">&#x2715;</button>
+    </div>
+  </div>
+
+  <div class="workshop-body" id="workshop-body" style="visibility:hidden">
+    <!-- Sidebar -->
+    <div class="anim-sidebar" id="anim-sidebar">
+      <div class="sidebar-section-label">ROWS</div>
+      <div id="base-anim-list"></div>
+    </div>
+
+    <!-- Main area - normal mode -->
+    <div class="main-area" id="main-area">
+      <div class="preview-wrap">
+        <canvas id="preview-canvas" width="128" height="128"></canvas>
+      </div>
+      <div class="anim-info" id="anim-info">Select an animation</div>
+
+      <div class="fix-section">
+        <div class="fix-label">Fix this animation:</div>
+        <textarea id="fix-description" placeholder="Describe what to fix&#x2026;&#10;e.g. The idle animation looks stiff &#x2014; make it breathe more naturally with gentle up/down movement"></textarea>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="fix-btn" disabled>Fix with Claude &#x25B6;</button>
+          <button id="fix-cancel-btn" class="cancel-btn" style="display:none">Cancel</button>
+        </div>
+        <div class="progress-log-wrap">
+          <div id="progress-log"></div>
+        </div>
+      </div>
+
+      <div class="regen-section" id="regen-section">
+        <div class="fix-label">Regenerate entire character:</div>
+        <textarea id="regen-description" placeholder="Tweak the original description and regenerate the full character&#x2026;"></textarea>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="regen-btn" disabled>Regenerate All &#x25B6;</button>
+          <button id="regen-cancel-btn" class="cancel-btn" style="display:none">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison mode (hidden initially) -->
+    <div class="compare-area" id="compare-area" style="display:none">
+      <div class="compare-col">
+        <div class="compare-label">BEFORE</div>
+        <canvas id="before-canvas" width="128" height="128"></canvas>
+        <button id="discard-btn" class="discard-btn">Discard</button>
+      </div>
+      <div class="compare-col">
+        <div class="compare-label">AFTER</div>
+        <canvas id="after-canvas" width="128" height="128"></canvas>
+        <button id="accept-btn" class="accept-btn">Accept &amp; Save &#x2713;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Catch any JS errors and show them visibly on the white screen -->
+  <script type="module">
+    import { ROW_SPEC, FRAME, validateSheet, problemSummary } from './features/make/spriteSpec.js';
+    import { AGENTS } from './features/make/makeHub.js';
+    import { ANIMATIONS } from './config/animations.js';
+    import { readSection } from './core/DatabaseReader.js';
+
+    // Lazy helpers — match the pattern used everywhere else in this codebase.
+    // Accessing window.__TAURI__ at module load time crashes if the bridge
+    // isn't injected yet (shows a white box). Always access it inside functions.
+    const invoke        = (...args) => window.__TAURI__?.core?.invoke(...args);
+    const listen        = (...args) => window.__TAURI__?.event?.listen(...args);
+    const emitTo        = (...args) => window.__TAURI__?.event?.emitTo(...args);
+    const getCurrentWindow = ()    => window.__TAURI__?.window?.getCurrentWindow();
+
+    // ?skin=<slug>&agent=claude|codex (Rust panels::workshop_url). New
+    // characters are made in "Make your own Dr. Vibe"; this window changes
+    // an existing one: fix one animation, or regenerate the whole character.
+    const params = new URLSearchParams(location.search);
+    const SLUG = params.get('skin') || '';
+    const AGENT = params.get('agent') === 'codex' ? 'codex' : 'claude';
+
+    // False when the agent's CLI is missing: the AI buttons stay disabled.
+    let agentOk = true;
+    // Set by the Cancel buttons so the error that follows reads as a cancel.
+    let cancelled = false;
+
+    // Tell Settings and Make your own Dr. Vibe to refresh their lists.
+    async function announceSkinsChanged() {
+      let wearing = null;
+      try { wearing = (await readSection('settings'))?.selectedSkin || null; } catch {}
+      for (const target of ['settings', 'make']) {
+        try { await emitTo(target, 'skins-changed', { wearing }); } catch {}
+      }
+    }
+
+    function runError(e) {
+      return cancelled ? 'Cancelled. Nothing was changed.' : 'Error: ' + e;
+    }
+
+    // Animation RAF state
+    let rafId = null;
+    let previewState = null;
+
+    // Comparison RAF state
+    let compareBeforeState = null;
+    let compareAfterState = null;
+    let compareRafId = null;
+
+    // True while any AI generation (create/fix/regen) is running
+    let isGenerating = false;
+
+    // Draft slug (set after successful patch)
+    let currentDraftSlug = null;
+
+    // Anim config for current skin
+    let animConfig = null;
+    let draftAnimConfig = null;
+    let comparisonLockedAnim = null; // non-null = single-anim patch; null = full regen
+
+    // Animation name currently selected
+    let selectedAnimName = null;
+
+    // Sheet rows (in order) — the 2.0 sprite format.
+    const BASE_ANIM_NAMES = ROW_SPEC.map(r => r.name);
+
+    // Validate a loaded sheet with the same checks as Make your own Dr. Vibe
+    // and the Incubator.
+    function validateImage(img, byteLength = null) {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      return validateSheet(ctx.getImageData(0, 0, c.width, c.height), byteLength);
+    }
+
+    // Load an HTMLImageElement from a base64 string, rejecting on error.
+    function loadImage(b64) {
+      return new Promise((resolve, reject) => {
+        if (!b64) { reject(new Error('Empty image data')); return; }
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = `data:image/png;base64,${b64}`;
+      });
+    }
+
+    // Check if the selected AI agent CLI is installed.
+    // Returns true if available, false if not (and shows a warning banner).
+    async function checkAgentAvailable() {
+      try {
+        const cmd = AGENT === 'codex' ? 'check_codex_installed' : 'check_claude_installed';
+        const ok = await invoke(cmd);
+        if (!ok) {
+          showAgentWarning(AGENTS[AGENT].label, AGENTS[AGENT].installCmd);
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // Banner listing what keeps this sheet from being worn or submitted;
+    // removed once the sheet passes.
+    function showSheetCheck(validation) {
+      document.getElementById('sheet-check')?.remove();
+      if (validation.ok) return;
+      const body = document.getElementById('workshop-body');
+      if (!body) return;
+      const banner = document.createElement('div');
+      banner.id = 'sheet-check';
+      banner.style.cssText = 'background:#1c1017;border:1px solid #f8717166;border-radius:6px;padding:10px 14px;margin:12px 16px 0;font-size:12px;color:#fca5a5;line-height:1.5;';
+      banner.textContent = problemSummary(validation);
+      body.prepend(banner);
+    }
+
+    function showAgentWarning(label, installCmd) {
+      // Insert a warning banner below the titlebar
+      const body = document.getElementById('workshop-body');
+      if (!body) return;
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#1c1017;border:1px solid #f8717166;border-radius:6px;padding:10px 14px;margin:12px 16px 0;font-size:12px;color:#fca5a5;line-height:1.5;';
+      banner.innerHTML =
+        `<strong>${label} not detected.</strong><br>` +
+        `Install it and sign in to it once in a terminal to change this Dr. Vibe with AI:<br>` +
+        `<code style="background:#0f0a0a;padding:2px 6px;border-radius:3px;font-size:11px;color:#f87171;user-select:text;-webkit-user-select:text;cursor:text">${installCmd}</code> ` +
+        `<a href="#" id="agent-install-link" style="color:#93c5fd">How to install ↗</a>`;
+      body.prepend(banner);
+      banner.querySelector('#agent-install-link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.__TAURI__?.opener?.openUrl?.(AGENTS[AGENT].installUrl);
+      });
+    }
+
+    async function init() {
+      if (!SLUG) {
+        document.getElementById('skin-name-label').textContent = 'No skin selected';
+        return;
+      }
+
+      // Wait for the Tauri bridge to be injected (race condition on window open)
+      let attempts = 0;
+      while (!window.__TAURI__?.core?.invoke && attempts++ < 40) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      if (!window.__TAURI__?.core?.invoke) {
+        document.getElementById('skin-name-label').textContent = 'Tauri API unavailable';
+        return;
+      }
+
+      try {
+        // Load skin PNG (for thumbnail and preview)
+        const b64 = await invoke('read_skin', { name: SLUG });
+        const img = await loadImage(b64);
+
+        // Draw thumbnail in titlebar
+        const thumb = document.getElementById('thumb-canvas');
+        const tctx = thumb.getContext('2d');
+        tctx.imageSmoothingEnabled = false;
+        tctx.drawImage(img, 0, 0, 32, 32, 0, 0, 32, 32);
+        showSheetCheck(validateImage(img, atob(b64).length));
+
+        // Load anim config
+        const animStr = await invoke('read_skin_anim', { name: SLUG });
+        animConfig = animStr ? JSON.parse(animStr) : null;
+
+        // Show regen section only for AI-generated characters
+        const regenSection = document.getElementById('regen-section');
+        const regenTextarea = document.getElementById('regen-description');
+        if (animConfig?.source === 'ai_generated') {
+          if (regenSection) regenSection.style.display = '';
+          if (regenTextarea && animConfig.generatorDescription) {
+            regenTextarea.value = animConfig.generatorDescription;
+          }
+        } else {
+          if (regenSection) regenSection.style.display = 'none';
+        }
+
+        // Set skin name
+        const displayName = animConfig?.name || formatName(SLUG);
+        document.getElementById('skin-name-label').textContent = displayName;
+
+        // Show vibeId (full UUID, monospace, click-to-copy). Hidden if absent.
+        const vibeIdLabel = document.getElementById('vibe-id-label');
+        if (vibeIdLabel) {
+          const vibeId = animConfig?.vibeId || '';
+          if (vibeId) {
+            vibeIdLabel.textContent = vibeId;
+            vibeIdLabel.style.display = '';
+            vibeIdLabel.onclick = async () => {
+              try {
+                await navigator.clipboard.writeText(vibeId);
+                vibeIdLabel.classList.add('copied');
+                setTimeout(() => vibeIdLabel.classList.remove('copied'), 900);
+              } catch {}
+            };
+          } else {
+            vibeIdLabel.style.display = 'none';
+          }
+        }
+
+        // Build sidebar
+        buildSidebar(img, animConfig);
+
+        // Set agent-specific button labels
+        const agentLabel = AGENT === 'codex' ? 'Codex' : 'Claude';
+        document.getElementById('fix-btn').textContent = `Fix with ${agentLabel} \u25B6`;
+        document.getElementById('regen-btn').textContent = `Regenerate All with ${agentLabel} \u25B6`;
+
+        // Check if the selected agent CLI is installed
+        agentOk = await checkAgentAvailable();
+        // The regenerate box starts filled with the original description
+        document.getElementById('regen-btn').disabled = !agentOk || !document.getElementById('regen-description').value.trim();
+        if (!agentOk) {
+          // Disable generation buttons but still allow browsing the skin
+          document.getElementById('fix-btn').disabled = true;
+          document.getElementById('regen-btn').disabled = true;
+        }
+
+        // Check for existing draft
+        await checkForDraft();
+
+        // Select idle by default if not in comparison mode
+        if (!currentDraftSlug) {
+          selectAnimation(img, 'idle');
+        }
+
+        // Reveal workshop body
+        document.getElementById('workshop-body').style.visibility = '';
+      } catch (e) {
+        console.error('Failed to load skin:', e);
+        document.getElementById('skin-name-label').textContent = 'Error loading skin';
+        document.getElementById('workshop-body').style.visibility = '';
+      }
+    }
+
+    function formatName(slug) {
+      return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    function buildSidebar(img, anim) {
+      const baseList = document.getElementById('base-anim-list');
+      baseList.innerHTML = '';
+      // Rows present in the sheet (row 16, levitating, is optional)
+      for (const { row, name } of ROW_SPEC) {
+        if ((row + 1) * FRAME > img.naturalHeight) continue;
+        baseList.appendChild(makeAnimRow(img, name, getAnimData(anim, name), false));
+      }
+    }
+
+    function makeAnimRow(img, animName, animData, isDraft) {
+      const row = document.createElement('div');
+      row.className = 'anim-row';
+      row.dataset.anim = animName;
+
+      const dot = document.createElement('div');
+      dot.className = 'anim-dot';
+
+      const label = document.createElement('span');
+      label.className = 'anim-label';
+      label.textContent = animName;
+
+      const frames = document.createElement('span');
+      frames.className = 'anim-frames';
+      frames.textContent = `${animData.frameCount}f`;
+
+      row.appendChild(dot);
+      row.appendChild(label);
+      row.appendChild(frames);
+
+      if (isDraft) {
+        const badge = document.createElement('span');
+        badge.className = 'draft-badge';
+        badge.textContent = 'DRAFT';
+        row.appendChild(badge);
+      }
+
+      row.addEventListener('click', () => {
+        if (currentDraftSlug) {
+          // Single-anim patch: only the patched animation is comparable
+          if (comparisonLockedAnim && animName !== comparisonLockedAnim) return;
+          selectAnimForComparison(animName);
+        } else {
+          selectAnimation(img, animName);
+        }
+      });
+
+      return row;
+    }
+
+    function selectAnimation(img, animName) {
+      selectedAnimName = animName;
+
+      // Update sidebar selection
+      document.querySelectorAll('.anim-row').forEach(r => {
+        r.classList.toggle('selected', r.dataset.anim === animName);
+      });
+
+      // Update fix button state
+      const fixBtn = document.getElementById('fix-btn');
+      const desc = document.getElementById('fix-description').value.trim();
+      fixBtn.disabled = !animName || !desc;
+
+      // Update info label
+      const info = document.getElementById('anim-info');
+      const anim = getAnimData(animConfig, animName);
+      if (anim) {
+        info.textContent = `${animName} \u2014 ${anim.frameCount} frame${anim.frameCount !== 1 ? 's' : ''}`;
+        info.className = 'anim-info has-anim';
+      } else {
+        info.textContent = animName || 'Select an animation';
+        info.className = 'anim-info';
+      }
+
+      // Start preview
+      startPreview(img, animName);
+    }
+
+    // Timing for a row: the app's defaults (animations.js) plus the skin's
+    // optional per-state overrides. The row itself always comes from the spec.
+    function getAnimData(anim, name) {
+      const key = name === 'walk' ? 'walkRight' : name;
+      if (!ANIMATIONS[key]) return null;
+      return { ...ANIMATIONS[key], ...(anim?.animations?.[key] || {}) };
+    }
+
+    function getAnimRow(anim, name) {
+      return BASE_ANIM_NAMES.indexOf(name);
+    }
+
+    function startPreview(img, animName) {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      const canvas = document.getElementById('preview-canvas');
+      const anim = getAnimData(animConfig, animName);
+      if (!anim) return;
+      const row = getAnimRow(animConfig, animName);
+      if (row < 0) return;
+
+      previewState = {
+        canvas, img, anim, animName, row,
+        frame: 0, lastTime: 0,
+        frameW: FRAME,
+        frameH: FRAME
+      };
+
+      rafId = requestAnimationFrame(animatePreview);
+    }
+
+    function animatePreview(now) {
+      rafId = requestAnimationFrame(animatePreview);
+      if (!previewState) return;
+
+      const { canvas, img, anim, row, frameW, frameH } = previewState;
+      const frameDurations = anim.frameDurations || Array(anim.frameCount).fill(anim.frameDuration || 200);
+      const elapsed = now - previewState.lastTime;
+      const currentDuration = frameDurations[previewState.frame] || 200;
+
+      if (elapsed >= currentDuration) {
+        previewState.frame = (previewState.frame + 1) % anim.frameCount;
+        previewState.lastTime = now;
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.imageSmoothingEnabled = false;
+      const sx = previewState.frame * frameW;
+      const sy = row * frameH;
+      ctx.drawImage(img, sx, sy, frameW, frameH, 0, 0, 128, 128);
+    }
+
+    function animateComparison(now) {
+      compareRafId = requestAnimationFrame(animateComparison);
+      if (compareBeforeState) drawAnimFrame(compareBeforeState, now);
+      if (compareAfterState) drawAnimFrame(compareAfterState, now);
+    }
+
+    function drawAnimFrame(state, now) {
+      const { canvas, img, anim, row, frameW, frameH } = state;
+      const frameDurations = anim.frameDurations || Array(anim.frameCount).fill(anim.frameDuration || 200);
+      const elapsed = now - state.lastTime;
+      const currentDuration = frameDurations[state.frame] || 200;
+      if (elapsed >= currentDuration) {
+        state.frame = (state.frame + 1) % anim.frameCount;
+        state.lastTime = now;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, state.frame * frameW, row * frameH, frameW, frameH, 0, 0, 128, 128);
+    }
+
+    async function checkForDraft() {
+      const draftSlug = `${SLUG}--draft`;
+      try {
+        const b64 = await invoke('read_skin', { name: draftSlug });
+        if (b64) {
+          currentDraftSlug = draftSlug;
+
+          const draftAnimStr = await invoke('read_skin_anim', { name: draftSlug }).catch(() => null);
+          const draftAnim = draftAnimStr ? JSON.parse(draftAnimStr) : animConfig;
+
+          const draftImg = await loadImage(b64);
+          const origB64 = await invoke('read_skin', { name: SLUG });
+          const origImg = await loadImage(origB64);
+
+          await enterComparisonMode(origImg, draftImg, draftAnim || animConfig, selectedAnimName || 'idle');
+        }
+      } catch {
+        // No draft exists, that's fine
+      }
+    }
+
+    async function runPatch() {
+      const desc = document.getElementById('fix-description').value.trim();
+      if (!desc || !selectedAnimName) return;
+
+      const fixBtn = document.getElementById('fix-btn');
+      const log = document.getElementById('progress-log');
+
+      isGenerating = true;
+      cancelled = false;
+      fixBtn.disabled = true;
+      fixBtn.innerHTML = '<span class="spinner"></span>Working\u2026';
+      const cancelBtn = document.getElementById('fix-cancel-btn');
+      cancelBtn.style.display = '';
+      log.style.display = 'block';
+      log.textContent = '';
+
+      // Stop preview while working
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+
+      const unlisten = await listen('claude-progress', (evt) => {
+        log.textContent += (log.textContent ? '\n' : '') + evt.payload;
+        log.scrollTop = log.scrollHeight;
+      });
+
+      try {
+        const draftSlug = await invoke('patch_character', {
+          slug: SLUG,
+          animationName: selectedAnimName,
+          description: desc,
+          agent: AGENT,
+        });
+
+        const draftB64 = await invoke('read_skin', { name: draftSlug });
+        const draftAnimStr = await invoke('read_skin_anim', { name: draftSlug }).catch(() => null);
+        const draftAnim = draftAnimStr ? JSON.parse(draftAnimStr) : animConfig;
+
+        const origB64 = await invoke('read_skin', { name: SLUG });
+
+        const draftImg = await loadImage(draftB64);
+        const origImg  = await loadImage(origB64);
+
+        currentDraftSlug = draftSlug;
+        comparisonLockedAnim = selectedAnimName; // single-anim patch — lock sidebar
+        await enterComparisonMode(origImg, draftImg, draftAnim || animConfig, selectedAnimName);
+
+        log.textContent += '\nDone! Compare above.';
+      } catch (e) {
+        log.textContent += '\n' + runError(e);
+        fixBtn.disabled = !agentOk;
+        fixBtn.textContent = `Fix with ${AGENT === 'codex' ? 'Codex' : 'Claude'} \u25B6`;
+
+        // Resume preview on error
+        const b64 = await invoke('read_skin', { name: SLUG }).catch(() => null);
+        if (b64) {
+          const img = await loadImage(b64);
+          startPreview(img, selectedAnimName);
+        }
+      } finally {
+        isGenerating = false;
+        unlisten();
+        cancelBtn.style.display = 'none';
+      }
+    }
+
+    async function runRegenerate() {
+      const desc = document.getElementById('regen-description').value.trim();
+      if (!desc) return;
+
+      const regenBtn = document.getElementById('regen-btn');
+      const log = document.getElementById('progress-log');
+
+      isGenerating = true;
+      cancelled = false;
+      regenBtn.disabled = true;
+      regenBtn.innerHTML = '<span class="spinner"></span>Regenerating\u2026';
+      const cancelBtn = document.getElementById('regen-cancel-btn');
+      cancelBtn.style.display = '';
+      log.style.display = 'block';
+      log.textContent = '';
+
+      // Also disable the per-animation fix button while regenerating
+      document.getElementById('fix-btn').disabled = true;
+
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+      const unlisten = await listen('claude-progress', (evt) => {
+        log.textContent += (log.textContent ? '\n' : '') + evt.payload;
+        log.scrollTop = log.scrollHeight;
+      });
+
+      try {
+        const draftSlug = await invoke('regenerate_character', {
+          slug: SLUG,
+          description: desc,
+          agent: AGENT,
+        });
+
+        const draftB64 = await invoke('read_skin', { name: draftSlug });
+        const draftAnimStr = await invoke('read_skin_anim', { name: draftSlug }).catch(() => null);
+        const draftAnim = draftAnimStr ? JSON.parse(draftAnimStr) : animConfig;
+
+        const origB64 = await invoke('read_skin', { name: SLUG });
+        const draftImg = await loadImage(draftB64);
+        const origImg = await loadImage(origB64);
+
+        currentDraftSlug = draftSlug;
+        draftAnimConfig = draftAnim;
+        await enterComparisonMode(origImg, draftImg, draftAnim || animConfig, selectedAnimName || 'idle');
+
+        log.textContent += '\nDone! Compare animations in the sidebar.';
+      } catch (e) {
+        log.textContent += '\n' + runError(e);
+      } finally {
+        isGenerating = false;
+        unlisten();
+        cancelBtn.style.display = 'none';
+        regenBtn.disabled = !agentOk;
+        regenBtn.textContent = `Regenerate All with ${AGENT === 'codex' ? 'Codex' : 'Claude'} \u25B6`;
+        // Re-enable fix button
+        const desc2 = document.getElementById('fix-description').value.trim();
+        document.getElementById('fix-btn').disabled = !agentOk || !selectedAnimName || !desc2;
+      }
+    }
+
+    async function enterComparisonMode(origImg, draftImg, draftAnim, animName) {
+      // Stop the normal preview loop
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      // Stop any existing comparison loop
+      if (compareRafId) {
+        cancelAnimationFrame(compareRafId);
+        compareRafId = null;
+      }
+
+      // Store draft anim config for comparison browsing
+      draftAnimConfig = draftAnim;
+
+      // A draft that can't even be worn can be looked at but not accepted
+      const draftCheck = validateImage(draftImg);
+      const acceptBtn = document.getElementById('accept-btn');
+      acceptBtn.disabled = !draftCheck.wearable;
+      acceptBtn.title = draftCheck.ok ? '' : problemSummary(draftCheck);
+      showSheetCheck(draftCheck);
+
+      const mainArea = document.getElementById('main-area');
+      const compareArea = document.getElementById('compare-area');
+      mainArea.style.display = 'none';
+      compareArea.style.display = 'flex';
+
+      // Highlight current anim in sidebar with DRAFT badge
+      document.querySelectorAll('.anim-row').forEach(r => {
+        r.querySelectorAll('.draft-badge').forEach(b => b.remove());
+        r.classList.toggle('selected', r.dataset.anim === animName);
+        // Dim non-patched rows during single-anim patch
+        if (comparisonLockedAnim) {
+          r.style.opacity = r.dataset.anim === animName ? '1' : '0.35';
+          r.style.pointerEvents = r.dataset.anim === animName ? '' : 'none';
+        } else {
+          r.style.opacity = '';
+          r.style.pointerEvents = '';
+        }
+        if (r.dataset.anim === animName) {
+          const badge = document.createElement('span');
+          badge.className = 'draft-badge';
+          badge.textContent = 'DRAFT';
+          r.appendChild(badge);
+        }
+      });
+
+      const animData = getAnimData(animConfig, animName) || getAnimData(draftAnim, animName);
+      const draftAnimData = getAnimData(draftAnim, animName) || animData;
+
+      if (!animData) return;
+
+      const row = getAnimRow(animConfig, animName);
+      const draftRow = getAnimRow(draftAnim, animName);
+
+      compareBeforeState = {
+        canvas: document.getElementById('before-canvas'),
+        img: origImg,
+        anim: animData,
+        row: row >= 0 ? row : 0,
+        frame: 0, lastTime: 0,
+        frameW: FRAME,
+        frameH: FRAME,
+      };
+
+      compareAfterState = {
+        canvas: document.getElementById('after-canvas'),
+        img: draftImg,
+        anim: draftAnimData,
+        row: draftRow >= 0 ? draftRow : (row >= 0 ? row : 0),
+        frame: 0, lastTime: 0,
+        frameW: FRAME,
+        frameH: FRAME,
+      };
+
+      compareRafId = requestAnimationFrame(animateComparison);
+    }
+
+    function selectAnimForComparison(animName) {
+      if (!compareBeforeState || !compareAfterState) return;
+      selectedAnimName = animName;
+
+      document.querySelectorAll('.anim-row').forEach(r => {
+        r.querySelectorAll('.draft-badge').forEach(b => b.remove());
+        r.classList.toggle('selected', r.dataset.anim === animName);
+        if (r.dataset.anim === animName) {
+          const badge = document.createElement('span');
+          badge.className = 'draft-badge';
+          badge.textContent = 'DRAFT';
+          r.appendChild(badge);
+        }
+      });
+
+      const origAnim = getAnimData(animConfig, animName);
+      if (!origAnim) return;
+
+      const row = getAnimRow(animConfig, animName);
+      compareBeforeState.anim = origAnim;
+      compareBeforeState.row = row >= 0 ? row : 0;
+      compareBeforeState.frame = 0;
+      compareBeforeState.lastTime = 0;
+
+      // Use draft's anim data for the "after" canvas (important for full regen)
+      const afterAnim = draftAnimConfig ? (getAnimData(draftAnimConfig, animName) || origAnim) : origAnim;
+      const afterRow = draftAnimConfig ? (getAnimRow(draftAnimConfig, animName)) : row;
+
+      compareAfterState.anim = afterAnim;
+      compareAfterState.row = afterRow >= 0 ? afterRow : (row >= 0 ? row : 0);
+      compareAfterState.frame = 0;
+      compareAfterState.lastTime = 0;
+    }
+
+    async function acceptPatch() {
+      const acceptBtn = document.getElementById('accept-btn');
+      acceptBtn.disabled = true;
+      acceptBtn.textContent = 'Saving\u2026';
+
+      try {
+        await invoke('accept_character_patch', { slug: SLUG });
+
+        // Reload skin preview
+        const b64 = await invoke('read_skin', { name: SLUG });
+        const img = await loadImage(b64);
+        showSheetCheck(validateImage(img, atob(b64).length));
+
+        // Reload anim config (may have changed after regen)
+        const animStr = await invoke('read_skin_anim', { name: SLUG }).catch(() => null);
+        animConfig = animStr ? JSON.parse(animStr) : animConfig;
+
+        // Update regen textarea with latest description
+        const regenSection = document.getElementById('regen-section');
+        const regenTextarea = document.getElementById('regen-description');
+        if (animConfig?.source === 'ai_generated') {
+          if (regenSection) regenSection.style.display = '';
+          if (regenTextarea && animConfig.generatorDescription) {
+            regenTextarea.value = animConfig.generatorDescription;
+          }
+        } else {
+          if (regenSection) regenSection.style.display = 'none';
+        }
+
+        // Update thumbnail
+        const thumb = document.getElementById('thumb-canvas');
+        const tctx = thumb.getContext('2d');
+        tctx.clearRect(0, 0, 32, 32);
+        tctx.imageSmoothingEnabled = false;
+        tctx.drawImage(img, 0, 0, 32, 32, 0, 0, 32, 32);
+
+        // Rebuild sidebar with fresh anim data
+        buildSidebar(img, animConfig);
+
+        currentDraftSlug = null;
+        exitComparisonMode(img);
+
+        // Update progress log
+        const log = document.getElementById('progress-log');
+        log.textContent += '\nAccepted! Original updated.';
+        announceSkinsChanged();
+      } catch (e) {
+        acceptBtn.disabled = false;
+        acceptBtn.textContent = 'Accept & Save \u2713';
+        alert('Failed to accept: ' + e);
+      }
+    }
+
+    async function discardDraft() {
+      try {
+        await invoke('discard_character_draft', { slug: SLUG });
+        currentDraftSlug = null;
+
+        // Reload original skin for preview
+        const b64 = await invoke('read_skin', { name: SLUG });
+        const img = await loadImage(b64);
+        showSheetCheck(validateImage(img, atob(b64).length));
+
+        exitComparisonMode(img);
+      } catch (e) {
+        alert('Failed to discard: ' + e);
+      }
+    }
+
+    function exitComparisonMode(img) {
+      // Stop comparison loop
+      if (compareRafId) {
+        cancelAnimationFrame(compareRafId);
+        compareRafId = null;
+      }
+      compareBeforeState = null;
+      compareAfterState = null;
+      draftAnimConfig = null;
+      comparisonLockedAnim = null;
+
+      const mainArea = document.getElementById('main-area');
+      const compareArea = document.getElementById('compare-area');
+      mainArea.style.display = 'flex';
+      compareArea.style.display = 'none';
+
+      // Remove draft badges and restore sidebar row styles
+      document.querySelectorAll('.draft-badge').forEach(b => b.remove());
+      document.querySelectorAll('.anim-row').forEach(r => {
+        r.style.opacity = '';
+        r.style.pointerEvents = '';
+      });
+
+      // Re-enable accept button for next use
+      const acceptBtn = document.getElementById('accept-btn');
+      acceptBtn.disabled = false;
+      acceptBtn.textContent = 'Accept & Save \u2713';
+
+      // Re-enable fix button
+      const fixBtn = document.getElementById('fix-btn');
+      const desc = document.getElementById('fix-description').value.trim();
+      fixBtn.disabled = !agentOk || !selectedAnimName || !desc;
+      fixBtn.textContent = `Fix with ${AGENT === 'codex' ? 'Codex' : 'Claude'} \u25B6`;
+
+      // Resume normal preview
+      if (selectedAnimName) {
+        startPreview(img, selectedAnimName);
+      }
+    }
+
+    // ── Event wiring ──
+
+    document.getElementById('tb-close').addEventListener('click', () => {
+      if (isGenerating) {
+        if (!confirm('A character is being generated. Cancel generation and close?')) return;
+        invoke('cancel_generation').catch(() => {});
+      }
+      getCurrentWindow().hide();
+    });
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      if (isGenerating) {
+        if (!confirm('A character is being generated. Cancel generation and go back?')) return;
+        invoke('cancel_generation').catch(() => {});
+      }
+      getCurrentWindow().hide();
+    });
+
+    // Delete character button (edit mode only)
+    const deleteBtn = document.getElementById('tb-delete');
+    if (SLUG) {
+      deleteBtn.style.display = '';
+      deleteBtn.addEventListener('click', async () => {
+        const name = animConfig?.name || formatName(SLUG);
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        try {
+          // Take it off first if Dr. Vibe is wearing it
+          try {
+            if ((await readSection('settings'))?.selectedSkin === SLUG) await emitTo('main', 'switch-skin', { slug: 'dr-vibe-default' });
+          } catch {}
+          await invoke('delete_skin', { name: SLUG });
+          await announceSkinsChanged();
+          getCurrentWindow().hide();
+        } catch (e) {
+          alert('Failed to delete: ' + e);
+        }
+      });
+    }
+
+    // Copy character button (edit mode only) — clones the skin under a new
+    // slug with a fresh vibeId, so it's a distinct Dr. Vibe on upload.
+    const copyBtn = document.getElementById('tb-copy');
+    if (SLUG) {
+      copyBtn.style.display = '';
+      copyBtn.addEventListener('click', async () => {
+        try {
+          const newSlug = await invoke('copy_skin', { sourceSlug: SLUG, newSlug: null });
+          await announceSkinsChanged();
+          // Reopen the workshop on the new copy (navigates and shows this window).
+          await invoke('open_character_workshop', { slug: newSlug, agent: AGENT });
+        } catch (e) {
+          alert('Failed to copy: ' + e);
+        }
+      });
+    }
+
+    // Inline rename — click the name label to edit
+    const nameLabel = document.getElementById('skin-name-label');
+    if (SLUG) {
+      nameLabel.contentEditable = 'true';
+      nameLabel.spellcheck = false;
+      nameLabel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); nameLabel.blur(); }
+        if (e.key === 'Escape') {
+          nameLabel.textContent = animConfig?.name || formatName(SLUG);
+          nameLabel.blur();
+        }
+      });
+      nameLabel.addEventListener('blur', () => {
+        const newName = nameLabel.textContent.trim();
+        if (!newName) {
+          nameLabel.textContent = animConfig?.name || formatName(SLUG);
+          return;
+        }
+        const oldName = animConfig?.name || formatName(SLUG);
+        if (newName !== oldName) {
+          invoke('rename_skin', { slug: SLUG, displayName: newName })
+            .then(() => { if (animConfig) animConfig.name = newName; announceSkinsChanged(); })
+            .catch((e) => {
+              console.error('Rename failed:', e);
+              nameLabel.textContent = oldName;
+            });
+        }
+      });
+    }
+
+    document.getElementById('fix-btn').addEventListener('click', runPatch);
+
+    document.getElementById('fix-description').addEventListener('input', () => {
+      const fixBtn = document.getElementById('fix-btn');
+      const desc = document.getElementById('fix-description').value.trim();
+      fixBtn.disabled = !agentOk || !selectedAnimName || !desc;
+    });
+
+    document.getElementById('accept-btn').addEventListener('click', acceptPatch);
+    document.getElementById('discard-btn').addEventListener('click', discardDraft);
+
+    document.getElementById('regen-btn')?.addEventListener('click', runRegenerate);
+    document.getElementById('regen-description')?.addEventListener('input', () => {
+      const btn = document.getElementById('regen-btn');
+      const desc = document.getElementById('regen-description').value.trim();
+      btn.disabled = !agentOk || !desc;
+    });
+
+    // Cancel buttons — kill the running AI subprocess
+    for (const id of ['fix-cancel-btn', 'regen-cancel-btn']) {
+      document.getElementById(id)?.addEventListener('click', () => {
+        cancelled = true;
+        invoke('cancel_generation').catch(() => {});
+      });
+    }
+
+    // Titlebar drag
+    try {
+      const win = getCurrentWindow();
+      document.getElementById('titlebar').addEventListener('mousedown', (e) => {
+        if (e.target.closest('.titlebar-controls') || e.target.closest('.back-btn')) return;
+        if (e.buttons === 1) win.startDragging();
+      });
+    } catch {}
+
+    // Init
+    init();
+  </script>
+</body>
+</html>
