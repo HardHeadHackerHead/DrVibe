@@ -126,7 +126,10 @@ export class SessionTracker {
     // synthetic events (forward slash) for the same file share one key.
     const path = normalizePath(event.path);
 
-    if (event.event_type === 'delete') return;
+    // Reads (Claude Code opening a file) aren't edits: they feed momentum,
+    // never the files-changed counts. Before 2.0.1 they counted as
+    // "modified", so a session full of agents reading code set huge records.
+    if (event.event_type === 'delete' || event.event_type === 'read') return;
 
     // Skip non-file synthetic keys (e.g. `cmd:<session>:<ts>` from older
     // momentum-pulse code paths). These aren't real files and shouldn't

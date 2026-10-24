@@ -47,3 +47,15 @@ describe('session history', () => {
     expect(repairHistory(history)).toBe(false);
   });
 });
+
+describe('files-changed counts', () => {
+  it('counts edits and new files, never reads', () => {
+    const t = new SessionTracker();
+    t._onFileChanged({ path: 'C:\work\a.js', event_type: 'read', source: 'claude_code' });
+    t._onFileChanged({ path: 'C:\work\b.js', event_type: 'read', source: 'claude_code' });
+    t._onFileChanged({ path: 'C:\work\a.js', event_type: 'modify', source: 'claude_code' });
+    t._onFileChanged({ path: 'C:\work\c.js', event_type: 'create', source: 'claude_code' });
+    expect(t.filesModified.size).toBe(1);
+    expect(t.filesCreated.size).toBe(1);
+  });
+});

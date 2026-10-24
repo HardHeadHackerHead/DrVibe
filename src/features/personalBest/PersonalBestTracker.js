@@ -65,6 +65,13 @@ export class PersonalBestTracker {
     if (saved) {
       if (saved.bests) this.bests = { ...this._getDefaultBests(), ...saved.bests };
       if (saved.history) this.history = saved.history;
+      // Before 2.0.1, files Claude Code only read counted as edited, so the
+      // Most Files record is meaningless: start it over once.
+      if (!saved.filesCountEdits) {
+        this.bests.mostFiles = { value: 0, date: null };
+        this.history = this.history.filter((h) => h.metric !== 'mostFiles');
+        this._save();
+      }
     }
   }
 
@@ -72,6 +79,7 @@ export class PersonalBestTracker {
     db.setSection('personalBest', {
       bests: this.bests,
       history: this.history,
+      filesCountEdits: true,
     });
   }
 
