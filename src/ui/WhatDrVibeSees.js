@@ -5,6 +5,7 @@
 
 export const STAYS_LOCAL = [
   'The names and titles of the windows you use, to tell when you are coding',
+  'How long since your last keyboard or mouse input (never what you typed), to tell whether you are using your editor',
   'File paths and file changes inside the repos Dr. Vibe tracks',
   'Git details: branches, commit messages and changed files',
   'Where your git repos are: the ones Claude Code works in (if "Track repos Claude Code works in" is on in Tracking) and the ones in folders you add',

@@ -179,9 +179,9 @@ export class ProjectDetector {
   _detectFromWindow(windowTitle, appName) {
     const detected = this._parseWindowTitle(windowTitle, appName);
     if (detected) {
-      this._scheduleProjectSwitch(detected.name, detected.path, 'window_title');
+      this._scheduleProjectSwitch(detected.name, detected.path, 'window_title', appName);
     } else {
-      this._tryFallbackScan(windowTitle);
+      this._tryFallbackScan(windowTitle, appName);
     }
   }
 
@@ -219,7 +219,7 @@ export class ProjectDetector {
     return true;
   }
 
-  _scheduleProjectSwitch(name, path, source) {
+  _scheduleProjectSwitch(name, path, source, appName = null) {
     const key = path || name;
 
     // Same as current project — cancel any pending switch and stay
@@ -235,7 +235,7 @@ export class ProjectDetector {
 
     // New candidate — start debounce
     this._clearPending();
-    this._pendingProject = { name, path, source };
+    this._pendingProject = { name, path, source, appName };
 
     // If there's no current project, commit immediately (first detection)
     if (!this.currentProject) {
@@ -251,7 +251,7 @@ export class ProjectDetector {
   async _commitProjectSwitch() {
     if (!this._pendingProject) return;
 
-    let { name, path, source } = this._pendingProject;
+    let { name, path, source, appName } = this._pendingProject;
     this._pendingProject = null;
 
     // If the detected name is a generic folder (e.g. "src"), try to resolve
@@ -306,6 +306,7 @@ export class ProjectDetector {
       name,
       path,
       source,
+      appName,          // the app whose window named it
       projectType,
       typeInfo,
       detectedAt: Date.now(),
@@ -331,14 +332,14 @@ export class ProjectDetector {
     }
   }
 
-  async _tryFallbackScan(windowTitle) {
+  async _tryFallbackScan(windowTitle, appName) {
     const pathMatch = windowTitle.match(/((?:[A-Z]:\\|~\/|\/(?:home|Users)\/)[^\s|—–-]+)/i);
     if (!pathMatch) return;
 
     const dirPath = pathMatch[1].trim();
     const markers = await tauri.scanProjectMarkers(dirPath);
     if (markers && markers.project_name) {
-      this._scheduleProjectSwitch(markers.project_name, dirPath, 'filesystem_scan');
+      this._scheduleProjectSwitch(markers.project_name, dirPath, 'filesystem_scan', appName);
     }
   }
 

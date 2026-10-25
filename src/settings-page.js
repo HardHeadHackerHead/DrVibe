@@ -1158,7 +1158,7 @@ function updateTrackClaudeDesc() {
   if (!desc) return;
   desc.textContent = els.trackClaudeRepos()?.checked !== false
     ? 'Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.'
-    : 'Off: only the repos in your project folders below (and the project open in your editor) are tracked.';
+    : 'Off: only the repos in your project folders below (and the project in your editor, while you use it) are tracked.';
 }
 
 function trackedRepoRow(repo, { ignored }) {

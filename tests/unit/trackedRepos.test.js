@@ -5,7 +5,9 @@
 // watcher following the list, and the Settings helpers.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TrackedRepos, parentDir } from '../../src/features/activity/TrackedRepos.js';
+import {
+  TrackedRepos, parentDir, editorInUse, EDITOR_FOREGROUND_GRACE_MS, EDITOR_INPUT_GRACE_MS,
+} from '../../src/features/activity/TrackedRepos.js';
 import { migrateRepoScan } from '../../src/features/activity/repoMigration.js';
 import { GitTracker } from '../../src/features/activity/GitTracker.js';
 import { MomentumTracker } from '../../src/features/activity/MomentumTracker.js';
@@ -52,6 +54,7 @@ beforeEach(() => {
   vi.spyOn(db, 'getSection').mockImplementation((s) => sections[s] ?? null);
   vi.spyOn(db, 'setSection').mockImplementation((s, v) => { sections[s] = v === null ? null : JSON.parse(JSON.stringify(v)); });
   vi.spyOn(tauri, 'findFolderRepos').mockResolvedValue([]);
+  vi.spyOn(tauri, 'lastInputAgeMs').mockResolvedValue(1000);
 });
 
 afterEach(() => {
@@ -199,13 +202,132 @@ describe('TrackedRepos from folders and the editor', () => {
     expect(repos.getRepos()[0].source).toBe('claude');
   });
 
-  it('tracks the project open in an editor for this run only', async () => {
+});
+
+describe('the editor project counts only while it is in use', () => {
+  const MIN = 60 * 1000;
+  let clock;
+  let inputAge;
+
+  async function withEditor() {
     fakeResolve();
+    clock = 1_000_000;
+    inputAge = 1000;
+    tauri.lastInputAgeMs.mockImplementation(async () => inputAge);
     const repos = await started();
-    eventBus.emit(Events.PROJECT_DETECTED, { name: 'lib', path: 'E:\\work\\lib', source: 'window_title' });
-    await vi.waitFor(() => expect(repos.getRepos()).toHaveLength(1));
-    expect(repos.getRepos()[0]).toMatchObject({ name: 'lib', source: 'editor' });
+    repos._now = () => clock;
+    repos._startEditorTimer = () => {}; // the tests call checkEditor() themselves
+    return repos;
+  }
+
+  const open = async (repos) => {
+    eventBus.emit(Events.PROJECT_DETECTED, { name: 'lib', path: 'E:\\work\\lib', source: 'window_title', appName: 'Code' });
+    await vi.waitFor(() => expect(repos.editor).not.toBeNull());
+    await flush();
+  };
+
+  it('the rule: in front (or just left) and recent input', () => {
+    const now = 10 * MIN;
+    expect(editorInUse({ foreground: true, leftAt: null, lastInputAt: now - 1000, now })).toBe(true);
+    expect(editorInUse({ foreground: false, leftAt: now - MIN, lastInputAt: now, now })).toBe(true);
+    expect(editorInUse({ foreground: false, leftAt: now - EDITOR_FOREGROUND_GRACE_MS - 1, lastInputAt: now, now })).toBe(false);
+    expect(editorInUse({ foreground: true, leftAt: null, lastInputAt: now - EDITOR_INPUT_GRACE_MS - 1, now })).toBe(false);
+    expect(editorInUse({ foreground: false, leftAt: null, lastInputAt: now, now })).toBe(false);
+    // The OS can't report input: the window alone decides
+    expect(editorInUse({ foreground: true, leftAt: null, lastInputAt: null, now })).toBe(true);
+  });
+
+  it('tracks the editor project while it is in front with recent input, for this run only', async () => {
+    const repos = await withEditor();
+    await open(repos);
+    expect(repos.getRepos()).toEqual([expect.objectContaining({ name: 'lib', source: 'editor' })]);
     expect(sections.trackedRepos.repos).toEqual([]);
+  });
+
+  it('a minimized or background editor stops counting, and its file changes are no longer watched', async () => {
+    const repos = await withEditor();
+    const start = vi.spyOn(tauri, 'startWatching').mockResolvedValue('ok');
+    const stop = vi.spyOn(tauri, 'stopWatching').mockResolvedValue('ok');
+    const available = tauri.isAvailable;
+    tauri.isAvailable = true;
+    const momentum = new MomentumTracker();
+    eventBus.on(Events.REPOS_CHANGED, ({ repos: list }) => momentum.watchRepos(list));
+    try {
+      await open(repos);
+      await momentum.watchRepos(repos.getRepos());
+      expect(start).toHaveBeenCalledWith('E:\\work\\lib');
+
+      // Minimized: the desktop (or a game) is in front; time passes
+      eventBus.emit(Events.ACTIVITY_CHANGED, { isCoding: false, appName: 'explorer' });
+      clock += EDITOR_FOREGROUND_GRACE_MS + 1000;
+      await repos.checkEditor();
+      await momentum.watchRepos(repos.getRepos());
+
+      expect(repos.editorActive).toBe(false);
+      expect(repos.getRepos()).toEqual([]);
+      expect(stop).toHaveBeenCalled();
+      expect(momentum.getState().watchedPaths).toEqual([]);
+    } finally {
+      tauri.isAvailable = available;
+    }
+  });
+
+  it('a game in front with lots of input still drops it after the grace period', async () => {
+    const repos = await withEditor();
+    await open(repos);
+    eventBus.emit(Events.ACTIVITY_CHANGED, { isCoding: false, appName: 'eldenring' });
+    clock += MIN;
+    await repos.checkEditor();
+    expect(repos.editorActive).toBe(true); // a quick look elsewhere is fine
+    clock += MIN + 1000;
+    await repos.checkEditor();
+    expect(repos.editorActive).toBe(false);
+  });
+
+  it('going idle in front of the editor drops it, coming back restores it', async () => {
+    const repos = await withEditor();
+    await open(repos);
+    const changed = vi.fn();
+    eventBus.on(Events.REPOS_CHANGED, changed);
+
+    clock += 3 * MIN;
+    inputAge = 3 * MIN;
+    await repos.checkEditor();
+    expect(repos.getRepos()).toEqual([]);
+    expect(changed).toHaveBeenLastCalledWith({ repos: [] });
+
+    // Away in another app, then back to the editor and typing
+    eventBus.emit(Events.ACTIVITY_CHANGED, { isCoding: false, appName: 'chrome' });
+    clock += 10 * MIN;
+    inputAge = 500;
+    eventBus.emit(Events.ACTIVITY_CHANGED, { isCoding: true, appName: 'Code' });
+    await vi.waitFor(() => expect(repos.editorActive).toBe(true));
+    expect(changed.mock.lastCall[0].repos).toEqual([expect.objectContaining({ name: 'lib', source: 'editor' })]);
+  });
+
+  it('a repo also tracked another way keeps counting when the editor goes idle', async () => {
+    const repos = await withEditor();
+    await repos.noteClaudePath('E:\\work\\lib');
+    await open(repos);
+    clock += 5 * MIN;
+    inputAge = 5 * MIN;
+    await repos.checkEditor();
+    expect(repos.editorActive).toBe(false);
+    expect(repos.getRepos()).toEqual([expect.objectContaining({ name: 'lib', source: 'claude' })]);
+  });
+
+  it('falls back to cursor movement where the OS has no idle time', async () => {
+    const repos = await withEditor();
+    tauri.lastInputAgeMs.mockResolvedValue(null);
+    const cursor = vi.spyOn(tauri, 'getCursorPosition').mockResolvedValue([10, 10]);
+    await open(repos);
+    expect(repos.editorActive).toBe(true);
+    clock += 3 * MIN;
+    await repos.checkEditor(); // same position: no input since
+    expect(repos.editorActive).toBe(false);
+    cursor.mockResolvedValue([12, 40]);
+    await repos.checkEditor();
+    expect(repos.editorActive).toBe(true);
   });
 });
 
@@ -262,22 +384,18 @@ describe('migration from the 2.0.x drive scan', () => {
     return fakeSettings({ ...sections.settings });
   }
 
-  it('drops scanned repos and temp/app-data folders, keeps real folders and remembered repos', async () => {
-    const settings = install(realisticInstall());
+  it('clears the folders and scanned repos, keeps remembered repos and the ignore list', async () => {
+    const blob = realisticInstall();
+    blob.settings.ignoredRepos = ['E:\\proj3'];
+    const settings = install(blob);
     const section = await migrateRepoScan({ settings, db, untrackedPlaces });
 
-    expect(settings.values.projectFolders).toEqual([
-      'C:\\Users\\mara\\Desktop\\Lab\\quads',
-      'C:\\Users\\mara\\Desktop\\Lab',
-      'C:\\Users\\mara\\Desktop',
-      'C:\\Users\\mara\\Desktop\\Lab\\QuadCode\\.claude\\worktrees',
-      'E:\\hq\\packages',
-    ]);
+    expect(settings.values.projectFolders).toEqual([]);
+    expect(settings.values.ignoredRepos).toEqual(['E:\\proj3']);
     expect(section.repos.map(r => r.path)).toEqual(['E:\\tools\\tool', 'C:\\Users\\mara\\Desktop\\Lab\\site']);
     expect(section.repos[0]).toEqual({ name: 'tool', path: 'E:\\tools\\tool', worktrees: ['E:\\tools\\tool'], lastSeen: 0 });
     expect(sections.trackedRepos).toEqual(section);
     expect(sections.repoScan).toBeNull();
-    expect(settings.values.trackClaudeRepos).toBe(true);
     // Achievements are untouched
     expect(sections.achievements.seenRepos).toEqual(['qwickcert', 'site', 'hq']);
   });
@@ -294,11 +412,12 @@ describe('migration from the 2.0.x drive scan', () => {
     expect(first.claudeRepos.map(r => r.name)).toEqual(['tool', 'site']);
     first.destroy();
 
-    settings.values.projectFolders.push('C:\\Users\\mara\\AppData\\Roaming\\x');
+    expect(settings.values.projectFolders).toEqual([]);
+    settings.values.projectFolders.push('E:\\work');
     const second = new TrackedRepos(settings);
     await second.init();
     expect(check).toHaveBeenCalledTimes(1);
-    expect(settings.values.projectFolders).toContain('C:\\Users\\mara\\AppData\\Roaming\\x');
+    expect(settings.values.projectFolders).toEqual(['E:\\work']);
     second.destroy();
   });
 
@@ -312,21 +431,23 @@ describe('migration from the 2.0.x drive scan', () => {
     expect(settings.values.projectFolders).toEqual(blob.settings.projectFolders);
   });
 
-  it('keeps "folders only" for people who had switched the scan off', async () => {
+  it('clears folders on a 2.0.0 install too (wizard done, no scan yet)', async () => {
     const blob = realisticInstall();
-    blob.settings.autoDetectRepos = false;
+    delete blob.repoScan;
+    blob.setupWizard = { completed: true };
     const settings = install(blob);
-    await migrateRepoScan({ settings, db, untrackedPlaces });
-    expect(settings.values.trackClaudeRepos).toBe(false);
+    expect(await migrateRepoScan({ settings, db, untrackedPlaces })).toEqual({ repos: [] });
+    expect(settings.values.projectFolders).toEqual([]);
   });
 
-  it('writes an empty section on a fresh install', async () => {
+  it('writes an empty section on a fresh install, keeping folders the setup wizard adds', async () => {
     sections = {};
-    const settings = fakeSettings();
+    const settings = fakeSettings({ projectFolders: ['E:\\work'] });
     const check = vi.fn();
     expect(await migrateRepoScan({ settings, db, untrackedPlaces: check })).toEqual({ repos: [] });
     expect(check).not.toHaveBeenCalled();
     expect(sections.trackedRepos).toEqual({ repos: [] });
+    expect(settings.values.projectFolders).toEqual(['E:\\work']);
   });
 });
 

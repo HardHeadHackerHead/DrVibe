@@ -300,6 +300,16 @@ class TauriBridge {
     }
   }
 
+  // Ms since the last keyboard or mouse input; null where the OS can't say.
+  async lastInputAgeMs() {
+    if (!this.isAvailable || !this.invoke) return null;
+    try {
+      return (await this.invoke('last_input_age_ms')) ?? null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async getCursorPosition() {
     if (!this.isAvailable || !this.invoke) return null;
     try {

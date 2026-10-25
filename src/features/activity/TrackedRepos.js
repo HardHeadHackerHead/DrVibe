@@ -3,9 +3,9 @@
 // for file changes. A repo is tracked because Claude Code works in it (a
 // session starts there, or Claude writes or edits a file there) while "Track
 // repos Claude Code works in" is on, or because it's in a folder the user
-// added in Settings → Tracking. The project open in an editor is tracked too
-// while it's open (never remembered). Rust's resolve_repo turns each path into its
-// repo: a subfolder or file maps to the repo root, a linked worktree to its
+// added in Settings → Tracking. The project open in an editor is tracked too,
+// only while the person is using that editor (see editorInUse; never
+// remembered). Rust's resolve_repo turns each path into its repo: a subfolder or file maps to the repo root, a linked worktree to its
 // main repo, and temp, app-data and system places are refused. Claude's repos
 // are remembered across restarts. Paths never leave this computer.
 
@@ -19,6 +19,33 @@ const SECTION = 'trackedRepos';
 const MAX_REMEMBERED = 200;
 // A remembered repo's "last seen" is saved at most this often.
 const LAST_SEEN_SAVE_MS = 60 * 60 * 1000;
+
+// The editor's repo counts while the editor was in front within the last 2
+// minutes and there was keyboard or mouse input within the last 2 minutes.
+// Long enough for a look at the docs in a browser or a pause to read and
+// think; short enough that a minimized editor, a game or a walk away stops
+// counting within about two minutes.
+export const EDITOR_FOREGROUND_GRACE_MS = 2 * 60 * 1000;
+export const EDITOR_INPUT_GRACE_MS = 2 * 60 * 1000;
+// How often input is checked while an editor repo is known.
+const EDITOR_CHECK_MS = 15 * 1000;
+
+/**
+ * Whether the person is using the editor: it's in front (or left the front
+ * less than EDITOR_FOREGROUND_GRACE_MS ago) and the last input is recent.
+ * `lastInputAt` null means the OS can't tell; then the window alone decides.
+ */
+export function editorInUse({ foreground, leftAt, lastInputAt, now }) {
+  const inFront = foreground || (leftAt != null && now - leftAt <= EDITOR_FOREGROUND_GRACE_MS);
+  const recentInput = lastInputAt == null || now - lastInputAt <= EDITOR_INPUT_GRACE_MS;
+  return inFront && recentInput;
+}
+
+/** Same app, ignoring case and a trailing .exe. */
+function sameApp(a, b) {
+  const norm = (x) => String(x || '').toLowerCase().replace(/\.exe$/, '');
+  return !!a && !!b && norm(a) === norm(b);
+}
 
 /** Folder holding a file. */
 export function parentDir(path) {
@@ -56,7 +83,12 @@ export class TrackedRepos {
     this.settings = settings;
     this.claudeRepos = [];       // [{ name, path, worktrees, lastSeen }], remembered
     this.folderRepos = [];       // [{ name, path, worktrees }] from the user's folders
-    this.editorRepo = null;      // { name, path, worktrees }: the editor's project, this run
+    this.editor = null;          // { repo, app, foreground, leftAt }: the editor's project, this run
+    this.editorActive = false;   // editorInUse() at the last check
+    this._lastInputAt = null;    // ms; null when the OS can't tell
+    this._lastCursor = null;     // fallback input signal: cursor position
+    this._editorTimer = null;
+    this._now = () => Date.now();
     this._resolved = new Map();  // folder key → Promise<repo | null | undefined>, this run
     this._lastSeenSaved = 0;
     this._foldersRun = 0;
@@ -84,8 +116,14 @@ export class TrackedRepos {
         if (path) this.noteClaudePath(parentDir(path)).catch(() => {});
       }),
       eventBus.on(Events.PROJECT_DETECTED, (project) => {
-        if (project?.path && project.source !== 'claude_code') this.noteEditorPath(project.path).catch(() => {});
+        if (project?.path && project.source !== 'claude_code') {
+          this.noteEditorPath(project.path, project.appName).catch(() => {});
+        }
       }),
+      // Which app is in front: ActivityMonitor reports coding/not-coding
+      // switches and window changes between coding apps
+      eventBus.on(Events.ACTIVITY_CHANGED, ({ appName }) => this.noteForegroundApp(appName)),
+      eventBus.on(Events.ACTIVITY_WINDOW_CHANGED, ({ appName }) => this.noteForegroundApp(appName)),
       eventBus.on(Events.SETTINGS_CHANGED, ({ key }) => {
         if (key === 'projectFolders') {
           this.refreshFolders().catch(e => console.error('TrackedRepos: folder refresh failed:', e));
@@ -101,6 +139,7 @@ export class TrackedRepos {
   }
 
   destroy() {
+    this._stopEditorTimer();
     for (const unsub of this._unsubscribers) unsub();
     this._unsubscribers = [];
   }
@@ -130,16 +169,60 @@ export class TrackedRepos {
     return repo;
   }
 
-  /** An editor has the project in folder `dir` open: track its repo this run. */
-  async noteEditorPath(dir) {
+  /**
+   * The editor `app` (in front right now) has the project in folder `dir`
+   * open: its repo is tracked while the person keeps using that editor.
+   */
+  async noteEditorPath(dir, app = null) {
     const repo = await this._resolve(dir);
-    if (!repo) return null;
-    const next = { name: repo.name, path: repo.root, worktrees: [repo.worktree] };
-    if (JSON.stringify(next) !== JSON.stringify(this.editorRepo)) {
-      this.editorRepo = next;
-      this._emit();
+    if (!repo) {
+      this.editor = null;
+      this._stopEditorTimer();
+      this._updateEditorActive();
+      return null;
     }
+    const wasActive = this.editorActive;
+    this.editor = {
+      repo: { name: repo.name, path: repo.root, worktrees: [repo.worktree] },
+      app,
+      foreground: true,
+      leftAt: null,
+    };
+    this._startEditorTimer();
+    await this.checkEditor();
+    // Another project while it stayed in use: the list still changed
+    if (wasActive && this.editorActive) this._emit();
     return repo;
+  }
+
+  /** `app` is now the window in front. */
+  noteForegroundApp(app) {
+    if (!this.editor) return;
+    const inFront = this.editor.app ? sameApp(app, this.editor.app) : this.editor.foreground;
+    if (this.editor.foreground && !inFront) this.editor.leftAt = this._now();
+    const cameBack = inFront && !this.editor.foreground;
+    this.editor.foreground = inFront;
+    if (cameBack) this.checkEditor().catch(() => {});
+    else this._updateEditorActive();
+  }
+
+  /** Reads the last input time and updates whether the editor counts. */
+  async checkEditor() {
+    if (!this.editor) return;
+    const age = await tauri.lastInputAgeMs();
+    const now = this._now();
+    if (typeof age === 'number') {
+      this._lastInputAt = now - age;
+    } else {
+      // No idle time from the OS: a moving cursor is input
+      const pos = await tauri.getCursorPosition();
+      if (Array.isArray(pos)) {
+        const moved = !this._lastCursor || pos[0] !== this._lastCursor[0] || pos[1] !== this._lastCursor[1];
+        if (moved) this._lastInputAt = now;
+        this._lastCursor = pos;
+      }
+    }
+    this._updateEditorActive();
   }
 
   /**
@@ -196,7 +279,7 @@ export class TrackedRepos {
       for (const r of this.claudeRepos) mergeRepo(all, { ...r, source: 'claude' });
     }
     for (const r of this.folderRepos) mergeRepo(all, { ...r, source: 'folder' });
-    if (this.editorRepo) mergeRepo(all, { ...this.editorRepo, source: 'editor' });
+    if (this.editor && this.editorActive) mergeRepo(all, { ...this.editor.repo, source: 'editor' });
     const ignored = this._ignored();
     return all.filter(r => !isIgnoredRepo(r.path, ignored));
   }
@@ -207,6 +290,29 @@ export class TrackedRepos {
   }
 
   // --- Private ---
+
+  _updateEditorActive() {
+    const active = !!this.editor && editorInUse({
+      foreground: this.editor.foreground,
+      leftAt: this.editor.leftAt,
+      lastInputAt: this._lastInputAt,
+      now: this._now(),
+    });
+    if (active === this.editorActive) return;
+    this.editorActive = active;
+    console.log(`TrackedRepos: editor project ${active ? `"${this.editor.repo.name}" in use` : 'not in use'}`);
+    this._emit();
+  }
+
+  _startEditorTimer() {
+    if (this._editorTimer) return;
+    this._editorTimer = setInterval(() => this.checkEditor().catch(() => {}), EDITOR_CHECK_MS);
+  }
+
+  _stopEditorTimer() {
+    if (this._editorTimer) clearInterval(this._editorTimer);
+    this._editorTimer = null;
+  }
 
   /** The repo folder `dir` is in, asked once per folder; null when untracked or ignored. */
   async _resolve(dir) {

@@ -23,6 +23,14 @@ pub(crate) fn get_active_window() -> Result<WindowInfo, String> {
     get_active_window_impl()
 }
 
+/// Milliseconds since the last keyboard or mouse input anywhere on the
+/// system, or None where the OS can't say (the webview then falls back to
+/// cursor movement).
+#[tauri::command]
+pub(crate) fn last_input_age_ms() -> Option<u64> {
+    last_input_age_ms_impl()
+}
+
 // Check if the given app name is a coding application
 #[tauri::command]
 pub(crate) fn is_coding_app(app_name: String) -> bool {
@@ -92,6 +100,29 @@ pub(crate) fn get_cursor_position_impl() -> Result<(i32, i32), String> {
             Err("Failed to get cursor position".to_string())
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn last_input_age_ms_impl() -> Option<u64> {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+
+    let mut info = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    unsafe {
+        if !GetLastInputInfo(&mut info).as_bool() {
+            return None;
+        }
+        // Both are tick counts that wrap every ~49.7 days
+        Some(u64::from(GetTickCount().wrapping_sub(info.dwTime)))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn last_input_age_ms_impl() -> Option<u64> {
+    None
 }
 
 #[cfg(target_os = "macos")]
@@ -296,6 +327,14 @@ pub(crate) fn get_monitor_work_areas_impl() -> Vec<MonitorWorkArea> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn last_input_age_is_known_on_windows() {
+        // Some value, and well under the ~49.7-day tick wrap
+        let age = last_input_age_ms().expect("GetLastInputInfo");
+        assert!(age < 50 * 24 * 3600 * 1000);
+    }
 
     #[test]
     fn detects_editors_and_terminals() {

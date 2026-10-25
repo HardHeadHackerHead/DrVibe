@@ -120,6 +120,7 @@ fn main() {
             system::get_active_window,
             system::is_coding_app,
             system::get_cursor_position,
+            system::last_input_age_ms,
             projects::scan_project_markers,
             repos::resolve_repo,
             repos::find_folder_repos,
