@@ -300,6 +300,8 @@ export const Events = {
   // Companion equip events (from the poll or a tray click)
   COMPANION_EQUIPPED: 'companion:equipped',
   COMPANION_UNEQUIPPED: 'companion:unequipped',
+  COMPANION_FINISH_FROM_SERVER: 'companion:finishFromServer', // { id, finish } the equipped copy's finish (poll, same id)
+  COMPANION_FINISH_SHOWN: 'companion:finishShown', // { finish, skin } finish to draw on the main Dr. Vibe (null = none)
 
   // Economy events — unified Vibe Points (VP) pipeline
   ECONOMY_EARNED: 'economy:earned',           // { amount, newBalance, reasonCode, metadata } — toast-eligible earn event

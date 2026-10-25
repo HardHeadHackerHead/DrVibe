@@ -5,6 +5,8 @@
 // parsers mostly rename fields; they stay forgiving so a contract drift
 // degrades to "nothing new" instead of a crash.
 
+import { FINISH_TIERS } from '../../config/finishes.js';
+
 const str = (v, d = null) => (typeof v === 'string' && v ? v : d);
 const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -28,7 +30,26 @@ export function localSkinSlug(slug) {
  * @property {Object|null} animJson
  * @property {string|null} skinTone
  * @property {string|null} rarity
+ * @property {Finish|null} finish
  */
+
+/**
+ * A finish on one copy (protocol `Finish`).
+ * @typedef {Object} Finish
+ * @property {'shimmer'|'foil'|'prismatic'|'crowned'} tier
+ * @property {number} seasonNumber  0 = Launch pre-season
+ * @property {number} serial
+ */
+
+/** @returns {Finish|null} null when absent (older servers), null, or a tier this build doesn't know. */
+export function parseFinish(f) {
+  if (!f || typeof f !== 'object' || !FINISH_TIERS.includes(f.tier)) return null;
+  return {
+    tier: f.tier,
+    seasonNumber: Math.max(0, Math.floor(num(f.seasonNumber))),
+    serial: Math.max(0, Math.floor(num(f.serial))),
+  };
+}
 
 /** @returns {EquippedDrVibe|null} */
 export function parseEquipped(e) {
@@ -45,6 +66,42 @@ export function parseEquipped(e) {
     animJson: e.animJson && typeof e.animJson === 'object' ? e.animJson : null,
     skinTone: str(e.skinTone),
     rarity: str(e.rarity),
+    finish: parseFinish(e.finish),
+  };
+}
+
+// ── GET /desktop/collection (CollectionResponse) ─────────────────────────
+
+/**
+ * One owned Dr. Vibe for "My Collection" and the tray.
+ * @typedef {Object} CollectionItem
+ * @property {string} id            companion id
+ * @property {string} editionSlug
+ * @property {string} name
+ * @property {string|null} spriteSheetUrl
+ * @property {string|null} thumbnailUrl
+ * @property {Object|null} animJson
+ * @property {string|null} rarity
+ * @property {Finish|null} finish
+ */
+
+/** @returns {{ equippedId: string|null|undefined, companions: CollectionItem[] }} */
+export function parseCollection(json) {
+  const j = json && typeof json === 'object' ? json : {};
+  return {
+    equippedId: 'equippedId' in j ? str(j.equippedId) : undefined,
+    companions: arr(j.companions)
+      .filter((c) => c && str(c.companionId) && str(c.editionSlug))
+      .map((c) => ({
+        id: c.companionId,
+        editionSlug: c.editionSlug,
+        name: str(c.name, str(c.editionName, c.editionSlug)),
+        spriteSheetUrl: str(c.spriteSheetUrl),
+        thumbnailUrl: str(c.thumbnailUrl),
+        animJson: c.animJson && typeof c.animJson === 'object' ? c.animJson : null,
+        rarity: str(c.rarity),
+        finish: parseFinish(c.finish),
+      })),
   };
 }
 
@@ -74,6 +131,7 @@ export function parseEquipped(e) {
  * @property {Object|null} animJson
  * @property {string|null} localSkin
  * @property {string|null} skinTone
+ * @property {Finish|null} finish
  */
 
 /**
@@ -104,8 +162,8 @@ function parseVisit(v) {
   const look = f.appearance || {};
   const eq = parseEquipped(look.equipped);
   const sprite = eq
-    ? { slug: eq.slug, pngUrl: eq.pngUrl, animJson: eq.animJson, localSkin: null, skinTone: eq.skinTone ?? str(look.skinTone) }
-    : { slug: localSkinSlug(look.fallbackSkinSlug), pngUrl: null, animJson: null, localSkin: localSkinSlug(look.fallbackSkinSlug), skinTone: str(look.skinTone) };
+    ? { slug: eq.slug, pngUrl: eq.pngUrl, animJson: eq.animJson, localSkin: null, skinTone: eq.skinTone ?? str(look.skinTone), finish: eq.finish }
+    : { slug: localSkinSlug(look.fallbackSkinSlug), pngUrl: null, animJson: null, localSkin: localSkinSlug(look.fallbackSkinSlug), skinTone: str(look.skinTone), finish: null };
   return {
     id: str(v.id, `${username}-${v.createdAt}`),
     from: { id: str(f.userId, username), username, displayName: str(f.displayName), avatarUrl: str(f.avatarUrl), sprite },

@@ -4,7 +4,8 @@
 import { openUrl } from './core/openUrl.js';
 import { desktopApi } from './core/api/client.js';
 import { WebRoutes } from './core/api/endpoints.js';
-import { PRIVACY_DEFAULTS } from './core/api/contract.js';
+import { PRIVACY_DEFAULTS, parseCollection } from './core/api/contract.js';
+import { finishLabel } from './config/finishes.js';
 import { renderWhatDrVibeSees } from './ui/WhatDrVibeSees.js';
 import { applyClaudeHooksSetting } from './features/activity/claudeHooks.js';
 import { setAvatar } from './ui/avatar.js';
@@ -677,16 +678,17 @@ async function fetchInventory() {
   // GET /desktop/collection → the collected Dr. Vibes, cached locally as
   // `companion-<editionSlug>` (the same slugs CompanionManager uses).
   _inventoryFetchPromise = desktopApi.collection()
-    .then(r => (r.ok ? (r.data?.companions || []) : []))
+    .then(r => (r.ok ? parseCollection(r.data).companions : []))
     .then(companions => {
       _inventoryCache = companions.map(c => ({
         slug: `companion-${c.editionSlug}`,
         editionSlug: c.editionSlug,
-        companionId: c.companionId,
+        companionId: c.id,
         name: c.name,
-        thumbnailUrl: c.thumbnailUrl || null,
-        spriteSheetUrl: c.spriteSheetUrl || null,
-        animJson: c.animJson || null,
+        thumbnailUrl: c.thumbnailUrl,
+        spriteSheetUrl: c.spriteSheetUrl,
+        animJson: c.animJson,
+        finish: c.finish,
       }));
       _inventoryFetchPromise = null;
       return _inventoryCache;
@@ -755,8 +757,9 @@ function renderSkinGrid(skins, selectedSkin) {
 
   // remotePreviewUrl: optional URL for inventory skins not stored locally
   // opts.showStatus: outline the card by upload status (uploaded / draft / stale)
+  // opts.finish: the owned copy's finish, shown as "Foil · #3"
   const appendSkinCard = ({ slug, isDefault }, remotePreviewUrl, opts = {}) => {
-    const { showStatus = false } = opts;
+    const { showStatus = false, finish = null } = opts;
     const card = document.createElement('div');
     card.className = 'skin-card' + (slug === selectedSkin ? ' selected' : '');
     card.dataset.skin = slug;
@@ -774,6 +777,17 @@ function renderSkinGrid(skins, selectedSkin) {
 
     card.appendChild(canvas);
     card.appendChild(nameEl);
+    const finishText = finishLabel(finish);
+    if (finishText) {
+      const finishEl = document.createElement('div');
+      finishEl.className = 'skin-card-finish';
+      finishEl.dataset.tier = finish.tier;
+      finishEl.textContent = finishText;
+      finishEl.title = `${finishText} finish`;
+      card.classList.add('has-finish');
+      card.dataset.finish = finish.tier;
+      card.appendChild(finishEl);
+    }
     card.addEventListener('click', () => onSkinCardClick(slug));
     grid.appendChild(card);
 
@@ -896,10 +910,10 @@ function renderSkinGrid(skins, selectedSkin) {
           if (local) {
             // Skin already exists locally — show it under Inventory only, not twice
             grid.querySelectorAll(`.skin-card[data-skin="${CSS.escape(slug)}"]`).forEach(c => c.remove());
-            appendSkinCard(local);
+            appendSkinCard(local, undefined, { finish: item.finish });
           } else if (spriteUrl && invoke) {
             // Skin not local — download and install it, then re-draw preview
-            appendSkinCard({ slug, isDefault: false }, previewUrl);
+            appendSkinCard({ slug, isDefault: false }, previewUrl, { finish: item.finish });
             invoke('cache_companion_skin', {
               id: item.companionId,
               slug: item.editionSlug,
@@ -923,7 +937,7 @@ function renderSkinGrid(skins, selectedSkin) {
             });
           } else {
             // No sprite URL available — render with placeholder
-            appendSkinCard({ slug, isDefault: false }, previewUrl);
+            appendSkinCard({ slug, isDefault: false }, previewUrl, { finish: item.finish });
           }
         }
         filterSkinGrid();

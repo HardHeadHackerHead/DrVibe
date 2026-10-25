@@ -7,18 +7,21 @@ import { eventBus, Events } from '../../core/EventBus.js';
 import { tauri } from '../../core/TauriBridge.js';
 import { db } from '../../core/Database.js';
 import { desktopApi } from '../../core/api/client.js';
+import { parseCollection, parseFinish } from '../../core/api/contract.js';
+import { finishLabel } from '../../config/finishes.js';
 
 const DEFAULT_SKIN = 'dr-vibe-default';
 
 export class CompanionManager {
   constructor() {
     this._equippedId   = null;
-    this._companions   = [];    // [{ id, name, slug }]
+    this._companions   = [];    // [{ id, name, slug, finish }]
     this._livingStats  = {};    // { [id]: { hoursAccompanied, sessionsCount, lastActiveAt } }
     this._sessionStart = null;
     this._settings     = null;  // injected via init()
     this._originalSkin = null;  // last non-companion skin the user picked
     this._labOriginalChosenAt = null; // last site "Wear" applied (poll labOriginal.chosenAt)
+    this._shownFinishKey = null; // last COMPANION_FINISH_SHOWN sent
   }
 
   async init(settings) {
@@ -39,6 +42,7 @@ export class CompanionManager {
     eventBus.on(Events.COMPANION_EQUIPPED,   (data) => this._onEquipped(data));
     eventBus.on(Events.COMPANION_UNEQUIPPED, ()     => this._onUnequipped());
     eventBus.on(Events.LAB_ORIGINAL_CHOSEN,  (data) => this._onLabOriginalChosen(data));
+    eventBus.on(Events.COMPANION_FINISH_FROM_SERVER, (data) => this._onFinishFromServer(data));
 
     // Reconcile _equippedId whenever the active skin changes (Settings Panel
     // pick, programmatic, etc.). When _onEquipped/_equipFromCache are the
@@ -64,6 +68,7 @@ export class CompanionManager {
 
     // Populate tray with any cached companions (no network needed)
     this._updateTray();
+    this._showFinish();
 
     // Fetch live companion list (non-blocking, updates tray when resolved)
     this._fetchCompanions().catch(() => {});
@@ -71,7 +76,7 @@ export class CompanionManager {
 
   // ── Equip event handlers ──────────────────────────────────────────────────
 
-  async _onEquipped({ id, slug, name, pngUrl, animUrl, animJson }) {
+  async _onEquipped({ id, slug, name, pngUrl, animUrl, animJson, finish = null }) {
     if (!slug || !pngUrl) return;
     try {
       const finalSlug = await tauri.invoke('cache_companion_skin', {
@@ -95,8 +100,9 @@ export class CompanionManager {
         existing.name = name || slug;
         existing.slug = finalSlug;
         existing.cached = true;
+        existing.finish = finish;
       } else {
-        this._companions.push({ id: this._equippedId, name: name || slug, slug: finalSlug, editionSlug: slug, spriteSheetUrl: pngUrl, animJson: animJson || null, cached: true });
+        this._companions.push({ id: this._equippedId, name: name || slug, slug: finalSlug, editionSlug: slug, spriteSheetUrl: pngUrl, animJson: animJson || null, finish, cached: true });
       }
 
       // Initialise living stats for this companion if not seen before
@@ -156,6 +162,17 @@ export class CompanionManager {
     this._settings.set('selectedSkin', skin);
     this._updateTray();
     console.log(`[companion] Wearing ${skin}, chosen on the site`);
+  }
+
+  /** The equipped copy's finish as the server has it now (poll, or the PUT /desktop/equipped answer). */
+  _onFinishFromServer({ id, finish = null } = {}) {
+    const companion = id && this._companions.find(c => c.id === id);
+    if (!companion) return;
+    const next = finish || null;
+    if (finishKey(companion.finish) === finishKey(next)) return;
+    companion.finish = next;
+    this._saveState();
+    this._updateTray();
   }
 
   /** Account unlinked: the collection belongs to the account, so forget it. */
@@ -274,6 +291,8 @@ export class CompanionManager {
   async _syncEquipToServer(companionId) {
     const r = await desktopApi.setEquipped(companionId);
     if (!r.ok && !r.unlinked) throw new Error(`HTTP ${r.status} ${r.error || ''}`);
+    const eq = r.data?.equipped;
+    if (eq?.companionId === companionId) this._onFinishFromServer({ id: companionId, finish: parseFinish(eq.finish) });
   }
 
   async _syncUnequipToServer() {
@@ -287,14 +306,8 @@ export class CompanionManager {
     if (r.unlinked) return;
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
 
-    const { equippedId } = r.data || {};
-    const companions = (r.data?.companions || []).map((c) => ({
-      id: c.companionId,
-      slug: c.editionSlug,
-      name: c.name,
-      spriteSheetUrl: c.spriteSheetUrl || null,
-      animJson: c.animJson || null,
-    }));
+    const { equippedId, companions: items } = parseCollection(r.data);
+    const companions = items.map((c) => ({ ...c, slug: c.editionSlug }));
 
     // Server-truth reconciliation: a successful 200 response is authoritative.
     // Build a fresh local list from the server payload, preserving any cached
@@ -313,6 +326,7 @@ export class CompanionManager {
         editionSlug: c.slug,
         spriteSheetUrl: c.spriteSheetUrl,
         animJson: c.animJson,
+        finish: c.finish,
         cached: !!existing?.cached,
       };
     });
@@ -389,6 +403,11 @@ export class CompanionManager {
 
   getEquippedId() { return this._equippedId; }
 
+  /** Finish of the Dr. Vibe being worn, or null. */
+  getEquippedFinish() {
+    return this._companions.find(c => c.id === this._equippedId)?.finish || null;
+  }
+
   // ── Persistence ───────────────────────────────────────────────────────────
 
   _saveState() {
@@ -399,6 +418,19 @@ export class CompanionManager {
       originalSkin: this._originalSkin,
       labOriginalChosenAt: this._labOriginalChosenAt,
     });
+    // Every change of what is worn passes through here: keep the finish on screen in step.
+    this._showFinish();
+  }
+
+  /** Tell the animator which finish to draw (only when it changed). */
+  _showFinish() {
+    const companion = this._equippedId ? this._companions.find(c => c.id === this._equippedId) : null;
+    const finish = companion?.finish || null;
+    const skin = finish ? companion.slug : null;
+    const key = `${skin}|${finishKey(finish)}`;
+    if (key === this._shownFinishKey) return;
+    this._shownFinishKey = key;
+    eventBus.emit(Events.COMPANION_FINISH_SHOWN, { finish, skin });
   }
 
   // ── Tray ──────────────────────────────────────────────────────────────────
@@ -407,11 +439,21 @@ export class CompanionManager {
     if (!tauri.invoke) return;
     try {
       await tauri.invoke('update_companions_tray', {
-        companions: this._companions.map(c => ({ id: c.id, name: c.name })),
+        companions: this._companions.map(c => ({ id: c.id, name: trayName(c) })),
         equippedId: this._equippedId,
       });
     } catch { /* non-critical */ }
   }
+}
+
+/** `Neon · Foil · #3` for a finished copy, else the name. */
+function trayName(c) {
+  const label = finishLabel(c.finish);
+  return label ? `${c.name} · ${label}` : c.name;
+}
+
+function finishKey(f) {
+  return f ? `${f.tier}:${f.seasonNumber}:${f.serial}` : 'none';
 }
 
 export const companionManager = new CompanionManager();

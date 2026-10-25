@@ -18,6 +18,7 @@ import {
   getDefaultTone,
   tonePresetKey,
 } from '../../config/skinTones.js';
+import { FinishRenderer } from './FinishRenderer.js';
 
 // States that receive idle micro-movements (breathing, sway, blink).
 const IDLE_STATES = new Set(['idle', 'coding', 'thinking', 'focused', 'tired', 'concerned']);
@@ -120,6 +121,25 @@ export class SpriteAnimator {
     this._blinkEnabled = true;          // false disables the blink overlay (for animal skins)
     this._activeMicroMotion = null;     // per-skin breathing/sway overrides, null = global
     this._momentumLevel = 0;            // 0=cold … 4=fire, speeds up flourish frequency
+
+    // Finish (shimmer / foil / prismatic / crowned) of the Dr. Vibe on show
+    this._finish = new FinishRenderer();
+    this._finishSkin = null;            // skin it belongs to; null = whatever is loaded
+  }
+
+  /**
+   * Draw `finish` over the sprite (null = none). With `skin`, only while that
+   * skin is the one loaded, so a finish never lands on the previous Dr. Vibe
+   * while the next one's sheet is still loading.
+   */
+  setFinish(finish, skin = null) {
+    this._finish.setFinish(finish);
+    this._finishSkin = skin;
+    this.needsRender = true;
+  }
+
+  _finishShown() {
+    return !!this._finish.effect && (!this._finishSkin || this._finishSkin === this._currentSkin);
   }
 
   applyCharacterScale(percent) {
@@ -186,6 +206,9 @@ export class SpriteAnimator {
       const levelMap = { cold: 0, warming: 1, flowing: 2, hot: 3, fire: 4 };
       this._momentumLevel = levelMap[current] ?? 0;
     });
+
+    // The equipped Dr. Vibe's finish (CompanionManager)
+    eventBus.on(Events.COMPANION_FINISH_SHOWN, ({ finish, skin }) => this.setFinish(finish, skin));
 
     // Event-triggered bonus animations (skin-specific reactions)
     eventBus.on(Events.PLAY_BONUS_ANIMATION, ({ animation }) => {
@@ -1856,6 +1879,7 @@ export class SpriteAnimator {
       this.shakeOffsetX !== 0 || this.shakeOffsetY !== 0;
 
     if (transformChanged) this.needsRender = true;
+    if (this._finish.animating && this._finishShown()) this.needsRender = true;
 
     // Frame advancement
     if (this.isPlaying && this.currentAnimation) {
@@ -1976,11 +2000,15 @@ export class SpriteAnimator {
     this.ctx.translate(-cw / 2, -spriteH * 0.92);
 
     // Draw the sprite frame at its natural pixel size (not stretched to full canvas height)
-    this.ctx.drawImage(
-      frames[this.currentFrame],
-      0, 0, this.frameWidth, this.frameHeight,
-      0, 0, cw, spriteH
-    );
+    if (this._finishShown()) {
+      this._finish.draw(this.ctx, frames[this.currentFrame], cw, spriteH, this.effectTime);
+    } else {
+      this.ctx.drawImage(
+        frames[this.currentFrame],
+        0, 0, this.frameWidth, this.frameHeight,
+        0, 0, cw, spriteH
+      );
+    }
 
     // Blink overlay — draw skin-colored rectangle over eye area
     if (shouldBlink) {

@@ -979,7 +979,7 @@ class App {
         }
         const cached = await tauri.invoke('cache_visitor_sprite', { slug: s.slug, pngUrl: s.pngUrl, animUrl: null });
         const animJson = s.animJson ? JSON.stringify(s.animJson) : cached.animJson;
-        return { pngBase64: cached.pngBase64, animJson, slug: s.slug, skinTone: s.skinTone };
+        return { pngBase64: cached.pngBase64, animJson, slug: s.slug, skinTone: s.skinTone, finish: s.finish || null };
       },
       getStage: async () => {
         const [pos, size, areas] = await Promise.all([

@@ -6,6 +6,7 @@
 //
 // `GET /api/v1/desktop/poll` (API.md §3). Dispatches on the event bus:
 //   COMPANION_EQUIPPED / COMPANION_UNEQUIPPED   when the equipped Dr. Vibe changes
+//   COMPANION_FINISH_FROM_SERVER { id, finish } the same Dr. Vibe's finish (CompanionManager keeps changes)
 //   ECONOMY_BALANCE_PUSH { newBalance }        the account's VP
 //   LAB_ORIGINAL_CHOSEN { slug, chosenAt }     a Lab Original picked on the site (CompanionManager applies it once)
 //   STREAK_FREEZE_FROM_SERVER { held, coveredDays }  streak freezes (DailyStreakTracker)
@@ -124,6 +125,9 @@ export class PollClient {
       else if (this._getEquippedId()) this._bus.emit(Events.COMPANION_UNEQUIPPED, {});
     } else if (poll.equipped && poll.equipped.id !== this._getEquippedId()) {
       this._bus.emit(Events.COMPANION_EQUIPPED, { ...poll.equipped });
+    } else if (poll.equipped) {
+      // Same Dr. Vibe; its finish may be new (a season's crowned grant).
+      this._bus.emit(Events.COMPANION_FINISH_FROM_SERVER, { id: poll.equipped.id, finish: poll.equipped.finish });
     }
 
     if (poll.account) this._bus.emit(Events.ECONOMY_BALANCE_PUSH, { newBalance: poll.account.vibePoints });

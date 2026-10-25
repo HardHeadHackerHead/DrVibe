@@ -766,6 +766,22 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; padding: 0 2px;
     }
     .skin-card.selected .skin-card-author { color: var(--green-border); }
+    /* Finish on an owned copy ("Foil · #3"): a still tint per tier, no animation. */
+    .skin-card-finish {
+      font-size: 7px; font-weight: 700; text-align: center; letter-spacing: .02em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; padding: 0 2px;
+    }
+    .skin-card-finish[data-tier="shimmer"]   { color: #f472b6; }
+    .skin-card-finish[data-tier="foil"]      { color: #67e8f9; }
+    .skin-card-finish[data-tier="prismatic"] { color: #c4b5fd; }
+    .skin-card-finish[data-tier="crowned"]   { color: #fcd34d; }
+    [data-theme="light"] .skin-card-finish[data-tier="shimmer"]   { color: #db2777; }
+    [data-theme="light"] .skin-card-finish[data-tier="foil"]      { color: #0e7490; }
+    [data-theme="light"] .skin-card-finish[data-tier="prismatic"] { color: #7c3aed; }
+    [data-theme="light"] .skin-card-finish[data-tier="crowned"]   { color: #b45309; }
+    .skin-card.has-finish canvas { filter: drop-shadow(0 0 2px rgba(127,232,255,0.7)); }
+    .skin-card[data-finish="shimmer"] canvas { filter: drop-shadow(0 0 2px rgba(244,114,182,0.8)); }
+    .skin-card[data-finish="crowned"] canvas { filter: drop-shadow(0 0 2px rgba(255,200,60,0.9)); }
     /* Upload status outlines (My Skins only). Inset ring stays visible even
        when the .selected border kicks in. */
     .skin-card.uploaded { box-shadow: inset 0 0 0 2px rgba(34,197,94,0.55); }

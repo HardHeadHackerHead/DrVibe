@@ -51,6 +51,8 @@ async function ensureAnimator(scale, skinTone) {
 }
 
 async function loadSprite(sprite) {
+  // A visitor wearing a finished copy shows it too (null for Lab Originals).
+  animator.setFinish(sprite.localSkin ? null : sprite.finish || null);
   if (sprite.localSkin) {
     await animator.loadSkin(sprite.localSkin);
   } else if (sprite.pngBase64) {
