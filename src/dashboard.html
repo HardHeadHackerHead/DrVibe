@@ -348,6 +348,30 @@
       margin-top: 2px;
     }
 
+    .streak-gh-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .streak-gh-hint[hidden] { display: none; }
+
+    .streak-gh-hint a { color: inherit; }
+
+    .streak-gh-hint button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
     /* ── Momentum Bar ── */
     .momentum-bar-container {
       background: var(--bg-input);
@@ -1230,6 +1254,11 @@
         <div class="value" id="hero-streak" style="color: var(--orange);">0</div>
         <div class="label">Day Streak</div>
         <div class="sub" id="hero-streak-level">--</div>
+        <div class="sub" id="hero-streak-github" hidden>includes GitHub</div>
+        <div class="streak-gh-hint" id="hero-streak-gh-hint" hidden>
+          <a href="#" id="hero-streak-gh-link">Connect GitHub on drvibe.io to bring your streak</a>
+          <button type="button" id="hero-streak-gh-dismiss" aria-label="Dismiss" title="Dismiss">&times;</button>
+        </div>
       </div>
       <div class="hero-stat">
         <div class="value" id="hero-momentum" style="color: var(--blue);">0</div>

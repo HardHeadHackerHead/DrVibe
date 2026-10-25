@@ -195,6 +195,44 @@ pub struct SyncResponse {
     /// False while a custom skin waits for review; the profile then shows
     /// the default skin to other players.
     pub skin_approved: bool,
+    /// The server's builder streak after this sync. Absent from older
+    /// servers; the desktop then shows its own streak.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub streak: Option<BuilderStreak>,
+}
+
+/// The player's streak as the server counts it (also `GET /me/streak`): a
+/// day counts when the player used Dr. Vibe or made at least one GitHub
+/// contribution. Status only: VP, free pulls and streak achievements stay
+/// with the Dr. Vibe streak (`STREAK_DAY`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuilderStreak {
+    pub current: i64,
+    pub longest: i64,
+    pub sources: StreakSources,
+    /// `sources.github_days > 0`.
+    pub includes_github: bool,
+    pub source: StreakSource,
+}
+
+/// Days of the current streak with each kind of activity (a day can have
+/// both).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreakSources {
+    pub drvibe_days: i64,
+    pub github_days: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StreakSource {
+    /// Computed from the days the server has.
+    #[default]
+    Server,
+    /// The server has no days yet and echoes the desktop's own number.
+    Desktop,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -262,5 +300,38 @@ mod tests {
         let with_id = base.replace("{\"stats\"", "{\"equippedCompanionId\":\"c1\",\"stats\"");
         let p: SyncPayload = serde_json::from_str(&with_id).unwrap();
         assert_eq!(p.equipped_companion_id, Some(Some("c1".into())));
+    }
+
+    const SYNC_RESPONSE: &str = r#"{"newAchievements":[],"leaderboard":{"rank":3,"change":1},"friends":{"activeFriends":0,"codingNow":[]},"skinApproved":true"#;
+
+    #[test]
+    fn sync_response_without_streak() {
+        let r: SyncResponse = serde_json::from_str(&format!("{SYNC_RESPONSE}}}")).unwrap();
+        assert_eq!(r.streak, None);
+        assert!(serde_json::to_value(&r).unwrap().get("streak").is_none());
+    }
+
+    #[test]
+    fn sync_response_with_streak() {
+        let streak = r#""streak":{"current":12,"longest":40,"sources":{"drvibeDays":9,"githubDays":5},"includesGithub":true,"source":"server"}"#;
+        let json = format!("{SYNC_RESPONSE},{streak}}}");
+        let r: SyncResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            r.streak,
+            Some(BuilderStreak {
+                current: 12,
+                longest: 40,
+                sources: StreakSources { drvibe_days: 9, github_days: 5 },
+                includes_github: true,
+                source: StreakSource::Server,
+            })
+        );
+        let back = serde_json::to_value(&r).unwrap();
+        assert_eq!(back["streak"]["includesGithub"], true);
+        assert_eq!(back["streak"]["sources"]["githubDays"], 5);
+        assert_eq!(back["streak"]["source"], "server");
+
+        let r: SyncResponse = serde_json::from_str(&json.replace(r#""server""#, r#""desktop""#)).unwrap();
+        assert_eq!(r.streak.unwrap().source, StreakSource::Desktop);
     }
 }

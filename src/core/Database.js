@@ -25,7 +25,7 @@ const OLD_STORES = {
 // data, silently logging the user out a few minutes after every sign-in.
 export const NEW_SECTIONS = [
   'codingHourOfDay', 'setupWizard', 'companion', 'claudeCode',
-  'privacy', 'economy', 'weeklyRecap', 'trackedRepos',
+  'privacy', 'economy', 'weeklyRecap', 'trackedRepos', 'serverStreak',
   // 2.0.x repo scan results: read once by repoMigration.js, then null
   'repoScan',
 ];

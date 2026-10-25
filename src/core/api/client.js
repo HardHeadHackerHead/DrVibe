@@ -115,6 +115,8 @@ export const desktopApi = {
 
   balance() { return apiRequest('economyBalance'); },
   quests() { return apiRequest('quests'); },
+  /** The server's builder streak and the GitHub link state (`GET /me/streak`). */
+  streak() { return apiRequest('meStreak'); },
   claimQuest(userQuestId) { return apiRequest('claimQuest', { params: [userQuestId], body: {} }); },
   collection() { return call('api_collection', {}); },
   /** Equip a collected Dr. Vibe, or `null` to go back to a local skin. */

@@ -25,11 +25,11 @@ export function daysBetween(fromDay, toDay) {
   }
   return out;
 }
-const MILESTONES = [7, 14, 21, 30, 50, 100, 200, 365];
+export const MILESTONES = [7, 14, 21, 30, 50, 100, 200, 365];
 const REMINDER_HOUR = 21; // 9 PM - gentle evening reminder
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
 
-const MILESTONE_MESSAGES = {
+export const MILESTONE_MESSAGES = {
   7: { text: 'One week streak!', tip: 'A whole week of coding — consistency builds mastery.' },
   14: { text: 'Two week streak!', tip: 'Two weeks strong. You\'re building a real habit.' },
   21: { text: 'Three week streak!', tip: 'They say 21 days makes a habit. Look at you go!' },
@@ -64,6 +64,12 @@ export class DailyStreakTracker {
     this._checkInterval = null;
     this._reminderSentToday = false;
     this._codingDetectedToday = false;
+    // Set by StreakDisplay. While the app shows the server's streak instead
+    // of this one, `shownByServer()` returns that number: milestones,
+    // recovery and "broken" then stay quiet here (StreakDisplay cheers the
+    // shown number) and the reminder names the shown number.
+    this.shownByServer = () => null;
+    this.claimMilestone = () => true; // false: already cheered (StreakDisplay)
   }
 
   async init() {
@@ -144,7 +150,7 @@ export class DailyStreakTracker {
     eventBus.emit(Events.STREAK_DAY_COUNTED, { streakLength: this.data.current, day: today });
 
     // Check if this is a recovery after a break
-    if (previousStreak === 0 && this.data.current === 1 && this.data.previousStreak > 0) {
+    if (previousStreak === 0 && this.data.current === 1 && this.data.previousStreak > 0 && this.shownByServer() === null) {
       const msg = RECOVERY_MESSAGES[Math.floor(Math.random() * RECOVERY_MESSAGES.length)];
       eventBus.emit(Events.STREAK_RECOVERED, {
         text: msg,
@@ -261,6 +267,7 @@ export class DailyStreakTracker {
   }
 
   _checkMilestones(previousStreak) {
+    const quiet = this.shownByServer() !== null;
     for (const milestone of MILESTONES) {
       if (this.data.current >= milestone && previousStreak < milestone) {
         if (!this.data.milestonesReached.includes(milestone)) {
@@ -268,7 +275,7 @@ export class DailyStreakTracker {
         }
 
         const message = MILESTONE_MESSAGES[milestone];
-        if (message) {
+        if (message && !quiet && this.claimMilestone(milestone)) {
           eventBus.emit(Events.STREAK_MILESTONE, {
             milestone,
             streak: this.data.current,
@@ -292,9 +299,11 @@ export class DailyStreakTracker {
 
     // Streak just broke
     if (previousStreak > 0 && this.data.current === 0) {
-      eventBus.emit(Events.STREAK_BROKEN, {
-        previousStreak,
-      });
+      if (this.shownByServer() === null) {
+        eventBus.emit(Events.STREAK_BROKEN, {
+          previousStreak,
+        });
+      }
       this._save();
       this._emitUpdate();
       return;
@@ -303,11 +312,12 @@ export class DailyStreakTracker {
     // Evening reminder check
     const hour = new Date().getHours();
     if (hour >= REMINDER_HOUR && !this._codingDetectedToday && !this._reminderSentToday) {
-      if (this.data.current > 0) {
+      const shown = this.shownByServer() ?? this.data.current;
+      if (shown > 0) {
         this._reminderSentToday = true;
         eventBus.emit(Events.STREAK_REMINDER, {
-          streak: this.data.current,
-          text: `${this.data.current}-day streak still going!`,
+          streak: shown,
+          text: `${shown}-day streak still going!`,
           tip: 'Even a few minutes of coding keeps it alive.',
         });
       }

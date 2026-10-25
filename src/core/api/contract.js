@@ -266,6 +266,39 @@ export function communityFromSync(sync) {
   };
 }
 
+// ── Builder streak: SyncResponse.streak and GET /me/streak ───────────────
+
+/**
+ * @typedef {Object} BuilderStreak
+ * @property {number} current
+ * @property {number} longest
+ * @property {{ drvibeDays: number, githubDays: number }} sources
+ * @property {boolean} includesGithub
+ * @property {'server'|'desktop'} source  desktop: the server has no days yet and echoes ours
+ */
+
+/** `BuilderStreak` (drvibe_protocol::sync), or null when absent or malformed. */
+export function parseBuilderStreak(s) {
+  if (!s || typeof s !== 'object' || !Number.isFinite(Number(s.current))) return null;
+  const current = Math.max(0, num(s.current, 0));
+  return {
+    current,
+    longest: Math.max(current, num(s.longest, 0)),
+    sources: { drvibeDays: num(s.sources?.drvibeDays, 0), githubDays: num(s.sources?.githubDays, 0) },
+    includesGithub: !!s.includesGithub,
+    source: s.source === 'server' ? 'server' : 'desktop',
+  };
+}
+
+/** `GET /me/streak` → `{ streak: BuilderStreak|null, githubLinked: boolean|null }`. */
+export function parseMeStreak(json) {
+  const linked = json?.github?.linked;
+  return {
+    streak: parseBuilderStreak(json?.streak),
+    githubLinked: typeof linked === 'boolean' ? linked : null,
+  };
+}
+
 // ── Visits: POST /visits (SendVisitRequest) ──────────────────────────────
 
 /** Preset lines only — no free text, so there is nothing to moderate. */

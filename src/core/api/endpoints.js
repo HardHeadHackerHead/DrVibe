@@ -22,6 +22,7 @@ export const Endpoints = {
   desktopAck:      { method: 'POST', path: () => '/desktop/ack', signed: true, command: 'api_ack' },
   desktopSync:     { method: 'POST', path: () => '/desktop/sync', signed: true, command: 'sync_profile' },
   lastSync:        { method: 'GET',  path: () => '/me/last-sync', signed: false, command: 'get_last_sync' },
+  meStreak:        { method: 'GET',  path: () => '/me/streak', signed: false },
   // §6 privacy
   updatePrivacy:   { method: 'PUT',  path: () => '/privacy', signed: true, command: 'api_update_privacy' },
   // §7 economy
@@ -51,6 +52,7 @@ export const WebRoutes = {
   terms: () => '/terms',
   machines: () => '/machines',
   me: () => '/me',
+  accountSettings: () => '/settings/account',
   collection: () => '/collection',
   trades: () => '/trades',
   donate: () => '/donate',

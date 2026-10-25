@@ -50,6 +50,7 @@ import { ResourceSuggester } from './features/learning/ResourceSuggester.js';
 import { SkillTracker } from './features/skills/SkillTracker.js';
 import { PersonalBestTracker } from './features/personalBest/PersonalBestTracker.js';
 import { DailyStreakTracker } from './features/streak/DailyStreakTracker.js';
+import { StreakDisplay } from './features/streak/StreakDisplay.js';
 import { FocusMode } from './features/focus/FocusMode.js';
 import { ClickThrough } from './features/clickthrough/ClickThrough.js';
 import { WalkingBehavior } from './features/character/WalkingBehavior.js';
@@ -122,6 +123,7 @@ class App {
     this.weeklyRecap = null;
     this.personalBestTracker = null;
     this.dailyStreakTracker = null;
+    this.streakDisplay = null;
     this.claudeCodeTracker = null;
     this.aiPairTracker = null;
     this.antiGravityTracker = null;
@@ -330,6 +332,17 @@ class App {
     await this._initOptional('DailyStreakTracker', async () => {
       this.dailyStreakTracker = new DailyStreakTracker();
       await this.dailyStreakTracker.init();
+    });
+
+    // The server's builder streak when linked (refreshed on ACCOUNT_LINKED,
+    // which AccountState emits at launch for a linked install).
+    await this._initOptional('StreakDisplay', async () => {
+      this.streakDisplay = new StreakDisplay({
+        tracker: this.dailyStreakTracker,
+        isLinked: () => accountState.linked,
+        fetchStreak: () => desktopApi.streak(),
+      });
+      this.streakDisplay.init();
     });
 
     await this._initOptional('Notifier', async () => {
@@ -758,6 +771,12 @@ class App {
         }
         // Refresh dashboard either way — either the claim succeeded (show
         // claimed state) or failed (keep prior state, user sees no change).
+        this._sendDashboardData();
+      });
+
+      // "Connect GitHub" hint on the streak card: shown once, until dismissed.
+      tauri.window.listen('dashboard-dismiss-github-hint', () => {
+        this.streakDisplay?.dismissGithubHint();
         this._sendDashboardData();
       });
 
@@ -1600,6 +1619,7 @@ class App {
         momentum: this.momentumTracker?.getState() ?? null,
         hydrationCount: this.hydrationReminder?.dailyCount ?? 0,
         streakData: this.dailyStreakTracker?.getData() ?? null,
+        streakShown: this.streakDisplay?.get() ?? null,
         achievements: this.achievementSystem?.getAll() ?? null,
         mastery: this.achievementSystem?.getMasteryTracks() ?? null,
         claudeCode: this.claudeCodeTracker?.getStats() ?? null,
@@ -1699,7 +1719,7 @@ class App {
         codingSeconds: stats.codingSeconds,
         filesCreated: stats.filesCreated,
         filesModified: stats.filesModified,
-        streak: this.dailyStreakTracker?.data?.current ?? stats.streak,
+        streak: this.streakDisplay?.get().current ?? this.dailyStreakTracker?.data?.current ?? stats.streak,
         peakMomentum: momentum.momentum,
       });
     } catch (e) {
@@ -1837,6 +1857,7 @@ class App {
         // Community tab (API.md has no separate community endpoint).
         this._community = communityFromSync(data);
         balanceManager.setCommunitySummary(this._community.rank, this._community.activeFriends);
+        this.streakDisplay?.applySync(data.streak);
       }
       console.log('[dr-vibe] profile synced');
     } catch (e) {

@@ -9,6 +9,7 @@ import { initTheme } from './core/theme.js';
 import { mountCommunityTab } from './ui/CommunityTab.js';
 import { openUrl } from './core/openUrl.js';
 import { WEB_BASE, syncWebBaseFromRust } from './core/config.js';
+import { WebRoutes } from './core/api/endpoints.js';
 import { installErrorReporter } from './core/errorReporter.js';
 
 installErrorReporter();
@@ -191,6 +192,7 @@ let liveData = {
   momentum: { momentum: 0, level: 'cold', filesActive: 0, recentEvents: 0 },
   hydrationCount: 0,
   streakData: null,
+  streakShown: null, // StreakDisplay.get(): { current, longest, includesGithub, source, githubHint }
   eventHistory: [],
   stateTimeline: [],
   vibePoints: null,
@@ -364,13 +366,16 @@ function setupAchievementsControls() {
 // ---- Overview Tab ----
 
 function renderOverview() {
-  const streak = liveData.streakData || allData.streak;
+  // The server's builder streak when the app has a fresh one, else local.
+  const streak = liveData.streakShown || liveData.streakData || allData.streak;
   const momentum = liveData.momentum;
   const session = liveData.sessionStats;
 
   // Hero: Streak
   el('hero-streak').textContent = streak.current || 0;
   el('hero-streak-level').textContent = getStreakLevel(streak.current || 0);
+  el('hero-streak-github').hidden = !(streak.source === 'server' && streak.includesGithub);
+  el('hero-streak-gh-hint').hidden = !liveData.streakShown?.githubHint;
 
   // Hero: Momentum
   const mVal = momentum.momentum || 0;
@@ -1232,6 +1237,7 @@ function setupLiveUpdates() {
       if (payload.momentum) liveData.momentum = payload.momentum;
       if (payload.hydrationCount !== undefined) liveData.hydrationCount = payload.hydrationCount;
       if (payload.streakData) liveData.streakData = payload.streakData;
+      if (payload.streakShown !== undefined) liveData.streakShown = payload.streakShown;
       if (Array.isArray(payload.achievements)) {
         const nextAchievements = {};
         for (const achievement of payload.achievements) {
@@ -1318,6 +1324,17 @@ async function init() {
     siteBase: () => WEB_BASE,
     getView: () => ({ linked: !!liveData.linked, community: liveData.community ?? null }),
     startLink: () => window.__TAURI__?.core?.invoke('start_device_link', {}).catch(() => {}),
+  });
+  el('hero-streak-gh-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openUrl(`${WEB_BASE}${WebRoutes.accountSettings()}`);
+  });
+  el('hero-streak-gh-dismiss')?.addEventListener('click', async () => {
+    el('hero-streak-gh-hint').hidden = true;
+    if (liveData.streakShown) liveData.streakShown.githubHint = false;
+    try {
+      await window.__TAURI__.event.emitTo('main', 'dashboard-dismiss-github-hint', {});
+    } catch (_) { /* main window gone */ }
   });
   initTabs();
   initRangeToggle();
