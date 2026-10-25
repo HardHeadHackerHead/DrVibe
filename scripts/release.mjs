@@ -6,6 +6,8 @@
 //   npm run release -- v2.0.0 --dry-run       everything except tag, push and upload
 //   npm run release -- v2.0.0 --skip-checks   skip vitest / cargo fmt / clippy / test
 //   npm run release -- v2.0.0 --notes "..."   release notes (default "Dr. Vibe 2.0.0")
+//   npm run release -- v2.0.0 --notes-file notes.md   multi-line notes from a file
+//                                             (npm on Windows cuts --notes at the first line break)
 //
 // Env: TAURI_SIGNING_PRIVATE_KEY (required) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD;
 // GITHUB_RELEASES_REPO (default HardHeadHackerHead/DrVibe);
@@ -21,10 +23,10 @@ export const DEFAULT_RELEASES_REPO = 'HardHeadHackerHead/DrVibe';
 
 const TAG_RE = /^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
-export const USAGE = 'usage: npm run release -- <vX.Y.Z> [--dry-run] [--skip-checks] [--notes "text"]';
+export const USAGE = 'usage: npm run release -- <vX.Y.Z> [--dry-run] [--skip-checks] [--notes "text" | --notes-file path]';
 
 /** Parses the command line; throws with a message on anything unexpected. */
-export function parseArgs(argv) {
+export function parseArgs(argv, readFile = (p) => readFileSync(p, 'utf8')) {
   const opts = { tag: null, dryRun: false, skipChecks: false, notes: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -33,7 +35,20 @@ export function parseArgs(argv) {
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--notes') {
       if (argv[i + 1] === undefined) throw new Error('--notes needs a value');
+      if (opts.notes !== null) throw new Error('give --notes or --notes-file, not both');
       opts.notes = argv[++i];
+    } else if (a === '--notes-file') {
+      if (argv[i + 1] === undefined) throw new Error('--notes-file needs a path');
+      if (opts.notes !== null) throw new Error('give --notes or --notes-file, not both');
+      const path = argv[++i];
+      let text;
+      try {
+        text = readFile(path);
+      } catch (e) {
+        throw new Error(`can't read --notes-file ${path}: ${e.message}`);
+      }
+      opts.notes = text.replace(/\r\n/g, '\n').trim();
+      if (!opts.notes) throw new Error(`--notes-file ${path} is empty`);
     } else if (a.startsWith('-')) throw new Error(`unknown option ${a}`);
     else if (opts.tag) throw new Error(`more than one tag given (${opts.tag}, ${a})`);
     else opts.tag = a;

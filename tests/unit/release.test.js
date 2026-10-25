@@ -39,6 +39,16 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['v2.0.0', '--notes'])).toThrow(/--notes needs a value/);
   });
 
+  it('--notes-file reads multi-line notes from a file', () => {
+    const read = (p) => (p === 'notes.md' ? '## Dr. Vibe 2.0.3\r\n\r\n- One\r\n- Two\r\n' : '');
+    expect(parseArgs(['v2.0.3', '--notes-file', 'notes.md'], read).notes).toBe('## Dr. Vibe 2.0.3\n\n- One\n- Two');
+    expect(() => parseArgs(['v2.0.3', '--notes-file'], read)).toThrow(/--notes-file needs a path/);
+    expect(() => parseArgs(['v2.0.3', '--notes-file', 'empty.md'], read)).toThrow(/is empty/);
+    expect(() => parseArgs(['v2.0.3', '--notes', 'x', '--notes-file', 'notes.md'], read)).toThrow(/not both/);
+    const missing = () => { throw new Error('ENOENT'); };
+    expect(() => parseArgs(['v2.0.3', '--notes-file', 'nope.md'], missing)).toThrow(/can't read --notes-file nope.md/);
+  });
+
   it('--help needs no tag', () => {
     expect(parseArgs(['--help']).help).toBe(true);
   });
