@@ -38,7 +38,7 @@ pub struct EquippedDrVibe {
 }
 
 /// A finish on one owned Dr. Vibe: the same sprite sheet drawn with an
-/// effect on top. Finishes are numbered per tier and season.
+/// effect on top. Each edition numbers its copies of each finish ("Foil Ember Sage #3").
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Finish {
