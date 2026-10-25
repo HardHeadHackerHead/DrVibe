@@ -379,12 +379,13 @@ export class FinishRenderer {
     b.globalCompositeOperation = 'source-over';
 
     const prev = ctx.globalAlpha;
-    ctx.globalAlpha = prev * (kind === 'crowned' ? 0.7 : 0.6);
+    // Peak alpha stays low enough that the sprite's own colors read under the band.
+    ctx.globalAlpha = prev * (kind === 'crowned' ? 0.7 : 0.5);
     ctx.drawImage(this._band, 0, 0, bw, bh, 0, 0, bw, bh);
     ctx.globalAlpha = prev;
   }
 
-  /** Gradient along 115° (the CSS angle), centered on the origin; the colored part is about half the sprite wide. */
+  /** Gradient along 115° (the CSS angle), centered on the origin; the foil stripe is about 35% of the sprite wide. */
   _makeBandGradient(b, kind, w) {
     const len = 1.6 * w;
     const dx = Math.sin((115 * Math.PI) / 180) * (len / 2);
@@ -400,12 +401,12 @@ export class FinishRenderer {
       g.addColorStop(1, 'rgba(255,236,160,0)');
     } else {
       g.addColorStop(0, 'rgba(255,80,200,0)');
-      g.addColorStop(0.34, 'rgba(255,80,200,0)');
-      g.addColorStop(0.42, 'rgba(255,80,200,0.85)');
+      g.addColorStop(0.39, 'rgba(255,80,200,0)');
+      g.addColorStop(0.44, 'rgba(255,80,200,0.85)');
       g.addColorStop(0.48, 'rgba(255,240,120,0.85)');
-      g.addColorStop(0.54, this._accent);
-      g.addColorStop(0.6, 'rgba(120,140,255,0.85)');
-      g.addColorStop(0.68, 'rgba(120,140,255,0)');
+      g.addColorStop(0.52, this._accent);
+      g.addColorStop(0.56, 'rgba(120,140,255,0.85)');
+      g.addColorStop(0.61, 'rgba(120,140,255,0)');
       g.addColorStop(1, 'rgba(120,140,255,0)');
     }
     return g;
