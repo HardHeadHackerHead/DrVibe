@@ -43,6 +43,7 @@ export class CompanionManager {
     eventBus.on(Events.COMPANION_UNEQUIPPED, ()     => this._onUnequipped());
     eventBus.on(Events.LAB_ORIGINAL_CHOSEN,  (data) => this._onLabOriginalChosen(data));
     eventBus.on(Events.COMPANION_FINISH_FROM_SERVER, (data) => this._onFinishFromServer(data));
+    eventBus.on(Events.COMPANION_ART_FROM_SERVER, (data) => { this._onArtFromServer(data).catch(() => {}); });
 
     // Reconcile _equippedId whenever the active skin changes (Settings Panel
     // pick, programmatic, etc.). When _onEquipped/_equipFromCache are the
@@ -173,6 +174,50 @@ export class CompanionManager {
     companion.finish = next;
     this._saveState();
     this._updateTray();
+  }
+
+  /**
+   * The equipped Dr. Vibe's art as the server has it now. When the Lab replaces
+   * a Dr. Vibe's art the sheet URL changes (sheet-v2.png, ...): download the
+   * new sheet over the cached one and reload it, keeping the living stats.
+   */
+  async _onArtFromServer({ id, slug, name, pngUrl, animUrl, animJson } = {}) {
+    const companion = id && this._companions.find(c => c.id === id);
+    if (!companion || !pngUrl || companion.spriteSheetUrl === pngUrl) return;
+    const hadUrl = !!companion.spriteSheetUrl;
+    companion.spriteSheetUrl = pngUrl;
+    if (animJson) companion.animJson = animJson;
+    this._saveState();
+    if (!hadUrl || !tauri.isAvailable) return; // first sighting: nothing stale to replace
+    await this._recacheArt(companion, { slug: slug || companion.editionSlug, name, animUrl, animJson });
+  }
+
+  /** Re-downloads a cached companion's sheet; reloads it if it is the one being worn. */
+  async _recacheArt(companion, { slug, name, animUrl = null, animJson = null } = {}) {
+    try {
+      const finalSlug = await tauri.invoke('cache_companion_skin', {
+        id:       companion.id,
+        slug:     slug || companion.editionSlug || companion.slug,
+        name:     name || companion.name,
+        pngUrl:   companion.spriteSheetUrl,
+        animUrl,
+        animJson: animJson || companion.animJson || null,
+      });
+      companion.slug = finalSlug;
+      companion.cached = true;
+      this._saveState();
+      if (companion.id === this._equippedId) {
+        if (this._settings.get('selectedSkin') === finalSlug) {
+          // Same skin name, new pixels: Settings.set would be a no-op, so ask for the reload directly.
+          eventBus.emit(Events.SETTINGS_CHANGED, { key: 'selectedSkin', value: finalSlug });
+        } else {
+          this._settings.set('selectedSkin', finalSlug);
+        }
+      }
+      console.log(`[companion] New art for ${companion.name || companion.id}`);
+    } catch (e) {
+      console.warn('[companion] Could not refresh companion art:', e);
+    }
   }
 
   /** Account unlinked: the collection belongs to the account, so forget it. */
@@ -327,7 +372,9 @@ export class CompanionManager {
         spriteSheetUrl: c.spriteSheetUrl,
         animJson: c.animJson,
         finish: c.finish,
-        cached: !!existing?.cached,
+        // A new sheet URL means the Lab replaced the art: the cached copy is stale.
+        cached: !!existing?.cached && (!existing.spriteSheetUrl || existing.spriteSheetUrl === c.spriteSheetUrl),
+        staleArt: !!existing?.cached && !!existing.spriteSheetUrl && existing.spriteSheetUrl !== c.spriteSheetUrl,
       };
     });
 
@@ -363,7 +410,7 @@ export class CompanionManager {
             });
             // Update local cache with confirmed slug and apply the skin
             const local = this._companions.find(x => x.id === equippedId);
-            if (local) local.slug = finalSlug;
+            if (local) { local.slug = finalSlug; local.cached = true; }
             this._settings.set('selectedSkin', finalSlug);
           } catch (e) {
             console.warn('[companion] Could not cache companion skin from server:', e);
@@ -371,6 +418,11 @@ export class CompanionManager {
         }
       }
     }
+
+    // The one being worn got new art while it stayed equipped: fetch it now.
+    const worn = this._equippedId && equippedId === prevEquippedId && this._companions.find(c => c.id === this._equippedId);
+    if (worn?.staleArt && tauri.isAvailable) await this._recacheArt(worn, { slug: worn.editionSlug });
+    for (const c of this._companions) delete c.staleArt;
 
     this._saveState();
     this._updateTray();

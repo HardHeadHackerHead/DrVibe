@@ -301,6 +301,7 @@ export const Events = {
   COMPANION_EQUIPPED: 'companion:equipped',
   COMPANION_UNEQUIPPED: 'companion:unequipped',
   COMPANION_FINISH_FROM_SERVER: 'companion:finishFromServer', // { id, finish } the equipped copy's finish (poll, same id)
+  COMPANION_ART_FROM_SERVER: 'companion:artFromServer', // the equipped copy as the poll has it (same id): new art if pngUrl changed
   COMPANION_FINISH_SHOWN: 'companion:finishShown', // { finish, skin } finish to draw on the main Dr. Vibe (null = none)
 
   // Economy events — unified Vibe Points (VP) pipeline

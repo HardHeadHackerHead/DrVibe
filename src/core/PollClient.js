@@ -126,8 +126,10 @@ export class PollClient {
     } else if (poll.equipped && poll.equipped.id !== this._getEquippedId()) {
       this._bus.emit(Events.COMPANION_EQUIPPED, { ...poll.equipped });
     } else if (poll.equipped) {
-      // Same Dr. Vibe; its finish may be new (a season's crowned grant).
+      // Same Dr. Vibe; its finish may be new (a season's crowned grant), or
+      // the Lab may have replaced its art (new versioned sheet URL).
       this._bus.emit(Events.COMPANION_FINISH_FROM_SERVER, { id: poll.equipped.id, finish: poll.equipped.finish });
+      this._bus.emit(Events.COMPANION_ART_FROM_SERVER, { ...poll.equipped });
     }
 
     if (poll.account) this._bus.emit(Events.ECONOMY_BALANCE_PUSH, { newBalance: poll.account.vibePoints });
