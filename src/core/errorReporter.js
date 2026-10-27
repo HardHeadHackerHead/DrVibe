@@ -4,8 +4,11 @@
 // Rust (`error_report` in src-tauri/src/error_reports.rs), which queues them
 // on disk and sends them to drvibe.io's own /api/v1/errors endpoint — as the
 // linked device, or anonymously when not linked. No outside service.
-// Rust also checks the Privacy switch, so a report made while it is off is
-// dropped there. Throttled here too, so a loop can't flood the queue.
+// Rust checks the Privacy switch (off until chosen), so a report made while
+// it is off is dropped there, and it cuts every path, URL and token out of
+// the text. Throttled here too, so a loop can't flood the queue. Values
+// thrown that are not errors (objects, numbers) are not reported at all:
+// their contents could be anything.
 
 export const MAX_PER_PAGE = 10;
 export const MAX_PER_MINUTE = 3;
@@ -18,12 +21,7 @@ let state = null;
 function describe(value) {
   if (value instanceof Error) return { message: `${value.name}: ${value.message}`, stack: value.stack };
   if (typeof value === 'string') return { message: value };
-  if (value === undefined || value === null) return null;
-  try {
-    return { message: `Non-error thrown: ${JSON.stringify(value).slice(0, 300)}` };
-  } catch {
-    return { message: 'Non-error thrown' };
-  }
+  return null;
 }
 
 /** Queue one report unless it is noise, a repeat, or over the throttle. Returns whether it was handed on. */
@@ -78,14 +76,26 @@ export function uninstallErrorReporter() {
   state = null;
 }
 
-/** The Privacy switch (Rust owns the value; on by default). */
+/** The Privacy switch (Rust owns the value; off until chosen). */
 export async function getErrorReportsEnabled() {
   const invoke = window.__TAURI__?.core?.invoke;
-  if (!invoke) return true;
+  if (!invoke) return false;
   try {
-    return (await invoke('error_reports_get_enabled')) !== false;
+    return (await invoke('error_reports_get_enabled')) === true;
   } catch {
-    return true;
+    return false;
+  }
+}
+
+/** "View queued reports": what waits to be sent, already redacted by Rust. */
+export async function getQueuedErrorReports() {
+  const invoke = window.__TAURI__?.core?.invoke;
+  if (!invoke) return [];
+  try {
+    const q = await invoke('error_reports_queue');
+    return Array.isArray(q) ? q : [];
+  } catch {
+    return [];
   }
 }
 

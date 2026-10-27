@@ -5,12 +5,15 @@
 //! data folder): a Rust panic hook (written synchronously, because release
 //! builds abort right after the hook) and the `error_report` command used by
 //! the JS reporter (`src/core/errorReporter.js`). The queue is flushed a little
-//! after start and every 30 minutes: as the linked device when there is a
-//! token, otherwise anonymously. On by default; the Privacy tab's switch
-//! (`error_reports_set_enabled`) turns it off and empties the queue.
+//! after setup is finished and every 30 minutes: as the linked device when
+//! there is a token, otherwise anonymously. Off until the player turns it on
+//! (setup wizard or Settings → Privacy, `error_reports_set_enabled`); off
+//! also empties the queue.
 //!
-//! Reports carry only the error text, a stack, the app version and the page:
-//! home-folder paths are cut to `~` here and the server scrubs again.
+//! Reports carry only the error text, a stack, the app version and the page,
+//! and every path, URL and device token is cut out first ([`redact`]); the
+//! server scrubs again. "View queued reports" shows what waits
+//! (`error_reports_queue`).
 
 use std::{
     fs,
@@ -40,7 +43,7 @@ const MAX_STACK: usize = 8000;
 const FLUSH_DELAY: Duration = Duration::from_secs(20);
 const FLUSH_EVERY: Duration = Duration::from_secs(30 * 60);
 
-static ENABLED: AtomicBool = AtomicBool::new(true);
+static ENABLED: AtomicBool = AtomicBool::new(false);
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 static ACCEPTED: AtomicU32 = AtomicU32::new(0);
 static FLUSHING: AtomicBool = AtomicBool::new(false);
@@ -74,44 +77,210 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-/// Replaces the home folder (which names the person) with `~`.
-pub(crate) fn scrub_home(s: &str, home: Option<&str>) -> String {
-    let Some(home) = home.map(str::trim).filter(|h| h.len() > 3) else {
-        return s.to_string();
-    };
-    let mut out = s.replace(home, "~");
-    let alt = if home.contains('\\') {
-        home.replace('\\', "/")
+// ── Redaction ────────────────────────────────────────────────────────────
+//
+// Error text can quote any path, URL or token it touched. Before a report is
+// queued every absolute path (Windows drive, UNC, POSIX, `~`) is cut to
+// `<path>/` plus its file name, every URL to its scheme and host, and `dvd_`
+// device tokens are replaced. Dr. Vibe's own bundled pages
+// (`http(s)://tauri.localhost/…`, `tauri://localhost/…`) keep their path, so
+// a stack still says which of the app's files failed.
+
+const REDACTED_TOKEN: &str = "dvd_[redacted]";
+const PATH_PREFIX: &str = "<path>/";
+
+fn is_sep(c: char) -> bool {
+    c == '\\' || c == '/'
+}
+
+/// Characters a folder or file name may hold in error text (spaces too).
+fn seg_char(c: char) -> bool {
+    !is_sep(c)
+        && !matches!(
+            c,
+            ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\'' | '`' | '\n' | '\r' | '\t'
+        )
+}
+
+/// Where a file name stops: whitespace and the punctuation that usually
+/// follows a path in a message.
+fn name_char(c: char) -> bool {
+    seg_char(c) && !c.is_whitespace() && !matches!(c, ')' | ']' | ',' | ';')
+}
+
+fn word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// `dvd_…` at `i`: its length.
+fn token_at(chars: &[char], i: usize) -> Option<usize> {
+    let prefix = ['d', 'v', 'd', '_'];
+    if chars.len() < i + 5 || chars[i..i + 4] != prefix {
+        return None;
+    }
+    let n = chars[i + 4..]
+        .iter()
+        .take_while(|c| c.is_ascii_alphanumeric() || **c == '_' || **c == '-')
+        .count();
+    (n > 0).then_some(4 + n)
+}
+
+/// A URL at `i`: its length and replacement.
+fn url_at(chars: &[char], i: usize) -> Option<(usize, String)> {
+    if !chars.get(i)?.is_ascii_alphabetic() {
+        return None;
+    }
+    let mut k = i;
+    while k < chars.len()
+        && k - i < 32
+        && (chars[k].is_ascii_alphanumeric() || matches!(chars[k], '+' | '.' | '-'))
+    {
+        k += 1;
+    }
+    if chars.get(k..k + 3)? != [':', '/', '/'] {
+        return None;
+    }
+    let scheme: String = chars[i..k].iter().collect();
+    let ends = |c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | ')' | ']' | '`');
+    let auth_start = k + 3;
+    let mut a = auth_start;
+    while a < chars.len() && !ends(chars[a]) && !matches!(chars[a], '/' | '?' | '#' | ',') {
+        a += 1;
+    }
+    let authority: String = chars[auth_start..a].iter().collect();
+    let host_port = authority.rsplit('@').next().unwrap_or("");
+    let host = host_port.split(':').next().unwrap_or("");
+    let mut e = a;
+    while e < chars.len() && !ends(chars[e]) {
+        e += 1;
+    }
+    let app_page = host.eq_ignore_ascii_case("tauri.localhost")
+        || (scheme.eq_ignore_ascii_case("tauri") && host.eq_ignore_ascii_case("localhost"));
+    let replacement = if app_page {
+        let rest: String = chars[a..e].iter().collect();
+        let path = rest.split(['?', '#']).next().unwrap_or("");
+        format!("{scheme}://{host}{path}")
     } else {
-        home.replace('/', "\\")
+        format!("{scheme}://{host}")
     };
-    if alt != home {
-        out = out.replace(&alt, "~");
+    Some((e - i, replacement))
+}
+
+/// The folders and file name after a path's root, from `j` (a separator):
+/// the end of the path and its file name.
+fn path_rest(chars: &[char], j: usize) -> (usize, usize, String) {
+    let mut k = j;
+    let mut dirs = 0;
+    loop {
+        let sep_start = k;
+        while k < chars.len() && is_sep(chars[k]) {
+            k += 1;
+        }
+        if k == sep_start {
+            return (k, dirs, String::new());
+        }
+        let seg_start = k;
+        while k < chars.len() && seg_char(chars[k]) {
+            k += 1;
+        }
+        if k > seg_start && k < chars.len() && is_sep(chars[k]) {
+            dirs += 1;
+            continue;
+        }
+        let mut e = seg_start;
+        while e < k && name_char(chars[e]) {
+            e += 1;
+        }
+        return (e, dirs, chars[seg_start..e].iter().collect());
+    }
+}
+
+/// An absolute path at `i` (`prev` is the character before it): its length
+/// and replacement.
+fn path_at(chars: &[char], i: usize, prev: Option<char>) -> Option<(usize, String)> {
+    let c = *chars.get(i)?;
+    let next = chars.get(i + 1).copied();
+    let root_end = if c.is_ascii_alphabetic()
+        && next == Some(':')
+        && chars.get(i + 2).is_some_and(|c| is_sep(*c))
+    {
+        // C:\… or C:/…
+        Some(i + 2)
+    } else if c == '\\' && next == Some('\\') {
+        // \\server\share\…
+        let mut k = i;
+        while k < chars.len() && chars[k] == '\\' {
+            k += 1;
+        }
+        let host_start = k;
+        while k < chars.len() && name_char(chars[k]) {
+            k += 1;
+        }
+        (k > host_start && chars.get(k).is_some_and(|c| is_sep(*c))).then_some(k)
+    } else if c == '~' && next.is_some_and(is_sep) {
+        Some(i + 1)
+    } else {
+        None
+    };
+    if let Some(j) = root_end {
+        let (end, _, name) = path_rest(chars, j);
+        return Some((end - i, format!("{PATH_PREFIX}{name}")));
+    }
+    // /a/b…: at least one folder, after a space, quote, bracket, `=` or `:`.
+    let after_boundary = prev.is_none_or(|p| {
+        p.is_whitespace() || matches!(p, '"' | '\'' | '(' | '[' | '=' | ',' | ':' | '`' | '<')
+    });
+    if c == '/' && after_boundary && next.is_some_and(|n| name_char(n)) {
+        let (end, dirs, name) = path_rest(chars, i);
+        if dirs >= 1 {
+            return Some((end - i, format!("{PATH_PREFIX}{name}")));
+        }
+    }
+    None
+}
+
+/// Cuts paths, URLs and device tokens out of error text (see above).
+pub(crate) fn redact(text: &str) -> String {
+    let text = text.replace(r"\\?\", "");
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let prev = i.checked_sub(1).map(|p| chars[p]);
+        if prev.is_none_or(|p| !word_char(p)) {
+            if let Some(n) = token_at(&chars, i) {
+                out.push_str(REDACTED_TOKEN);
+                i += n;
+                continue;
+            }
+            if let Some((n, rep)) = url_at(&chars, i) {
+                out.push_str(&rep);
+                i += n;
+                continue;
+            }
+            if let Some((n, rep)) = path_at(&chars, i, prev) {
+                out.push_str(&rep);
+                i += n;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
     }
     out
 }
 
-fn home_dir() -> Option<String> {
-    std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .ok()
-}
-
 impl Report {
-    /// Caps, scrubs, and stamps the app version when missing.
+    /// Caps, redacts, and stamps the app version when missing.
     fn cleaned(mut self) -> Self {
-        let home = home_dir();
-        self.message = truncate(
-            &scrub_home(self.message.trim(), home.as_deref()),
-            MAX_MESSAGE,
-        );
+        self.message = truncate(&redact(self.message.trim()), MAX_MESSAGE);
         self.stack = self
             .stack
-            .map(|s| truncate(&scrub_home(&s, home.as_deref()), MAX_STACK))
+            .map(|s| truncate(&redact(&s), MAX_STACK))
             .filter(|s| !s.trim().is_empty());
         self.route = self
             .route
-            .map(|r| truncate(r.split(['?', '#']).next().unwrap_or(""), 200))
+            .map(|r| truncate(&redact(r.split(['?', '#']).next().unwrap_or("")), 200))
             .filter(|r| !r.is_empty());
         if self.release.is_none() {
             self.release = Some(env!("CARGO_PKG_VERSION").to_string());
@@ -198,7 +367,17 @@ fn read_enabled(dir: &Path) -> bool {
         .ok()
         .and_then(|t| serde_json::from_str::<Prefs>(&t).ok())
         .map(|p| p.enabled)
-        .unwrap_or(true)
+        .unwrap_or(false)
+}
+
+/// Nothing is sent before the first-run setup is finished or skipped.
+fn setup_done(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    app.store("dr-vibe-data.json")
+        .ok()
+        .and_then(|s| s.get("setupWizard"))
+        .and_then(|v| v.get("completed").and_then(|c| c.as_bool()))
+        .unwrap_or(false)
 }
 
 /// Sends what is queued. One flush at a time.
@@ -208,7 +387,7 @@ async fn flush(app: tauri::AppHandle) {
         clear_queue(dir);
         return;
     }
-    if FLUSHING.swap(true, Ordering::AcqRel) {
+    if !setup_done(&app) || FLUSHING.swap(true, Ordering::AcqRel) {
         return;
     }
     let pending = {
@@ -318,6 +497,21 @@ pub(crate) fn error_report(app_handle: tauri::AppHandle, report: Report) -> bool
     added
 }
 
+/// "View queued reports" in Settings → Privacy: exactly what waits to be sent.
+#[tauri::command]
+pub(crate) fn error_reports_queue() -> Vec<Report> {
+    let Some(dir) = DIR.get() else { return vec![] };
+    let _guard = QUEUE_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    read_queue(dir)
+}
+
+/// "Delete all local data": the queue goes, the switch stays as it is.
+pub(crate) fn clear_all() {
+    if let Some(dir) = DIR.get() {
+        clear_queue(dir);
+    }
+}
+
 #[tauri::command]
 pub(crate) fn error_reports_get_enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
@@ -372,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn panic_reports_name_the_location_and_hide_home() {
+    fn panic_reports_name_the_location_and_hide_paths() {
         let r = panic_report(
             "called `Option::unwrap()` on a `None` value",
             Some("src\\sync.rs:42".into()),
@@ -383,16 +577,92 @@ mod tests {
             r.message,
             "panicked at src\\sync.rs:42: called `Option::unwrap()` on a `None` value"
         );
+        assert_eq!(r.stack.as_deref(), Some("at <path>/x.rs"));
         assert_eq!(r.release.as_deref(), Some(env!("CARGO_PKG_VERSION")));
-        assert_eq!(
-            scrub_home(
-                "C:\\Users\\mara\\x and C:/Users/mara/y",
-                Some("C:\\Users\\mara")
+    }
+
+    #[test]
+    fn redacts_every_kind_of_path_to_its_file_name() {
+        let cases = [
+            (
+                "Cannot canonicalize C:\\Users\\Mara Smith\\clients\\acme\\main.rs: not found",
+                "Cannot canonicalize <path>/main.rs: not found",
             ),
-            "~\\x and ~/y"
+            (
+                "open D:/Work/Acme Corp/secret plan/notes.md failed",
+                "open <path>/notes.md failed",
+            ),
+            (
+                "\\\\fileserver\\clients\\acme\\q3.xlsx is locked",
+                "<path>/q3.xlsx is locked",
+            ),
+            ("\\\\?\\C:\\Users\\mara\\x.json", "<path>/x.json"),
+            (
+                "read '/home/mara/acme/app/.env': EACCES",
+                "read '<path>/.env': EACCES",
+            ),
+            (
+                "at /Users/mara/Projects/acme/src/index.js:12:3",
+                "at <path>/index.js:12:3",
+            ),
+            ("cd ~/acme/payroll && ls", "cd <path>/payroll && ls"),
+            (
+                "json \"C:\\\\Users\\\\mara\\\\a.txt\"",
+                "json \"<path>/a.txt\"",
+            ),
+            ("(E:\\repos\\acme\\)", "(<path>/)"),
+            ("route /settings.html stays", "route /settings.html stays"),
+            ("ratio 3/4 stays", "ratio 3/4 stays"),
+            // Folder names may hold spaces, so text after a path can go too:
+            // more is cut rather than less.
+            ("/home/mara/a.rs then x/y", "<path>/y"),
+            (
+                "src\\sync.rs:42 stays relative",
+                "src\\sync.rs:42 stays relative",
+            ),
+        ];
+        for (input, want) in cases {
+            assert_eq!(redact(input), want, "{input}");
+        }
+    }
+
+    #[test]
+    fn redacts_urls_to_their_host_and_tokens() {
+        assert_eq!(
+            redact("Download failed: https://user:pw@cdn.example.com:8443/acme/secret.png?sig=abc (timeout)"),
+            "Download failed: https://cdn.example.com (timeout)"
         );
-        assert_eq!(scrub_home("/home/mara/app", Some("/home/mara")), "~/app");
-        assert_eq!(scrub_home("no home", None), "no home");
+        assert_eq!(
+            redact("GET http://192.168.1.20/admin/x"),
+            "GET http://192.168.1.20"
+        );
+        assert_eq!(
+            redact("at render (http://tauri.localhost/settings-page.js?v=2:1801:12)"),
+            "at render (http://tauri.localhost/settings-page.js)",
+        );
+        assert_eq!(
+            redact("tauri://localhost/app.js:3:1"),
+            "tauri://localhost/app.js:3:1"
+        );
+        assert_eq!(
+            redact("dr-vibe://install-skin?png=https://x.io/a.png"),
+            "dr-vibe://install-skin"
+        );
+        assert_eq!(
+            redact("Bearer dvd_AbC123_xyz-9 rejected; not my_dvd_x"),
+            "Bearer dvd_[redacted] rejected; not my_dvd_x"
+        );
+    }
+
+    #[test]
+    fn reports_are_redacted_before_they_are_queued() {
+        let mut r = js("TypeError: C:\\Users\\mara\\acme\\x.js is broken");
+        r.stack = Some("at f (https://evil.example/p/q.js:1:1)".into());
+        r.route = Some("/settings.html?tab=privacy".into());
+        let c = r.cleaned();
+        assert_eq!(c.message, "TypeError: <path>/x.js is broken");
+        assert_eq!(c.stack.as_deref(), Some("at f (https://evil.example)"));
+        assert_eq!(c.route.as_deref(), Some("/settings.html"));
     }
 
     #[test]
@@ -416,9 +686,11 @@ mod tests {
     }
 
     #[test]
-    fn the_switch_defaults_on_and_persists() {
+    fn the_switch_defaults_off_and_persists() {
         let tmp = TempDir::new("err-prefs");
         let dir = tmp.path().to_path_buf();
+        assert!(!read_enabled(&dir));
+        fs::write(dir.join(SETTINGS_FILE), br#"{"enabled":true}"#).unwrap();
         assert!(read_enabled(&dir));
         fs::write(dir.join(SETTINGS_FILE), br#"{"enabled":false}"#).unwrap();
         assert!(!read_enabled(&dir));

@@ -86,8 +86,8 @@ fn main() {
             // web_base_url() — the OnceLock is fixed on first read.
             seed_web_base_url_from_store(app.handle());
 
-            // ── Crash reports: panic hook + queued sends (on by default,
-            // switch in Settings → Privacy). After the base URL is fixed.
+            // ── Crash reports: panic hook + queued sends (off until chosen in
+            // setup or Settings → Privacy). After the base URL is fixed.
             error_reports::init(app.handle());
 
             // "Sync my stats" (Settings → Privacy) holds back sharing calls.
@@ -217,6 +217,7 @@ fn main() {
             error_reports::error_report,
             error_reports::error_reports_get_enabled,
             error_reports::error_reports_set_enabled,
+            error_reports::error_reports_queue,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
