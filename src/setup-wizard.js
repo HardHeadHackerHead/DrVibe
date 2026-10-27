@@ -19,7 +19,7 @@ import { readSection, writeSection } from './core/DatabaseReader.js';
 import { getPresetsForSkin, getDefaultTone, SKIN_TONE_CATEGORIES, BASE_SKIN_PALETTE, SKIN_TONE_PRESETS, tonePresetKey } from './config/skinTones.js';
 import { initTheme } from './core/theme.js';
 import { formatSkinName, skinVariantLabel } from './config/skinNames.js';
-import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
+import { DEFAULT_SETTINGS, normalizeCodingApps } from './features/settings/Settings.js';
 import { PRIVACY_DEFAULTS, buildPrivacyBody } from './core/api/contract.js';
 import { WATCH_CHOICES, SEND_CHOICES, WHO_CHOICES, SYNC_CHOICE, renderChoices, describeValue } from './ui/privacyChoices.js';
 import { wizardDefaults } from './ui/wizardDefaults.js';
@@ -374,8 +374,8 @@ const skinPreview = createSkinPreview('skin-preview');
 const welcomePreview = createSkinPreview('welcome-character');
 
 // ── Default coding apps ──
-// The same list as Settings (WindowsTerminal and Claude included), so those
-// are not shown as custom apps.
+// The same list as Settings (Claude included), so defaults are not shown as
+// custom apps.
 const DEFAULT_CODING_APPS = [...DEFAULT_SETTINGS.codingApps];
 
 // ── State ──
@@ -1119,7 +1119,7 @@ async function loadExistingSettings() {
   if (saved.soundTalkVoice) selectedVoice = saved.soundTalkVoice;
   if (saved.soundVolume !== undefined) soundVolume = saved.soundVolume;
   if (saved.codingApps) {
-    codingApps = [...saved.codingApps];
+    codingApps = normalizeCodingApps(saved.codingApps);
     // Detect custom apps (any app not in the default list)
     customApps = codingApps.filter(a => !DEFAULT_CODING_APPS.includes(a));
   }

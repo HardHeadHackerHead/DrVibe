@@ -83,6 +83,23 @@ describe('coding app backfill', () => {
 });
 
 describe('coding apps', () => {
+  it('Windows Terminal is one entry that still matches the exe, and old lists are merged', async () => {
+    const { Settings, DEFAULT_SETTINGS, normalizeCodingApps } = await import('../../src/features/settings/Settings.js');
+    expect(DEFAULT_SETTINGS.codingApps.filter(a => /windows\s*terminal/i.test(a))).toEqual(['Windows Terminal']);
+    expect(normalizeCodingApps(['Code', 'WindowsTerminal', 'Godot', 'Windows Terminal', 'windowsterminal']))
+      .toEqual(['Code', 'Windows Terminal', 'Godot']);
+    expect(normalizeCodingApps(['WindowsTerminal', 'MyIDE'])).toEqual(['Windows Terminal', 'MyIDE']);
+
+    saved = { codingApps: ['Code', 'WindowsTerminal', 'Windows Terminal', 'MyIDE'], codingAppsOffered: [...DEFAULT_SETTINGS.codingApps, 'WindowsTerminal'] };
+    const s = new Settings();
+    await s.init();
+    expect(s.get('codingApps')).toEqual(['Code', 'Windows Terminal', 'MyIDE']);
+    for (const exe of ['WindowsTerminal', 'WindowsTerminal.exe', 'wt', 'Windows Terminal']) {
+      expect(s.isCodingApp(exe), exe).toBe(true);
+    }
+    expect(s.isCodingApp('MyIDE64')).toBe(true);
+  });
+
   it('match the app by its executable name, not any name containing it', async () => {
     const { Settings } = await import('../../src/features/settings/Settings.js');
     const s = new Settings();

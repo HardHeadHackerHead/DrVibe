@@ -28,7 +28,6 @@ export const DEFAULT_SETTINGS = {
     'neovim',
     'Emacs',
     'Windows Terminal',
-    'WindowsTerminal',
     'Terminal',
     'iTerm',
     'Alacritty',
@@ -149,12 +148,31 @@ export const DEFAULT_SETTINGS = {
   devServerOverride: 'auto',
 };
 
+/** Compare names ignoring case and spaces ("Windows Terminal" = WindowsTerminal). */
+function squash(name) {
+  return String(name).trim().toLowerCase().replace(/\s+/g, '');
+}
+
+/**
+ * The coding apps list with one entry per app: the old "WindowsTerminal"
+ * entry (any spacing or case) becomes "Windows Terminal", and duplicates
+ * go. Every other entry, custom ones included, is kept in order.
+ */
+export function normalizeCodingApps(list) {
+  const out = [];
+  for (const app of Array.isArray(list) ? list : []) {
+    const name = squash(app) === 'windowsterminal' ? 'Windows Terminal' : app;
+    if (!out.some((a) => squash(a) === squash(name))) out.push(name);
+  }
+  return out;
+}
+
 // Executable names of coding apps listed under another name.
 const CODING_APP_EXES = {
   'visual studio': ['devenv'],
   'intellij': ['idea'],
   'sublime text': ['sublime_text'],
-  'windows terminal': ['windowsterminal', 'wt'],
+  'windows terminal': ['wt'],
   'iterm': ['iterm2'],
   'powershell': ['pwsh'],
   'emacs': ['runemacs'],
@@ -254,9 +272,13 @@ export class Settings {
           this[key] = Settings.clamp(key, saved[key]);
         }
       }
+      // One entry per app (an old WindowsTerminal entry becomes Windows Terminal).
+      const merged = normalizeCodingApps(this.codingApps);
+      const renamed = JSON.stringify(merged) !== JSON.stringify(this.codingApps);
+      this.codingApps = merged;
       // Backfill default coding apps added since this profile last saw the
-      // list (e.g. WindowsTerminal, Claude). Profiles from before the list was
-      // tracked get every missing default once.
+      // list (e.g. Claude). Profiles from before the list was tracked get
+      // every missing default once.
       const offered = Array.isArray(saved.codingAppsOffered) ? saved.codingAppsOffered : [];
       let backfilled = false;
       for (const app of DEFAULT_SETTINGS.codingApps) {
@@ -267,7 +289,7 @@ export class Settings {
       }
       const allOffered = DEFAULT_SETTINGS.codingApps.every(app => offered.includes(app));
       this.codingAppsOffered = [...new Set([...offered, ...DEFAULT_SETTINGS.codingApps])];
-      if (backfilled || !allOffered) this.save();
+      if (backfilled || !allOffered || renamed) this.save();
       console.log('Settings loaded from database');
     } else {
       console.log('Settings: no saved data, using defaults');
@@ -415,7 +437,8 @@ export class Settings {
     return this.codingApps.some((app) => {
       const name = String(app).trim().toLowerCase();
       if (!name) return false;
-      return [name, ...(CODING_APP_EXES[name] || [])].some((n) =>
+      // The name as written, without its spaces (WindowsTerminal), and aliases.
+      return [...new Set([name, squash(name), ...(CODING_APP_EXES[name] || [])])].some((n) =>
         exe === n || (exe.startsWith(n) && /^[\d\s_.]/.test(exe.slice(n.length))));
     });
   }

@@ -11,7 +11,7 @@ import { applyClaudeHooksSetting } from './features/activity/claudeHooks.js';
 import { setAvatar } from './ui/avatar.js';
 import { readSection, writeSection } from './core/DatabaseReader.js';
 import { formatSkinName, skinVariantLabel } from './config/skinNames.js';
-import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
+import { DEFAULT_SETTINGS, normalizeCodingApps } from './features/settings/Settings.js';
 import { getPresetsForSkin, getDefaultTone, getToneCategory, SKIN_TONE_CATEGORIES } from './config/skinTones.js';
 import { WEB_BASE as SITE_URL, IS_DEV, syncWebBaseFromRust } from './core/config.js';
 import { getErrorReportsEnabled, getQueuedErrorReports, installErrorReporter, setErrorReportsEnabled } from './core/errorReporter.js';
@@ -1462,7 +1462,7 @@ async function loadSettings() {
     }
   }
   if (Array.isArray(v('codingApps'))) {
-    currentCodingApps = [...v('codingApps')];
+    currentCodingApps = normalizeCodingApps(v('codingApps'));
   }
   renderCodingApps();
 
@@ -2294,18 +2294,23 @@ let syncShownOn = true;
 
 /** Why the send and visibility choices are greyed out, or null when they aren't. */
 function privacyGateReason() {
-  if (!apiToken) return 'Not linked: these apply once you join the community. Crash reports work either way.';
+  if (!apiToken) return 'Not linked: these apply once you join the community.';
   if (!syncShownOn) return 'Sync my stats is off: none of this is sent until you turn it back on.';
   return null;
 }
 
 function renderPrivacyGate() {
   const reason = privacyGateReason();
-  for (const id of ['privacy-gate-note', 'privacy-who-gate-note']) {
+  // Crash reports sit in "What's sent" only, so only that note names them.
+  const notes = {
+    'privacy-gate-note': reason && !apiToken ? `${reason} Crash reports work either way.` : reason,
+    'privacy-who-gate-note': reason,
+  };
+  for (const [id, text] of Object.entries(notes)) {
     const el = document.getElementById(id);
     if (!el) continue;
-    el.hidden = !reason;
-    el.textContent = reason || '';
+    el.hidden = !text;
+    el.textContent = text || '';
   }
   updateSendChoices();
   updateWhoChoices();
