@@ -79,6 +79,7 @@ describe('"What Dr. Vibe sees"', () => {
 describe('setup wizard window', () => {
   let invoke;
   let emitTo;
+  let osClose = null;
 
   async function openWizard({ claude = true } = {}) {
     vi.resetModules();
@@ -95,7 +96,7 @@ describe('setup wizard window', () => {
     window.__TAURI__ = {
       core: { invoke },
       event: { emitTo, listen: vi.fn(async () => () => {}), emit: vi.fn(async () => {}) },
-      window: { getCurrentWindow: () => ({ close: vi.fn(), startDragging: vi.fn() }) },
+      window: { getCurrentWindow: () => ({ close: vi.fn(), startDragging: vi.fn(), onCloseRequested: (fn) => { osClose = fn; return Promise.resolve(() => {}); } }) },
     };
     await import('../../src/setup-wizard.js');
     await vi.waitFor(() => expect(document.querySelector('#send-choices [data-choice="errorReports"]')).not.toBeNull());
@@ -138,6 +139,19 @@ describe('setup wizard window', () => {
     await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
     expect(emitted('privacy-changed')[1]).toEqual({ ...PRIVACY_DEFAULTS });
     expect(invoke.mock.calls.map(c => c[0])).not.toContain('error_reports_set_enabled');
+  });
+
+  it('closing the window from the OS (Alt+F4) is a Skip that puts choices back', async () => {
+    await openWizard();
+    for (let i = 0; i < 5; i++) next();
+    document.querySelector('#send-choices [data-choice="shareActivityTimes"]').click();
+    next();
+    const event = { preventDefault: vi.fn() };
+    osClose(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
+    expect(emitted('privacy-changed').at(-1)).toEqual({ ...PRIVACY_DEFAULTS });
+    expect(stored().settings).toBeUndefined();
   });
 
   it('Finish hands over every choice, with hooks and crash reports only if chosen', async () => {
