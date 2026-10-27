@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "window-character-workshop",
+  "description": "The sensitive Dr. Vibe commands the character-workshop window uses (network as the linked device, Claude Code hooks, the AI generator, local data). Every other window is refused them.",
+  "windows": [
+    "character-workshop"
+  ],
+  "permissions": [
+    "allow-regenerate-character",
+    "allow-patch-character",
+    "allow-accept-character-patch",
+    "allow-discard-character-draft",
+    "allow-cancel-generation"
+  ]
+}

@@ -283,6 +283,14 @@ export const Events = {
   // Community account link state (AccountState). Online features run only while linked.
   ACCOUNT_LINKED: 'account:linked',           // { username }
   ACCOUNT_UNLINKED: 'account:unlinked',       // { username }
+  // "Sync my stats" (SyncSwitch): off keeps the account but sends nothing
+  SYNC_ENABLED_CHANGED: 'account:syncEnabled', // { enabled }
+
+  // Pause tracking (TrackingPause): trackers stop, the screen-share guard keeps running
+  TRACKING_PAUSED: 'tracking:paused',          // { until: epoch ms | 'manual' }
+  TRACKING_RESUMED: 'tracking:resumed',
+  // The first weekly recap waits for a look at its card (WeeklyRecapSync)
+  RECAP_NEEDS_APPROVAL: 'recap:needsApproval', // { request }
 
   // Server data delivered by the 60 s PollClient
   NOTIFICATION_RECEIVED: 'server:notification', // { notification: ServerNotification }

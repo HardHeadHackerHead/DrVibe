@@ -51,10 +51,13 @@ export class ActivityReporter {
     });
 
     eventBus.on(Events.GIT_COMMIT_MADE, (data) => {
-      // The commit hash lets the server de-duplicate; repo names are never sent.
-      economyClient.reportActivity('GIT_COMMIT', {
-        sha: data?.commit?.hash ?? data?.sha ?? null,
-      });
+      // A keyed hash of the commit (projects.rs `event_id`) lets the server
+      // de-duplicate without learning the commit; the git hash and the repo
+      // name are never sent.
+      // The id is keyed by the account, so the same commit seen on two of
+      // the player's computers is one event.
+      const id = data?.commit?.event_id ?? null;
+      economyClient.reportActivity('GIT_COMMIT', { sha: id }, id ? `commit-${id}` : null);
     });
 
     eventBus.on(Events.ACTIVITY_CODING_START, (data) => {

@@ -70,6 +70,23 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<(), Strin
                             "update-check-status",
                             serde_json::json!({"status": "update_available", "version": version}),
                         );
+                        // Nothing is downloaded or installed until the player
+                        // has seen the version and the notes and said yes.
+                        let question = update_question(&version, update.body.as_deref());
+                        if !crate::system::confirm(
+                            &app_handle,
+                            "Update Dr. Vibe",
+                            question,
+                            "Install and restart",
+                        )
+                        .await
+                        {
+                            let _ = app_handle.emit(
+                                "update-check-status",
+                                serde_json::json!({"status": "declined", "version": version}),
+                            );
+                            return;
+                        }
                         let _ = app_handle.emit("update-download-start", &version);
                         if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
                             let _ = app_handle.emit(
@@ -106,6 +123,24 @@ pub(crate) async fn check_for_updates(app: tauri::AppHandle) -> Result<(), Strin
     Ok(())
 }
 
+/// The confirmation shown before an update installs: version and notes
+/// (shortened), and what happens next.
+pub(crate) fn update_question(version: &str, notes: Option<&str>) -> String {
+    let notes = notes.map(str::trim).filter(|n| !n.is_empty()).map(|n| {
+        let short: String = n.chars().take(600).collect();
+        if short.len() < n.len() {
+            format!("{short}…")
+        } else {
+            short
+        }
+    });
+    format!(
+        "Dr. Vibe {version} is available (you have {}).\n\n{}\n\nInstall it now? Dr. Vibe downloads it from drvibe.io, checks its signature and restarts.",
+        env!("CARGO_PKG_VERSION"),
+        notes.unwrap_or_else(|| "No release notes.".to_string())
+    )
+}
+
 /// Auto-check for updates: initial check after 30s, then every 4 hours.
 pub(crate) fn spawn_update_checker(app: &tauri::App) {
     let app_handle = app.handle().clone();
@@ -128,6 +163,16 @@ pub(crate) fn spawn_update_checker(app: &tauri::App) {
 #[cfg(test)]
 mod tests {
     use super::is_upgrade;
+
+    #[test]
+    fn update_question_shows_version_and_notes() {
+        let q = super::update_question("9.9.9", Some("Fixes.\nNew skins."));
+        assert!(q.contains("9.9.9") && q.contains(env!("CARGO_PKG_VERSION")));
+        assert!(q.contains("New skins."));
+        assert!(super::update_question("9.9.9", None).contains("No release notes."));
+        let long = "x".repeat(2000);
+        assert!(super::update_question("9.9.9", Some(&long)).contains("x…"));
+    }
 
     #[test]
     fn whats_new_shows_only_after_an_upgrade() {

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "window-main",
+  "description": "The sensitive Dr. Vibe commands the main window uses (network as the linked device, Claude Code hooks, the AI generator, local data). Every other window is refused them.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-api-request",
+    "allow-api-poll",
+    "allow-api-ack",
+    "allow-api-send-events",
+    "allow-api-send-visit",
+    "allow-api-update-privacy",
+    "allow-api-collection",
+    "allow-api-set-equipped",
+    "allow-api-send-recap",
+    "allow-api-submit-design",
+    "allow-sync-profile",
+    "allow-get-last-sync",
+    "allow-start-device-link",
+    "allow-error-reports-set-enabled",
+    "allow-install-claude-code-hooks",
+    "allow-uninstall-claude-code-hooks",
+    "allow-set-hook-paused",
+    "allow-set-hook-tracked-repos",
+    "allow-export-local-data",
+    "allow-wipe-local-data",
+    "allow-preview-sync-payload",
+    "allow-set-sync-enabled"
+  ]
+}

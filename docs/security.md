@@ -13,13 +13,28 @@ steps to reproduce and your app version (tray → About). We'll reply as soon as
 The app has two halves: web views (`src/`, vanilla JavaScript) for everything you see,
 and Rust (`src-tauri/src/`) for everything that touches the network, the file system or
 your account. The web views can only call the Tauri commands registered in `main.rs`,
-with the permissions in `src-tauri/capabilities/`. Per-toast windows get a smaller
-capability set (`toast-item.json`).
+and each window only the ones its capabilities grant: `build.rs` lists every app
+command for tauri-build's `AppManifest`, every window except the toasts gets the
+everyday set (`src-tauri/permissions/everyday.toml`), and the sensitive commands
+(calls to drvibe.io as the linked device, signing out, the crash report switch, the
+Claude Code hooks, the AI generator, export, delete, the Outbox preview and *Sync my
+stats*) are granted per window in `src-tauri/capabilities/window-*.json`. Per-toast
+windows get only what they need (`toast-item.json`). `tests/unit/commandAcl.test.js`
+keeps these in step.
+
+- **No devtools in release builds.** Release builds are made without Tauri's
+  `devtools` feature, so the web views can't be inspected.
+- **Coding apps** are matched by their exact executable name (or that name with a
+  version or variant, and a few listed aliases), never by a name that merely contains
+  one.
 
 - **No network from JavaScript.** Every server call is named in
   `src/core/api/endpoints.js` and made by Rust (`api.rs`). The content security policy
-  in `tauri.conf.json` limits `connect-src` to the app itself and `drvibe.io`, and
-  allows scripts only from the app (`script-src 'self'`).
+  in `tauri.conf.json` limits `connect-src` to the app itself and `drvibe.io`, allows
+  scripts only from the app (`script-src 'self'`), and images only from the app,
+  `drvibe.io`, `cdn.drvibe.io`, `cdn.discordapp.com` and
+  `avatars.githubusercontent.com`. The macOS build doesn't ask for the
+  `network.server` entitlement: the app never listens for connections.
 - **Server address.** Release builds always talk to `https://drvibe.io`. Only debug
   builds can point elsewhere (`DR_VIBE_WEB_BASE_URL`, or Settings → Developer), and
   that switch is ignored in a release binary (`account.rs`).
@@ -74,6 +89,12 @@ Skins are player-made files, so they're treated as untrusted:
   format before use (`src/features/make/spriteSpec.js`: size, row count, 2 MB limit).
 - **Visiting Dr. Vibes** are downloaded by Rust with a 2 MB cap on the sheet (PNG
   signature checked) and 256 KB on animation data, and cached locally (`visitors.rs`).
+- **The `dr-vibe://install-skin` link** downloads only over https from `drvibe.io` or
+  `cdn.drvibe.io` (no other host, port or user info; `check_skin_link_url` in
+  `skins.rs`), stops reading past 2 MB for the sheet and 256 KB for the animation data,
+  and requires a PNG of a size Dr. Vibe wears and animation data that is a JSON object.
+  Nothing is written until those pass, and then the app asks first ("Install …?", or
+  "Replace …?" when that skin is already installed).
 - **Sprite data in a sync** passes `validate_sprite_base64`: at most 4 MB, plain base64
   or a `data:image/png;base64,` URI, and never a `javascript:` or `data:text/html` URI.
 - **Animation data** baked into a PNG (the `DRVB` block in the pixel LSBs) is parsed as
@@ -81,11 +102,27 @@ Skins are player-made files, so they're treated as untrusted:
 
 ## Claude Code hooks
 
+The hooks are off until you choose them, and installed only after setup is finished.
 The hook script (`tools/claude-code-hook.sh`) appends to a log in `~/.dr-vibe/` and
-nothing else: no network, no `jq`, and it always exits 0. Installing it rewrites only
-Dr. Vibe's own entries in `~/.claude/settings.json` (matched by the script's file name),
-and only when a `~/.claude` folder already exists. Settings → Tracking → *Follow Claude
-Code* removes them. See [claude-code.md](claude-code.md).
+nothing else: no network, no `jq`, and it always exits 0. It logs only inside the repos
+listed in `~/.dr-vibe/tracked.txt`, does nothing while tracking is paused or once the
+install marker or the app it names is gone, and copies JSON fields in their escaped
+form, so a crafted file name can't add fields. Release builds deploy the script only
+from the bundled resources. Installing it rewrites only Dr. Vibe's own entries in
+`~/.claude/settings.json` (matched by the script's file name), only when a `~/.claude`
+folder already exists, through a temporary file and a rename with a
+`settings.json.bak` backup. Settings → Tracking → *Follow Claude Code* removes them and
+the files in `~/.dr-vibe/`; the uninstaller does too (not during an update). See
+[claude-code.md](claude-code.md).
+
+## Make your own Dr. Vibe
+
+The AI generator (`generator.rs`) runs your `claude` or `codex` CLI in a fresh private
+folder with a random name in the temp folder, never the folder the app started in, and
+removes it afterwards. Release builds read the skill only from the bundled resources.
+`claude` runs with `--allowedTools Read,Write,Edit,Bash(node:*)` and `codex` with
+`--sandbox workspace-write`. A one-time notice says your description goes to Anthropic
+or OpenAI through your own CLI.
 
 ## Personal details
 
@@ -96,8 +133,9 @@ read, baked, synced or submitted (`scrub_anim_json` and `scrub_png` in `skins.rs
 
 ## Updates
 
-The updater downloads from `drvibe.io/api/v1/downloads/latest.json` and installs only
-bundles signed with the Dr. Vibe update key (minisign; the public key is in
+The updater checks `drvibe.io/api/v1/downloads/latest.json`, shows the new and current
+version and the release notes, and downloads and installs only after you say yes. It
+installs only bundles signed with the Dr. Vibe update key (minisign; the public key is in
 `tauri.conf.json` and `keys/`). A bundle with a missing or wrong signature is refused.
 The installer, the app and its helper DLLs are also Authenticode-signed with an RFC 3161
 timestamp, and the release checks the installer's signature before uploading. A brand-new
@@ -106,6 +144,11 @@ publishes `SHA256SUMS`.
 
 ## Crash reports
 
-Crash reports go only to drvibe.io (no third-party service). Home-folder paths are
-replaced with `~` before a report is queued, and the server scrubs again. They can be
-switched off in Settings → Privacy (`error_reports.rs`).
+Crash reports are off until you choose them, and nothing is sent before setup is
+finished or skipped. They go only to drvibe.io (no third-party service). Before a
+report is queued, `redact` in `error_reports.rs` cuts every absolute path (drive, UNC,
+POSIX, `~`) to `<path>/` plus its file name, every URL to its scheme and host (the
+app's own `tauri.localhost` pages keep their path) and replaces `dvd_` tokens, in the
+message, the stack and the route; the server scrubs again. Thrown values that aren't
+errors are not sent. The switch is in Settings → Privacy, where *What will be sent
+next* shows the queue.

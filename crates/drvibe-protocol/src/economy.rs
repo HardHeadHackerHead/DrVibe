@@ -19,7 +19,13 @@ pub enum EconomyEventType {
     PomodoroComplete,
     /// metadata: `{ "durationMinutes": number }`
     FocusSessionEnd,
-    /// metadata: `{ "repo"?: string }` (repo name is never shown publicly)
+    /// metadata: `{ "sha"?: string }`: the first 16 hex chars of
+    /// HMAC-SHA256(key = the linked account's user id, message = the full
+    /// commit hash), so the same commit dedupes across the player's devices.
+    /// The server knows the key: this hides the commit from outsiders and
+    /// leaked data, not from the server. Older apps sent an 8-char hash
+    /// prefix; the server accepts both. Any other key (a repo name) is
+    /// dropped.
     GitCommit,
     /// metadata: `{}`
     CodingSessionStart,

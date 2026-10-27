@@ -11,6 +11,7 @@ mod e2e_bridge;
 mod error_reports;
 mod generator;
 mod gitignore;
+mod local_data;
 mod panels;
 mod presence;
 mod projects;
@@ -31,7 +32,21 @@ use crate::watcher::WatcherState;
 use std::sync::Mutex;
 use tauri::Manager;
 
+/// The uninstaller runs the app once with this flag before removing it
+/// (nsis/hooks.nsh): Dr. Vibe's Claude Code hooks and ~/.dr-vibe go, then
+/// it exits without starting the app.
+const UNINSTALL_CLEANUP_FLAG: &str = "--privacy-uninstall-cleanup";
+
 fn main() {
+    if std::env::args().any(|a| a == UNINSTALL_CLEANUP_FLAG) {
+        if let Some(home) = system::dirs_home() {
+            if let Err(e) = claude_hooks::remove_everything(&home) {
+                eprintln!("[uninstall] Claude Code hooks: {e}");
+            }
+        }
+        return;
+    }
+
     // Set the Windows AppUserModelId so notifications show "Dr. Vibe"
     // instead of the parent process name (e.g. "Windows PowerShell")
     #[cfg(target_os = "windows")]
@@ -72,9 +87,12 @@ fn main() {
             // web_base_url() — the OnceLock is fixed on first read.
             seed_web_base_url_from_store(app.handle());
 
-            // ── Crash reports: panic hook + queued sends (on by default,
-            // switch in Settings → Privacy). After the base URL is fixed.
+            // ── Crash reports: panic hook + queued sends (off until chosen in
+            // setup or Settings → Privacy). After the base URL is fixed.
             error_reports::init(app.handle());
+
+            // "Sync my stats" (Settings → Privacy) holds back sharing calls.
+            api::init_sync_enabled(app.handle());
 
             // ── vibeId backfill: ensure every Dr. Vibe sidecar has a stable id.
             // One-shot, idempotent, never deletes. Runs on every boot but only
@@ -142,6 +160,7 @@ fn main() {
             account::set_web_base_override,
             account::get_web_base_url,
             tray::set_tray_tooltip,
+            tray::set_tray_paused,
             system::set_main_window_size,
             panels::open_settings_window,
             panels::open_dashboard_window,
@@ -152,6 +171,9 @@ fn main() {
             claude_hooks::install_claude_code_hooks,
             claude_hooks::uninstall_claude_code_hooks,
             claude_hooks::check_claude_code_hooks,
+            claude_hooks::claude_code_present,
+            claude_hooks::set_hook_tracked_repos,
+            claude_hooks::set_hook_paused,
             generator::check_claude_installed,
             generator::check_codex_installed,
             generator::cancel_generation,
@@ -183,6 +205,8 @@ fn main() {
             api::api_submit_design,
             sync::sync_profile,
             sync::get_last_sync,
+            sync::preview_sync_payload,
+            api::set_sync_enabled,
             presence::get_presenting_state,
             visitors::cache_visitor_sprite,
             panels::set_visitor_frame,
@@ -195,6 +219,9 @@ fn main() {
             error_reports::error_report,
             error_reports::error_reports_get_enabled,
             error_reports::error_reports_set_enabled,
+            error_reports::error_reports_queue,
+            local_data::export_local_data,
+            local_data::wipe_local_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

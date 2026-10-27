@@ -824,7 +824,9 @@ pub(crate) async fn download_and_save_skin(
     Ok((final_slug, was_update))
 }
 
-/// Install a skin by downloading it from gallery URLs (invokable from JS or deep link).
+/// Install a skin from gallery URLs (invokable from JS). Held to the same
+/// rules as the install-skin deep link: drvibe.io only, size and format
+/// checked before anything is written.
 #[tauri::command]
 pub(crate) async fn install_skin_from_urls(
     slug: String,
@@ -832,9 +834,166 @@ pub(crate) async fn install_skin_from_urls(
     anim_url: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let (final_slug, _) =
-        download_and_save_skin(&app_handle, &slug, &png_url, anim_url.as_deref()).await?;
-    Ok(final_slug)
+    let skin = fetch_linked_skin(&slug, &png_url, anim_url.as_deref()).await?;
+    save_linked_skin(&resolve_custom_skins_dir(&app_handle)?, &skin)?;
+    Ok(skin.slug)
+}
+
+// ── Skins from a link (dr-vibe://install-skin, install_skin_from_urls) ──────
+//
+// A link can come from any web page, so the download is held to what the
+// gallery serves: https from drvibe.io or its CDN only, at most a sprite
+// sheet's size, a PNG of a size Dr. Vibe wears and an anim.json that is a
+// JSON object. Nothing is written until it all checks out (and, for the
+// deep link, the player said yes).
+
+/// Hosts a skin link may download from.
+pub(crate) const SKIN_LINK_HOSTS: [&str; 2] = ["drvibe.io", "cdn.drvibe.io"];
+
+/// The URL, if a skin link may download from it.
+pub(crate) fn check_skin_link_url(raw: &str) -> Result<url::Url, String> {
+    let u: url::Url = raw.parse().map_err(|_| "Not a web address".to_string())?;
+    let host = u.host_str().unwrap_or("").to_ascii_lowercase();
+    let allowed = u.scheme() == "https"
+        && SKIN_LINK_HOSTS.contains(&host.as_str())
+        && u.port().is_none()
+        && u.username().is_empty()
+        && u.password().is_none();
+    if allowed {
+        Ok(u)
+    } else {
+        Err(format!(
+            "Skins install only from {} (got {})",
+            SKIN_LINK_HOSTS.join(" or "),
+            if host.is_empty() {
+                u.scheme().to_string()
+            } else {
+                host
+            }
+        ))
+    }
+}
+
+/// A gallery slug: 1-80 chars of `[A-Za-z0-9_-]`.
+pub(crate) fn check_link_slug(slug: &str) -> Result<(), String> {
+    let ok = !slug.is_empty()
+        && slug.len() <= 80
+        && slug
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    if ok {
+        Ok(())
+    } else {
+        Err("Invalid skin slug".to_string())
+    }
+}
+
+/// A PNG sprite sheet Dr. Vibe can wear, within the size limit.
+pub(crate) fn check_linked_png(bytes: &[u8]) -> Result<(), String> {
+    crate::visitors::validate_png(bytes)?;
+    let reader = png::Decoder::new(std::io::Cursor::new(bytes))
+        .read_info()
+        .map_err(|e| format!("The sheet is not a valid PNG: {e}"))?;
+    let info = reader.info();
+    crate::generator::check_sheet_size(info.width, info.height)
+}
+
+/// The sidecar, if it is a JSON object within the size limit.
+pub(crate) fn check_linked_anim(bytes: &[u8]) -> Result<serde_json::Value, String> {
+    if bytes.len() > crate::visitors::MAX_ANIM_BYTES {
+        return Err("The animation file is too large".to_string());
+    }
+    match serde_json::from_slice::<serde_json::Value>(bytes) {
+        Ok(v) if v.is_object() => Ok(v),
+        _ => Err("The animation file is not valid".to_string()),
+    }
+}
+
+/// GET with a byte limit: stops reading as soon as the body passes it.
+async fn fetch_capped(url: &url::Url, limit: usize) -> Result<Vec<u8>, String> {
+    let mut resp = reqwest::Client::new()
+        .get(url.clone())
+        .send()
+        .await
+        .map_err(|e| format!("Download failed: {}", e.without_url()))?;
+    if !resp.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", resp.status().as_u16()));
+    }
+    if resp.content_length().is_some_and(|n| n as usize > limit) {
+        return Err("The download is too large".to_string());
+    }
+    let mut out = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("Download failed: {}", e.without_url()))?
+    {
+        if out.len() + chunk.len() > limit {
+            return Err("The download is too large".to_string());
+        }
+        out.extend_from_slice(&chunk);
+    }
+    Ok(out)
+}
+
+/// A skin downloaded from a link and checked, not yet saved.
+pub(crate) struct LinkedSkin {
+    pub slug: String,
+    pub png: Vec<u8>,
+    pub anim: serde_json::Value,
+    /// Display name from its metadata, or the slug.
+    pub name: String,
+}
+
+/// Downloads and checks a linked skin. Nothing is written.
+pub(crate) async fn fetch_linked_skin(
+    slug: &str,
+    png_url: &str,
+    anim_url: Option<&str>,
+) -> Result<LinkedSkin, String> {
+    check_link_slug(slug)?;
+    let png_url = check_skin_link_url(png_url)?;
+    let anim_url = anim_url.map(check_skin_link_url).transpose()?;
+    let png = fetch_capped(&png_url, crate::visitors::MAX_SPRITE_BYTES).await?;
+    check_linked_png(&png)?;
+    let mut anim = match anim_url {
+        Some(u) => check_linked_anim(&fetch_capped(&u, crate::visitors::MAX_ANIM_BYTES).await?)?,
+        None => decode_anim_from_png(&png)
+            .and_then(|j| check_linked_anim(j.as_bytes()).ok())
+            .unwrap_or_else(|| serde_json::json!({})),
+    };
+    scrub_anim_value(&mut anim);
+    anim["galleryId"] = serde_json::json!(slug);
+    let name = anim
+        .get("name")
+        .and_then(|n| n.as_str())
+        .map(|n| n.chars().take(60).collect::<String>())
+        .filter(|n| !n.trim().is_empty())
+        .unwrap_or_else(|| slug.to_string());
+    Ok(LinkedSkin {
+        slug: slug.to_string(),
+        png,
+        anim,
+        name,
+    })
+}
+
+/// True if a skin with this slug is already in the skins folder.
+pub(crate) fn linked_skin_exists(skins_dir: &Path, slug: &str) -> bool {
+    skins_dir.join(format!("{slug}.png")).exists()
+}
+
+/// Writes a checked skin (PNG, then its sidecar). Returns whether it
+/// replaced one.
+pub(crate) fn save_linked_skin(skins_dir: &Path, skin: &LinkedSkin) -> Result<bool, String> {
+    let was_update = linked_skin_exists(skins_dir, &skin.slug);
+    std::fs::create_dir_all(skins_dir).map_err(|e| format!("Save failed: {e}"))?;
+    std::fs::write(skins_dir.join(format!("{}.png", skin.slug)), &skin.png)
+        .map_err(|e| format!("Save failed: {e}"))?;
+    let text = serde_json::to_string_pretty(&skin.anim).map_err(|e| e.to_string())?;
+    atomic_write_string(&skins_dir.join(format!("{}.anim.json", skin.slug)), &text)
+        .map_err(|e| format!("Save failed: {e}"))?;
+    Ok(was_update)
 }
 
 // ── Companion sprite cache (LRU, max 20) ─────────────────────────────────────

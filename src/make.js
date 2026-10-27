@@ -18,7 +18,7 @@ import { WEB_BASE, syncWebBaseFromRust } from './core/config.js';
 import { desktopApi, isLinked } from './core/api/client.js';
 import { designErrorMessage } from './core/api/contract.js';
 import { WebRoutes } from './core/api/endpoints.js';
-import { readSection } from './core/DatabaseReader.js';
+import { readSection, writeKey } from './core/DatabaseReader.js';
 import { ANIMATIONS } from './config/animations.js';
 import { formatSkinName } from './config/skinNames.js';
 import { ROW_SPEC, FRAME, SHEET_WIDTH, SHEET_HEIGHT, validateSheet, templateGuide } from './features/make/spriteSpec.js';
@@ -448,9 +448,36 @@ function renderSteps(step) {
   });
 }
 
+// One-time notice before the first AI run: where the description goes.
+// Stored as settings.aiGeneratorConsentAt (ms).
+let aiConsentAt = null;
+let aiConsentWaiter = null;
+
+function askAiConsent() {
+  if (aiConsentAt) return Promise.resolve(true);
+  const box = $('ai-consent');
+  const vendor = $('ai-consent-vendor');
+  if (vendor) vendor.textContent = state.agent === 'codex' ? 'OpenAI (Codex)' : 'Anthropic (Claude Code)';
+  box.hidden = false;
+  return new Promise((resolve) => { aiConsentWaiter = resolve; });
+}
+
+function answerAiConsent(ok) {
+  $('ai-consent').hidden = true;
+  if (ok) {
+    aiConsentAt = Date.now();
+    writeKey('settings', 'aiGeneratorConsentAt', aiConsentAt).catch(() => {});
+    emitTo('main', 'settings-saved', { aiGeneratorConsentAt: aiConsentAt });
+  }
+  const resolve = aiConsentWaiter;
+  aiConsentWaiter = null;
+  resolve?.(ok);
+}
+
 async function generate() {
   const description = $('prompt').value.trim();
   if (!description || !state.agent || state.busy) return;
+  if (!(await askAiConsent())) return;
   const referenceSlug = $('start-from').value || null;
   state.busy = true;
   state.cancelled = false;
@@ -612,6 +639,7 @@ async function remixCurrent() {
 async function editWithAi() {
   const cur = state.current;
   if (cur?.kind !== 'own' || !state.agent) return;
+  if (!(await askAiConsent())) return;
   try {
     await invoke('open_character_workshop', { slug: cur.slug, agent: state.agent });
   } catch (e) {
@@ -787,6 +815,9 @@ requestAnimationFrame(tick);
   let settings = null;
   try { settings = await readSection('settings'); } catch { settings = null; }
   state.wearing = settings?.selectedSkin || 'dr-vibe-default';
+  aiConsentAt = settings?.aiGeneratorConsentAt || null;
+  $('btn-ai-consent-ok')?.addEventListener('click', () => answerAiConsent(true));
+  $('btn-ai-consent-cancel')?.addEventListener('click', () => answerAiConsent(false));
   const [claude, codex, linked] = await Promise.all([
     invoke('check_claude_installed').catch(() => false),
     invoke('check_codex_installed').catch(() => false),

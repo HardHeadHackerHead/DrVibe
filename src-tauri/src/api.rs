@@ -91,6 +91,48 @@ impl<'a> Call<'a> {
     }
 }
 
+/// "Sync my stats" (Settings → Privacy). Off keeps the account linked but
+/// stops everything that shares stats or presence: sync, events, poll, ack,
+/// the weekly recap and privacy updates. Seeded from the store at start
+/// ([`init_sync_enabled`]) and set by the main window ([`set_sync_enabled`]).
+static SYNC_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Calls held back while "Sync my stats" is off.
+pub(crate) fn is_sharing_call(method: &reqwest::Method, path: &str) -> bool {
+    let route = path.split('?').next().unwrap_or(path);
+    matches!(
+        route,
+        "/desktop/sync"
+            | "/desktop/events"
+            | "/desktop/poll"
+            | "/desktop/ack"
+            | "/me/recap"
+            | "/me/streak"
+    ) || (route == "/privacy" && method != reqwest::Method::GET)
+}
+
+/// Whether "Sync my stats" is on.
+pub(crate) fn sync_enabled() -> bool {
+    SYNC_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Reads `settings.syncEnabled` from the store (default on).
+pub(crate) fn init_sync_enabled(app: &tauri::AppHandle) {
+    use tauri_plugin_store::StoreExt;
+    let enabled = app
+        .store("dr-vibe-data.json")
+        .ok()
+        .and_then(|s| s.get("settings"))
+        .and_then(|s| s.get("syncEnabled").and_then(|v| v.as_bool()))
+        .unwrap_or(true);
+    SYNC_ENABLED.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[tauri::command]
+pub(crate) fn set_sync_enabled(enabled: bool) {
+    SYNC_ENABLED.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn client() -> &'static reqwest::Client {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -137,6 +179,16 @@ pub(crate) async fn send(ctx: Ctx<'_>, call: Call<'_>) -> ApiResponse {
         return ApiResponse {
             unlinked: true,
             data: serde_json::Value::Null,
+            ..Default::default()
+        };
+    }
+    if matches!(ctx, Ctx::App(_))
+        && !SYNC_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
+        && is_sharing_call(&call.method, call.path)
+    {
+        return ApiResponse {
+            data: serde_json::Value::Null,
+            error: Some("sync_off".into()),
             ..Default::default()
         };
     }
@@ -286,7 +338,32 @@ pub(crate) async fn request(
 pub(crate) async fn poll(ctx: Ctx<'_>, etag: Option<&str>) -> ApiResponse {
     let mut call = Call::new(reqwest::Method::GET, "/desktop/poll");
     call.etag = etag;
-    typed::<PollResponse>(send(ctx, call).await)
+    let r = send(ctx, call).await;
+    let raw_privacy = r.data.get("privacy").cloned();
+    let mut r = typed::<PollResponse>(r);
+    drop_unsent_privacy_fields(raw_privacy.as_ref(), &mut r.data);
+    r
+}
+
+/// The send switches the server did not return (a server older than them)
+/// are removed again after parsing, so the desktop keeps its own value
+/// instead of reading the protocol default as the player's choice.
+pub(crate) fn drop_unsent_privacy_fields(
+    raw: Option<&serde_json::Value>,
+    data: &mut serde_json::Value,
+) {
+    let Some(parsed) = data.get_mut("privacy").and_then(|p| p.as_object_mut()) else {
+        return;
+    };
+    for key in [
+        "shareActivityTimes",
+        "shareCodingNow",
+        "allowSearchIndexing",
+    ] {
+        if raw.and_then(|r| r.get(key)).is_none() {
+            parsed.remove(key);
+        }
+    }
 }
 
 /// `POST /desktop/ack` (signed).
@@ -570,6 +647,43 @@ pub(crate) fn emit_account(app: &tauri::AppHandle, event: &str, payload: serde_j
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sync_off_holds_back_only_sharing_calls() {
+        use reqwest::Method;
+        for (m, p) in [
+            (Method::POST, "/desktop/sync"),
+            (Method::POST, "/desktop/events"),
+            (Method::GET, "/desktop/poll"),
+            (Method::POST, "/desktop/ack"),
+            (Method::POST, "/me/recap"),
+            (Method::GET, "/me/streak"),
+            (Method::PUT, "/privacy"),
+        ] {
+            assert!(is_sharing_call(&m, p), "{m} {p}");
+        }
+        for (m, p) in [
+            (Method::GET, "/privacy"),
+            (Method::GET, "/economy/balance"),
+            (Method::POST, "/visits"),
+            (Method::POST, "/errors"),
+            (Method::GET, "/me/last-sync"),
+        ] {
+            assert!(!is_sharing_call(&m, p), "{m} {p}");
+        }
+    }
+
+    #[test]
+    fn missing_send_switches_stay_missing_after_parsing() {
+        let mut data = serde_json::json!({ "privacy": { "profileVisibility": "public", "shareActivityTimes": true, "shareCodingNow": true } });
+        let raw = serde_json::json!({ "profileVisibility": "public", "shareCodingNow": false });
+        drop_unsent_privacy_fields(Some(&raw), &mut data);
+        assert!(data["privacy"].get("shareActivityTimes").is_none());
+        assert_eq!(
+            data["privacy"]["shareCodingNow"], true,
+            "present fields are left as parsed"
+        );
+    }
 
     #[test]
     fn nonces_are_well_formed_and_unique() {

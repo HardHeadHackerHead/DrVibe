@@ -147,8 +147,24 @@ describe('TrackedRepos from Claude Code', () => {
     expect(resolve).toHaveBeenCalledTimes(2);
   });
 
+  it('forgets remembered repos after 90 days without Claude Code, and on request', async () => {
+    const day = 24 * 60 * 60 * 1000;
+    sections.trackedRepos = { repos: [
+      { name: 'old', path: 'E:\\work\\old', worktrees: ['E:\\work\\old'], lastSeen: Date.now() - 91 * day },
+      { name: 'app', path: 'E:\\work\\app', worktrees: ['E:\\work\\app'], lastSeen: Date.now() - 89 * day },
+    ] };
+    fakeResolve();
+    const repos = await started(fakeSettings());
+    expect(repos.getRepos().map(r => r.name)).toEqual(['app']);
+    expect(repos.repoFor('E:\\work\\app\\src\\x.rs')?.name).toBe('app');
+    expect(repos.repoFor('E:\\elsewhere')).toBeNull();
+    repos.forget();
+    expect(repos.getRepos()).toEqual([]);
+    expect(sections.trackedRepos.repos).toEqual([]);
+  });
+
   it('hides remembered repos while the setting is off and brings them back', async () => {
-    sections.trackedRepos = { repos: [{ name: 'app', path: 'E:\\work\\app', worktrees: ['E:\\work\\app'], lastSeen: 1 }] };
+    sections.trackedRepos = { repos: [{ name: 'app', path: 'E:\\work\\app', worktrees: ['E:\\work\\app'], lastSeen: Date.now() - 1 }] };
     fakeResolve();
     const settings = fakeSettings();
     const repos = await started(settings);
@@ -161,9 +177,9 @@ describe('TrackedRepos from Claude Code', () => {
   it('rechecks remembered repos: gone ones drop, worktrees move under their main repo', async () => {
     sections.trackedRepos = {
       repos: [
-        { name: 'fix', path: 'E:\\work\\app-wt\\fix', worktrees: ['E:\\work\\app-wt\\fix'], lastSeen: 5 },
-        { name: 'gone', path: 'E:\\work\\gone', worktrees: ['E:\\work\\gone'], lastSeen: 4 },
-        { name: 'lib', path: 'E:\\work\\lib', worktrees: ['E:\\work\\lib'], lastSeen: 3 },
+        { name: 'fix', path: 'E:\\work\\app-wt\\fix', worktrees: ['E:\\work\\app-wt\\fix'], lastSeen: Date.now() - 5 },
+        { name: 'gone', path: 'E:\\work\\gone', worktrees: ['E:\\work\\gone'], lastSeen: Date.now() - 4 },
+        { name: 'lib', path: 'E:\\work\\lib', worktrees: ['E:\\work\\lib'], lastSeen: Date.now() - 3 },
       ],
     };
     fakeResolve();
@@ -548,15 +564,16 @@ describe('helpers', () => {
     expect(formatAgo(now - 3 * 86400e3, now)).toBe('3d ago');
   });
 
-  it('Settings: Claude repos are tracked by default and the choice survives a reload', async () => {
+  it('Settings: Claude repos are not tracked until chosen, and the choice survives a reload', async () => {
     let saved = null;
     db.getSection.mockImplementation(() => saved);
     db.setSection.mockImplementation((_s, v) => { saved = JSON.parse(JSON.stringify(v)); });
 
-    expect(DEFAULT_SETTINGS.trackClaudeRepos).toBe(true);
+    expect(DEFAULT_SETTINGS.trackClaudeRepos).toBe(false);
     expect('autoDetectRepos' in DEFAULT_SETTINGS).toBe(false);
     const first = new Settings();
     await first.init();
+    first.set('trackClaudeRepos', true);
     first.set('trackClaudeRepos', false);
     first.set('ignoredRepos', ['E:\\work\\old']);
 
@@ -564,7 +581,8 @@ describe('helpers', () => {
     await second.init();
     expect(second.get('trackClaudeRepos')).toBe(false);
     expect(second.get('ignoredRepos')).toEqual(['E:\\work\\old']);
+    second.set('trackClaudeRepos', true);
     second.reset();
-    expect(second.get('trackClaudeRepos')).toBe(true);
+    expect(second.get('trackClaudeRepos')).toBe(false);
   });
 });

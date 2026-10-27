@@ -9,6 +9,7 @@
     "core:window:allow-set-size",
     "core:window:allow-set-ignore-cursor-events",
     "core:window:allow-close",
-    "opener:default"
+    "opener:default",
+    "allow-get-web-base-url"
   ]
 }

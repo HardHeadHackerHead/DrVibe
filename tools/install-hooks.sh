@@ -83,7 +83,7 @@ UPDATED=$(jq --arg cmd "$HOOK_CMD" '
   def dv_hook: {"type": "command", "command": $cmd, "timeout": 10};
 
   .hooks.PostToolUse = ((.hooks.PostToolUse // []) | rm_dv) + [{
-    "matcher": "Write|Edit|NotebookEdit|Read|Bash",
+    "matcher": "Write|Edit|NotebookEdit|Bash",
     "hooks": [dv_hook]
   }] |
   .hooks.SessionStart = ((.hooks.SessionStart // []) | rm_dv) + [{"hooks": [dv_hook]}] |
@@ -99,4 +99,6 @@ echo ""
 echo "Hook script: $STABLE_HOOK"
 echo "Event log:   $STABLE_DIR/claude-code-events.jsonl"
 echo ""
+echo "The hook stays silent until Dr. Vibe runs with Follow Claude Code on:"
+echo "it writes ~/.dr-vibe/install-marker and the tracked repo list."
 echo "Restart Claude Code for hooks to take effect."

@@ -35,13 +35,64 @@ pub struct TransientSyncState {
     /// Skin tone forwarded from JS (e.g. "medium-dark", "green", "dark")
     #[serde(default)]
     pub selected_skin_tone: Option<String>,
-    /// "Show project names" privacy setting. Off by default: the current
-    /// project name is only sent when the player turned it on.
+    /// "Send my project name" privacy setting. Off by default: the current
+    /// project name is only sent when the player turned it on. JS passes
+    /// only a name that resolved to a tracked git repo's folder.
     #[serde(default)]
     pub show_project_names: bool,
+    /// "Send my activity times": off sends no hour-of-day profile, commit
+    /// dates or streak history, and unlock times only to the UTC day.
+    #[serde(default = "yes")]
+    pub share_activity_times: bool,
+    /// "Send when I'm coding right now": off always sends "not coding".
+    #[serde(default = "yes")]
+    pub share_coding_now: bool,
     /// The collected Dr. Vibe on the desktop; null = a local skin.
     #[serde(default)]
     pub equipped_companion_id: Option<String>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+const DAY_MS: i64 = 86_400_000;
+
+/// Unix ms rounded down to 00:00 UTC of its day.
+pub(crate) fn start_of_utc_day(ms: i64) -> i64 {
+    ms.div_euclid(DAY_MS) * DAY_MS
+}
+
+/// Applies "Send my activity times" and "Send when I'm coding right now" to
+/// a built body. The shape stays what the server expects: zeros and empty
+/// lists, never missing fields.
+pub(crate) fn apply_send_switches(
+    payload: &mut SyncPayload,
+    share_activity_times: bool,
+    share_coding_now: bool,
+) {
+    if !share_coding_now {
+        // Live session length and momentum would say "coding now" too.
+        if let Some(p) = payload.presence.as_mut() {
+            p.is_currently_coding = false;
+        }
+        payload.current_session_minutes = Some(0);
+        if let Some(m) = payload.momentum.as_mut() {
+            m.current = 0;
+            m.peak_this_session = Some(0);
+        }
+    }
+    if share_activity_times {
+        return;
+    }
+    payload.coding_hour_of_day = Some(vec![0.0; 24]);
+    if let Some(git) = payload.git.as_mut() {
+        git.commit_dates = Some(Vec::new());
+    }
+    payload.streak_history = Some(Vec::new());
+    for a in payload.achievements.iter_mut().flatten() {
+        a.unlocked_at = a.unlocked_at.map(start_of_utc_day);
+    }
 }
 
 pub(crate) fn compute_last_7_days(history: &[serde_json::Value]) -> Vec<f64> {
@@ -207,10 +258,18 @@ pub(crate) fn build_payload(
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
 
+    // A count only: the names were replaced by `seenRepoCount` (older
+    // stores still have the `seenRepos` list).
     let seen_repos = achievements_store
-        .get("seenRepos")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
+        .get("seenRepoCount")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as usize)
+        .or_else(|| {
+            achievements_store
+                .get("seenRepos")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+        })
         .unwrap_or(0);
     let commit_dates: Vec<String> = achievements_store
         .get("commitDays")
@@ -244,7 +303,9 @@ pub(crate) fn build_payload(
     };
 
     let current_project = presence_project(&transient);
-    SyncPayload {
+    let (share_activity_times, share_coding_now) =
+        (transient.share_activity_times, transient.share_coding_now);
+    let mut payload = SyncPayload {
         app_version,
         skin: Some(skin),
         stats: SyncStats {
@@ -293,7 +354,9 @@ pub(crate) fn build_payload(
         )),
         coding_hour_of_day: Some(transient.coding_hour_of_day),
         equipped_companion_id: Some(transient.equipped_companion_id),
-    }
+    };
+    apply_send_switches(&mut payload, share_activity_times, share_coding_now);
+    payload
 }
 
 /// Sync profile stats to the Dr. Vibe website. Returns `{ success: true,
@@ -304,6 +367,25 @@ pub(crate) async fn sync_profile(
     transient: TransientSyncState,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
+    let payload = payload_for(transient, &app_handle)?;
+    send_sync(Ctx::App(&app_handle), &payload).await
+}
+
+/// The Outbox: the body the next sync would send, built locally by the same
+/// code and never sent. The custom sprite is shortened for reading.
+#[tauri::command]
+pub(crate) fn preview_sync_payload(
+    transient: TransientSyncState,
+    app_handle: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    let payload = payload_for(transient, &app_handle)?;
+    serde_json::to_value(payload).map_err(|e| e.to_string())
+}
+
+fn payload_for(
+    transient: TransientSyncState,
+    app_handle: &tauri::AppHandle,
+) -> Result<SyncPayload, String> {
     use tauri_plugin_store::StoreExt;
     let store = app_handle
         .store("dr-vibe-data.json")
@@ -323,18 +405,16 @@ pub(crate) async fn sync_profile(
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or(serde_json::json!({}));
-    let bundled = crate::skins::is_bundled_skin(&app_handle, &skin_slug);
+    let bundled = crate::skins::is_bundled_skin(app_handle, &skin_slug);
 
-    let payload = build_payload(
+    Ok(build_payload(
         transient,
         &section,
         skin_png,
         skin_meta,
         bundled,
         Some(app_handle.package_info().version.to_string()),
-    );
-
-    send_sync(Ctx::App(&app_handle), &payload).await
+    ))
 }
 
 /// `POST /desktop/sync` (signed). `{ success: true, ...SyncResponse }` or
@@ -469,6 +549,107 @@ mod tests {
         // null clears the equipped pointer (a local skin is worn).
         assert!(json.get("equippedCompanionId").unwrap().is_null());
         assert!(json.get("privacyLevel").is_none());
+    }
+
+    fn transient_with(switches: serde_json::Value) -> TransientSyncState {
+        let mut v = serde_json::to_value(transient_json()).unwrap();
+        for (k, val) in switches.as_object().unwrap() {
+            v[k] = val.clone();
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    fn transient_json() -> serde_json::Value {
+        serde_json::json!({
+            "isCodingNow": true,
+            "currentMomentum": 10.4,
+            "peakMomentumSession": 20.0,
+            "currentSessionMinutes": 5,
+            "currentProject": null,
+            "codingHourOfDay": [0, 1, 2],
+            "achievements": [{
+                "id": "night_owl", "title": "Night Owl", "description": "d", "icon": "&#x1F989;",
+                "category": "time", "progress": 1, "maxProgress": 1, "unlocked": true, "unlockedAt": 1_700_003_723_456i64
+            }],
+            "masteryTracks": [],
+            "sessionCommitCount": 0
+        })
+    }
+
+    #[test]
+    fn send_switches_default_on() {
+        let t = transient_with(serde_json::json!({}));
+        assert!(t.share_activity_times && t.share_coding_now);
+        let json = serde_json::to_value(build_payload(
+            t,
+            &store,
+            None,
+            serde_json::json!({}),
+            true,
+            None,
+        ))
+        .unwrap();
+        assert_eq!(json["presence"]["isCurrentlyCoding"], true);
+        assert_eq!(json["codingHourOfDay"], serde_json::json!([0.0, 1.0, 2.0]));
+        assert_eq!(
+            json["git"]["commitDates"],
+            serde_json::json!(["2026-10-01"])
+        );
+        assert_eq!(json["achievements"][0]["unlockedAt"], 1_700_003_723_456i64);
+    }
+
+    #[test]
+    fn activity_times_off_keeps_the_shape_but_not_the_times() {
+        let t = transient_with(serde_json::json!({ "shareActivityTimes": false }));
+        let p = build_payload(t, &store, None, serde_json::json!({}), true, None);
+        let json = serde_json::to_value(&p).unwrap();
+        assert_eq!(json["codingHourOfDay"], serde_json::json!(vec![0.0; 24]));
+        assert_eq!(json["git"]["commitDates"], serde_json::json!([]));
+        assert_eq!(json["streakHistory"], serde_json::json!([]));
+        // 2023-11-14T23:15:23.456Z → 2023-11-14T00:00:00Z
+        assert_eq!(json["achievements"][0]["unlockedAt"], 1_699_920_000_000i64);
+        assert_eq!(json["presence"]["isCurrentlyCoding"], true);
+        // Still a body the current server parses.
+        let back: SyncPayload = serde_json::from_value(json).unwrap();
+        assert_eq!(back, p);
+    }
+
+    #[test]
+    fn coding_now_off_always_says_not_coding() {
+        let t = transient_with(serde_json::json!({ "shareCodingNow": false }));
+        let json = serde_json::to_value(build_payload(
+            t,
+            &store,
+            None,
+            serde_json::json!({}),
+            true,
+            None,
+        ))
+        .unwrap();
+        assert_eq!(json["presence"]["isCurrentlyCoding"], false);
+        assert_eq!(json["currentSessionMinutes"], 0);
+        assert_eq!(json["momentum"]["current"], 0);
+        assert_eq!(json["momentum"]["peakThisSession"], 0);
+        assert_eq!(json["codingHourOfDay"], serde_json::json!([0.0, 1.0, 2.0]));
+    }
+
+    #[test]
+    fn utc_day_rounding() {
+        assert_eq!(start_of_utc_day(0), 0);
+        assert_eq!(start_of_utc_day(86_399_999), 0);
+        assert_eq!(start_of_utc_day(86_400_000), 86_400_000);
+        assert_eq!(start_of_utc_day(-1), -86_400_000);
+    }
+
+    #[test]
+    fn repo_count_prefers_the_count() {
+        let store = |k: &str| match k {
+            "achievements" => serde_json::json!({ "seenRepoCount": 7, "seenRepos": ["a"] }),
+            _ => serde_json::json!({}),
+        };
+        let t = transient_with(serde_json::json!({}));
+        let p = build_payload(t, &store, None, serde_json::json!({}), true, None);
+        assert_eq!(p.git.unwrap().unique_repos, Some(7));
     }
 
     #[test]

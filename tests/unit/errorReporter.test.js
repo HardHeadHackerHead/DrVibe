@@ -50,6 +50,9 @@ describe('desktop JS error reporter', () => {
     installErrorReporter({ send: () => { throw new Error('ipc down'); } });
     expect(reportError(new Error('ResizeObserver loop limit exceeded'))).toBe(false);
     expect(reportError(null)).toBe(false);
+    // Thrown values that are not errors could hold anything: never sent.
+    expect(reportError({ path: 'C:\Users\mara\secret', token: 'dvd_x' })).toBe(false);
+    expect(reportError(42)).toBe(false);
     expect(() => reportError(new Error('boom'))).not.toThrow();
   });
 
@@ -64,8 +67,10 @@ describe('desktop JS error reporter', () => {
     expect(invoke).toHaveBeenCalledWith('error_reports_set_enabled', { enabled: false });
   });
 
-  it('defaults to on without Tauri', async () => {
-    expect(await getErrorReportsEnabled()).toBe(true);
+  it('defaults to off without Tauri, and when Rust cannot answer', async () => {
+    expect(await getErrorReportsEnabled()).toBe(false);
+    window.__TAURI__ = { core: { invoke: vi.fn(async () => { throw new Error('no ipc'); }) } };
+    expect(await getErrorReportsEnabled()).toBe(false);
   });
 
   it('is listed in "What Dr. Vibe sees"', () => {

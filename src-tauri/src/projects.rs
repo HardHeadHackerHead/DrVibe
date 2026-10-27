@@ -116,9 +116,13 @@ pub(crate) fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitInfo {
+    /// First 8 chars of the hash: local display and new-commit checks only.
     pub hash: String,
+    /// What a `GIT_COMMIT` event carries instead of the hash:
+    /// [`commit_event_id`] keyed by the linked account's user id; None while
+    /// unlinked (no events are sent then).
+    pub event_id: Option<String>,
     pub message: String,
-    pub author: String,
     pub timestamp: String,
 }
 
@@ -134,19 +138,49 @@ pub struct GitInfo {
     pub recent_commits: Vec<CommitInfo>,
     pub has_uncommitted_changes: bool,
     pub uncommitted_count: usize,
-    pub remote_url: Option<String>,
 }
 
-/// Gather git info for the repository containing `path`.
-/// Returns the repo name, current branch, recent commits, and remote URL.
+/// Gather git info for the repository containing `path`: the repo name,
+/// current branch, recent commits and the uncommitted count. No remote URL
+/// and no author: nothing uses them, and a remote can embed credentials.
 #[tauri::command]
-pub(crate) async fn get_git_info(path: String) -> Result<GitInfo, String> {
-    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path))
+pub(crate) async fn get_git_info(
+    path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<GitInfo, String> {
+    // The linked account's user id: the same commit gets the same id on all
+    // of the player's computers. Unlinked: no id (no events are sent then).
+    let user_id = crate::account::get_profile(app_handle)
+        .get("userId")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .filter(|id| !id.is_empty());
+    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path, user_id.as_deref()))
         .await
         .map_err(|e| e.to_string())?
 }
 
-pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
+/// What a `GIT_COMMIT` event carries instead of the commit hash: the first
+/// 16 lowercase hex chars of `HMAC-SHA256(key = user_id, msg = sha)`, where
+/// `sha` is the full commit hash as git prints it (drvibe-protocol
+/// `EconomyEventType::GitCommit`).
+pub(crate) fn commit_event_id(user_id: &str, sha: &str) -> String {
+    use hmac::{Hmac, Mac};
+    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(user_id.as_bytes())
+        .expect("HMAC accepts any key length");
+    mac.update(sha.trim().to_ascii_lowercase().as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .take(8)
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+pub(crate) fn get_git_info_blocking(
+    path: String,
+    user_id: Option<&str>,
+) -> Result<GitInfo, String> {
     let (toplevel, root) = git_repo_paths(Path::new(&path))?;
     let git_root = toplevel.to_string_lossy().into_owned();
     let repo_name = repo_name(&root);
@@ -156,19 +190,22 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    // Format: hash|subject|author|ISO date
-    let log_raw = run_git(&git_root, &["log", "--format=%H|%s|%an|%ai", "-5"]).unwrap_or_default();
+    // Format: hash|ISO date|subject (the subject last: it may contain '|')
+    let log_raw = run_git(&git_root, &["log", "--format=%H|%ai|%s", "-5"]).unwrap_or_default();
 
     let recent_commits = log_raw
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|line| {
-            let parts: Vec<&str> = line.splitn(4, '|').collect();
+            let parts: Vec<&str> = line.splitn(3, '|').collect();
+            let sha = parts.first().unwrap_or(&"").trim();
             CommitInfo {
-                hash: parts.first().unwrap_or(&"").chars().take(8).collect(),
-                message: parts.get(1).unwrap_or(&"").to_string(),
-                author: parts.get(2).unwrap_or(&"").to_string(),
-                timestamp: parts.get(3).unwrap_or(&"").to_string(),
+                hash: sha.chars().take(8).collect(),
+                event_id: user_id
+                    .filter(|_| !sha.is_empty())
+                    .map(|id| commit_event_id(id, sha)),
+                timestamp: parts.get(1).unwrap_or(&"").to_string(),
+                message: parts.get(2).unwrap_or(&"").to_string(),
             }
         })
         .collect();
@@ -176,11 +213,6 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
     let status = run_git(&git_root, &["status", "--porcelain"]).unwrap_or_default();
     let has_uncommitted_changes = !status.trim().is_empty();
     let uncommitted_count = status.lines().filter(|l| !l.trim().is_empty()).count();
-
-    let remote_url = run_git(&git_root, &["remote", "get-url", "origin"])
-        .ok()
-        .map(|u| u.trim().to_string())
-        .filter(|u| !u.is_empty());
 
     Ok(GitInfo {
         repo_name,
@@ -190,7 +222,6 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
         recent_commits,
         has_uncommitted_changes,
         uncommitted_count,
-        remote_url,
     })
 }
 
@@ -198,6 +229,23 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
 mod tests {
     use super::*;
     use crate::test_util::TempDir;
+
+    #[test]
+    fn commit_ids_are_keyed_and_short() {
+        let sha = "0123456789abcdef0123456789abcdef01234567";
+        let id = commit_event_id("install-a", sha);
+        // Python: hmac.new(b"install-a", sha.encode(), hashlib.sha256).hexdigest()[:16]
+        assert_eq!(id, "acae9402f1cc3212");
+        assert_eq!(
+            id,
+            commit_event_id("install-a", &format!(" {} ", sha.to_uppercase()))
+        );
+        assert_ne!(
+            id,
+            commit_event_id("user-b", sha),
+            "another account gets another id"
+        );
+    }
 
     /// A project folder (removed when dropped).
     fn temp_project(name: &str, files: &[&str]) -> TempDir {
@@ -265,20 +313,30 @@ mod tests {
         git(&["commit", "-q", "-m", "first commit"]);
         std::fs::write(dir.join("b.txt"), "dirty").unwrap();
 
-        let info = get_git_info_blocking(path.clone()).unwrap();
+        let info = get_git_info_blocking(path.clone(), Some("install-a")).unwrap();
         assert_eq!(info.branch, "main");
         assert_eq!(info.recent_commits.len(), 1);
         assert_eq!(info.recent_commits[0].message, "first commit");
         assert_eq!(info.recent_commits[0].hash.len(), 8);
+        let full = git(&["rev-parse", "HEAD"]);
+        assert_eq!(
+            info.recent_commits[0].event_id.as_deref(),
+            Some(commit_event_id("install-a", full.trim()).as_str())
+        );
+        assert!(!full.starts_with(info.recent_commits[0].event_id.as_deref().unwrap()));
         assert!(info.has_uncommitted_changes);
         assert_eq!(info.uncommitted_count, 1);
-        assert_eq!(info.remote_url, None);
+        let json = serde_json::to_value(&info).unwrap();
+        assert!(
+            json.get("remote_url").is_none() && json["recent_commits"][0].get("author").is_none()
+        );
         assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
 
         // A linked worktree reports its main repo's name and root
         let wt = dir.join("wt-fix");
         git(&["worktree", "add", "-q", "-b", "fix", &wt.to_string_lossy()]);
-        let info = get_git_info_blocking(wt.to_string_lossy().into_owned()).unwrap();
+        let info = get_git_info_blocking(wt.to_string_lossy().into_owned(), None).unwrap();
+        assert_eq!(info.recent_commits[0].event_id, None);
         assert_eq!(info.branch, "fix");
         assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
         assert!(info.git_root.ends_with("wt-fix"), "{}", info.git_root);

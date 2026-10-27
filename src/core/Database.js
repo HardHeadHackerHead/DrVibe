@@ -143,9 +143,24 @@ class Database {
     this._scheduleSave();
   }
 
+  /**
+   * "Delete all local data": forget everything in memory and in the
+   * localStorage mirror, and never write again in this run (Rust clears the
+   * store file, then the app restarts into first-run setup).
+   */
+  wipe() {
+    this._wiped = true;
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = null;
+    this._dirty = false;
+    this.data = {};
+    try { localStorage.removeItem(LOCALSTORAGE_KEY); } catch { /* unavailable */ }
+  }
+
   // --- Save control ---
 
   _scheduleSave() {
+    if (this._wiped) return;
     this._dirty = true;
     if (this._saveTimer) return;
     this._saveTimer = setTimeout(() => {
@@ -163,7 +178,7 @@ class Database {
   }
 
   async _flush() {
-    if (!this._dirty) return;
+    if (!this._dirty || this._wiped) return;
     this._dirty = false;
 
     try {

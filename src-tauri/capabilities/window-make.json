@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "window-make",
+  "description": "The sensitive Dr. Vibe commands the make window uses (network as the linked device, Claude Code hooks, the AI generator, local data). Every other window is refused them.",
+  "windows": [
+    "make"
+  ],
+  "permissions": [
+    "allow-api-request",
+    "allow-api-poll",
+    "allow-api-ack",
+    "allow-api-send-events",
+    "allow-api-send-visit",
+    "allow-api-update-privacy",
+    "allow-api-collection",
+    "allow-api-set-equipped",
+    "allow-api-send-recap",
+    "allow-api-submit-design",
+    "allow-sync-profile",
+    "allow-get-last-sync",
+    "allow-start-device-link",
+    "allow-generate-character",
+    "allow-cancel-generation"
+  ]
+}

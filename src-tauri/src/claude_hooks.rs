@@ -128,8 +128,13 @@ pub(crate) fn deploy_hook_resource(
     required: bool,
 ) -> Result<Option<PathBuf>, String> {
     let mut source_candidates: Vec<PathBuf> = Vec::new();
-    source_candidates.push(PathBuf::from("../tools").join(filename));
-    source_candidates.push(PathBuf::from("tools").join(filename));
+    // The source tree only in dev builds: an installed app never takes a
+    // hook script from whatever folder it was launched in.
+    #[cfg(debug_assertions)]
+    {
+        source_candidates.push(PathBuf::from("../tools").join(filename));
+        source_candidates.push(PathBuf::from("tools").join(filename));
+    }
     if let Ok(res) = app_handle.path().resource_dir() {
         source_candidates.push(res.join("tools").join(filename));
     }
@@ -202,12 +207,236 @@ pub(crate) fn claude_settings_path(home: &Path) -> Result<PathBuf, String> {
     Ok(claude_dir.join("settings.json"))
 }
 
+/// The events Dr. Vibe hooks, with their tool matcher. No `Read`: the paths
+/// of files Claude only looks at are never logged.
+pub(crate) const HOOK_CONFIGS: [(&str, Option<&str>); 4] = [
+    ("PostToolUse", Some("Write|Edit|NotebookEdit|Bash")),
+    ("SessionStart", None),
+    ("SessionEnd", None),
+    ("Stop", None),
+];
+
+/// Files Dr. Vibe keeps in `~/.dr-vibe` for the hooks. All of them go when
+/// the hooks are switched off, on "Delete all local data" and on uninstall.
+pub(crate) const HOOK_FILES: [&str; 10] = [
+    "claude-code-hook.sh",
+    "claude-code-hook.cmd",
+    "claude-code-events.jsonl",
+    "claude-code-events.jsonl.old",
+    "tracked.txt",
+    "tracked.tmp",
+    "install-marker",
+    "install-marker.tmp",
+    "paused-until",
+    "paused-until.tmp",
+];
+
+/// True for a hook group Dr. Vibe added (current or legacy form).
+fn is_dr_vibe_group(entry: &serde_json::Value) -> bool {
+    entry
+        .get("hooks")
+        .and_then(|h| h.as_array())
+        .is_some_and(|hooks_arr| {
+            hooks_arr.iter().any(|h| {
+                h.get("_dr_vibe") == Some(&serde_json::json!(true))
+                    || h.get("command")
+                        .and_then(|c| c.as_str())
+                        .is_some_and(is_dr_vibe_hook_command)
+            })
+        })
+}
+
+/// `settings` with Dr. Vibe's hook groups for `cmd` (replacing older ones).
+pub(crate) fn with_dr_vibe_hooks(
+    mut settings: serde_json::Value,
+    cmd: &str,
+) -> Result<serde_json::Value, String> {
+    if !settings.is_object() {
+        return Err("settings.json is not an object".into());
+    }
+    if settings.get("hooks").is_none() {
+        settings["hooks"] = serde_json::json!({});
+    }
+    // No extra fields: Claude Code rejects hooks with unrecognized properties.
+    let dr_vibe_hook = serde_json::json!({
+        "type": "command",
+        "command": cmd,
+        "timeout": 10
+    });
+    let hooks = settings["hooks"]
+        .as_object_mut()
+        .ok_or("hooks is not an object")?;
+    for (event_name, matcher) in &HOOK_CONFIGS {
+        let event_array = hooks
+            .entry(event_name.to_string())
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut()
+            .ok_or(format!("{} is not an array", event_name))?;
+        // Any prior Dr. Vibe entry (including broken pre-1.0.4 Windows ones
+        // and the old Read matcher) is replaced by the current command.
+        event_array.retain(|entry| !is_dr_vibe_group(entry));
+        let mut group = serde_json::json!({ "hooks": [dr_vibe_hook.clone()] });
+        if let Some(m) = matcher {
+            group["matcher"] = serde_json::json!(m);
+        }
+        event_array.push(group);
+    }
+    Ok(settings)
+}
+
+/// `settings` without any Dr. Vibe hook group; event lists and a `hooks`
+/// object left empty by that are removed. Everything else is untouched.
+pub(crate) fn without_dr_vibe_hooks(mut settings: serde_json::Value) -> serde_json::Value {
+    let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
+        return settings;
+    };
+    let mut emptied = Vec::new();
+    for (name, value) in hooks.iter_mut() {
+        if let Some(event_array) = value.as_array_mut() {
+            let before = event_array.len();
+            event_array.retain(|entry| !is_dr_vibe_group(entry));
+            if event_array.is_empty() && before > 0 {
+                emptied.push(name.clone());
+            }
+        }
+    }
+    for name in emptied {
+        hooks.remove(&name);
+    }
+    if hooks.is_empty() {
+        if let Some(obj) = settings.as_object_mut() {
+            obj.remove("hooks");
+        }
+    }
+    settings
+}
+
+/// Write Claude Code's settings without ever leaving a half-written file:
+/// the old file is kept as `settings.json.bak`, the new one is written to a
+/// temp file next to it and renamed over the original.
+pub(crate) fn write_settings_atomically(
+    path: &Path,
+    settings: &serde_json::Value,
+) -> Result<(), String> {
+    let output = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Cannot serialize settings: {}", e))?;
+    let tmp = path.with_extension("json.dr-vibe-tmp");
+    std::fs::write(&tmp, output).map_err(|e| format!("Cannot write settings.json: {}", e))?;
+    if path.exists() {
+        if let Err(e) = std::fs::copy(path, path.with_extension("json.bak")) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(format!("Cannot back up settings.json: {}", e));
+        }
+    }
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Cannot replace settings.json: {}", e)
+    })
+}
+
+fn read_settings(path: &Path) -> Result<Option<serde_json::Value>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Cannot read settings.json: {}", e))?;
+    serde_json::from_str(&content)
+        .map(Some)
+        .map_err(|e| format!("Cannot parse settings.json: {}", e))
+}
+
+/// Comparison form of a path, as `repoKey` in repoPaths.js and `normalize`
+/// in the hook script: forward slashes, no trailing slash, lowercase for
+/// Windows drive paths.
+pub(crate) fn repo_key(path: &str) -> String {
+    let unified = path.replace('\\', "/");
+    let trimmed = unified.trim_end_matches('/');
+    let unified = if trimmed.is_empty() { "/" } else { trimmed };
+    let b = unified.as_bytes();
+    if b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
+        unified.to_lowercase()
+    } else {
+        unified.to_string()
+    }
+}
+
+/// The body of `~/.dr-vibe/tracked.txt`: `#discover` first when a session
+/// starting in an untracked repo may be noted, then one repo key per line.
+pub(crate) fn tracked_list(roots: &[String], discover: bool) -> String {
+    let mut keys: Vec<String> = roots
+        .iter()
+        .map(|r| r.trim())
+        .filter(|r| !r.is_empty() && !r.contains(['\n', '\r']))
+        .map(repo_key)
+        .collect();
+    keys.sort();
+    keys.dedup();
+    let mut out = String::new();
+    if discover {
+        out.push_str("#discover\n");
+    }
+    for k in keys {
+        out.push_str(&k);
+        out.push('\n');
+    }
+    out
+}
+
+fn dr_vibe_dir(home: &Path) -> PathBuf {
+    home.join(".dr-vibe")
+}
+
+/// Write a small file in ~/.dr-vibe through a temp file and a rename, so the
+/// hook never reads half of it.
+fn write_small_atomically(path: &Path, contents: &str) -> Result<(), String> {
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, contents).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+/// True while the hooks are installed (the script's install marker is there).
+fn hooks_deployed(home: &Path) -> bool {
+    dr_vibe_dir(home).join("install-marker").exists()
+}
+
+/// Delete every file Dr. Vibe keeps for the hooks, and the folder if that
+/// leaves it empty.
+pub(crate) fn remove_hook_files(home: &Path) {
+    let dir = dr_vibe_dir(home);
+    for name in HOOK_FILES {
+        let _ = std::fs::remove_file(dir.join(name));
+    }
+    let _ = std::fs::remove_dir(&dir); // only succeeds when empty
+}
+
+/// Remove Dr. Vibe's hooks from `~/.claude/settings.json` (if any) and its
+/// files in `~/.dr-vibe`. Used by the switch, "Delete all local data" and
+/// the uninstaller (`--privacy-uninstall-cleanup`, main.rs).
+pub(crate) fn remove_everything(home: &Path) -> Result<(), String> {
+    let settings_path = home.join(".claude").join("settings.json");
+    let result = match read_settings(&settings_path) {
+        Ok(Some(settings)) => {
+            let cleaned = without_dr_vibe_hooks(settings.clone());
+            if cleaned != settings {
+                write_settings_atomically(&settings_path, &cleaned)
+            } else {
+                Ok(())
+            }
+        }
+        Ok(None) => Ok(()),
+        Err(e) => Err(e),
+    };
+    remove_hook_files(home);
+    result
+}
+
 /// Install Dr. Vibe hooks into ~/.claude/settings.json.
-/// Self-healing: while the Claude Code switch in Settings is on, every Dr. Vibe
-/// startup re-runs this and replaces any prior Dr. Vibe hook entries with the
-/// current platform-correct command form. Old entries from broken builds are
-/// removed by fingerprint match. Fails with [`CLAUDE_CODE_NOT_FOUND`] when
-/// Claude Code isn't installed.
+/// Self-healing: while the Claude Code switch is on, every Dr. Vibe startup
+/// (after setup) re-runs this and replaces any prior Dr. Vibe hook entries
+/// with the current platform-correct command form. Fails with
+/// [`CLAUDE_CODE_NOT_FOUND`] when Claude Code isn't installed. The script
+/// logs only inside the repos in `~/.dr-vibe/tracked.txt`
+/// ([`set_hook_tracked_repos`]).
 #[tauri::command]
 pub(crate) fn install_claude_code_hooks(app_handle: tauri::AppHandle) -> Result<String, String> {
     let home = dirs_home().ok_or("Cannot determine home directory")?;
@@ -220,6 +449,21 @@ pub(crate) fn install_claude_code_hooks(app_handle: tauri::AppHandle) -> Result<
         .ok_or("claude-code-hook.sh missing")?;
     let _ = deploy_hook_resource(&app_handle, "claude-code-hook.cmd", false)?;
 
+    // The script stays silent once this app is gone (removed without the
+    // uninstaller's cleanup).
+    let dir = dr_vibe_dir(&home);
+    let exe = std::env::current_exe().map_err(|e| format!("Cannot find the app: {}", e))?;
+    write_small_atomically(
+        &dir.join("install-marker"),
+        &format!("{}\n", hook_path_for_bash(&exe)?),
+    )
+    .map_err(|e| format!("Cannot write the install marker: {}", e))?;
+    // Nothing is logged until the main window lists the tracked repos.
+    if !dir.join("tracked.txt").exists() {
+        write_small_atomically(&dir.join("tracked.txt"), "")
+            .map_err(|e| format!("Cannot write tracked.txt: {}", e))?;
+    }
+
     // Build the hook command. On every platform Claude Code launches hooks
     // through bash, which on Windows is /usr/bin/bash (Git Bash / MSYS).
     // bash interprets backslashes as escape characters, so a Windows-native
@@ -230,158 +474,60 @@ pub(crate) fn install_claude_code_hooks(app_handle: tauri::AppHandle) -> Result<
     // executed via the script's #!/bin/bash shebang.
     let cmd = hook_path_for_bash(&sh_path)?;
 
-    // Read existing settings or start fresh (the .claude folder exists).
-    let mut settings: serde_json::Value = if settings_path.exists() {
-        let content = std::fs::read_to_string(&settings_path)
-            .map_err(|e| format!("Cannot read settings.json: {}", e))?;
-        serde_json::from_str(&content).map_err(|e| format!("Cannot parse settings.json: {}", e))?
-    } else {
-        serde_json::json!({})
-    };
-
-    // Ensure hooks object exists
-    if settings.get("hooks").is_none() {
-        settings["hooks"] = serde_json::json!({});
-    }
-
-    // Define the hooks Dr. Vibe needs (no extra fields — Claude Code
-    // rejects hooks with unrecognized properties in newer versions)
-    let dr_vibe_hook = serde_json::json!({
-        "type": "command",
-        "command": cmd,
-        "timeout": 10
-    });
-
-    let hook_configs = vec![
-        ("PostToolUse", Some("Write|Edit|NotebookEdit|Read|Bash")),
-        ("SessionStart", None),
-        ("SessionEnd", None),
-        ("Stop", None),
-    ];
-
-    let hooks = settings["hooks"]
-        .as_object_mut()
-        .ok_or("hooks is not an object")?;
-
-    for (event_name, matcher) in &hook_configs {
-        // Get or create the array for this event
-        if hooks.get(*event_name).is_none() {
-            hooks.insert(event_name.to_string(), serde_json::json!([]));
-        }
-
-        let event_array = hooks
-            .get_mut(*event_name)
-            .unwrap()
-            .as_array_mut()
-            .ok_or(format!("{} is not an array", event_name))?;
-
-        // Remove any existing Dr. Vibe entries from this event.
-        // Matches both the current and legacy command fingerprints, plus the
-        // ancient _dr_vibe marker, so any prior install (including broken
-        // pre-1.0.4 Windows entries) is replaced by the new command.
-        event_array.retain(|entry| {
-            let inner = entry.get("hooks").and_then(|h| h.as_array());
-            let has_marker = inner.as_ref().is_some_and(|hooks_arr| {
-                hooks_arr
-                    .iter()
-                    .any(|h| h.get("_dr_vibe") == Some(&serde_json::json!(true)))
-            });
-            let has_fingerprint = inner.as_ref().is_some_and(|hooks_arr| {
-                hooks_arr.iter().any(|h| {
-                    h.get("command")
-                        .and_then(|c| c.as_str())
-                        .is_some_and(is_dr_vibe_hook_command)
-                })
-            });
-            !has_marker && !has_fingerprint
-        });
-
-        // Build the new hook group entry
-        let mut group = serde_json::json!({
-            "hooks": [dr_vibe_hook.clone()]
-        });
-        if let Some(m) = matcher {
-            group["matcher"] = serde_json::json!(m);
-        }
-
-        event_array.push(group);
-    }
-
-    // Write back
-    let output = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Cannot serialize settings: {}", e))?;
-    std::fs::write(&settings_path, output)
-        .map_err(|e| format!("Cannot write settings.json: {}", e))?;
+    let settings = read_settings(&settings_path)?.unwrap_or_else(|| serde_json::json!({}));
+    let settings = with_dr_vibe_hooks(settings, &cmd)?;
+    write_settings_atomically(&settings_path, &settings)?;
 
     Ok(format!("Installed hooks using: {}", cmd))
 }
 
-/// Remove Dr. Vibe hooks from ~/.claude/settings.json.
-/// Identifies entries by the "claude-code-hook.sh" fingerprint or legacy "_dr_vibe" marker.
+/// Remove Dr. Vibe hooks from ~/.claude/settings.json and delete the hook
+/// files and the Claude Code log in ~/.dr-vibe.
 #[tauri::command]
 pub(crate) fn uninstall_claude_code_hooks() -> Result<String, String> {
     let home = dirs_home().ok_or("Cannot determine home directory")?;
-    let settings_path = home.join(".claude").join("settings.json");
+    remove_everything(&home)?;
+    Ok("Uninstalled Dr. Vibe hooks and deleted the log".to_string())
+}
 
-    if !settings_path.exists() {
-        return Ok("No settings.json found — nothing to uninstall".to_string());
+/// Whether Claude Code is installed here (`~/.claude` exists). The setup
+/// wizard shows the Claude Code card only then; asking never installs.
+#[tauri::command]
+pub(crate) fn claude_code_present() -> bool {
+    dirs_home().is_some_and(|home| claude_settings_path(&home).is_ok())
+}
+
+/// The repos the hook may log in (TrackedRepos in the main window), and
+/// whether a session starting elsewhere may be noted ("Also track the repos
+/// Claude Code works in"). Written only while the hooks are installed.
+#[tauri::command]
+pub(crate) fn set_hook_tracked_repos(roots: Vec<String>, discover: bool) -> Result<(), String> {
+    let home = dirs_home().ok_or("Cannot determine home directory")?;
+    if !hooks_deployed(&home) {
+        return Ok(());
     }
+    write_small_atomically(
+        &dr_vibe_dir(&home).join("tracked.txt"),
+        &tracked_list(&roots, discover),
+    )
+}
 
-    let content = std::fs::read_to_string(&settings_path)
-        .map_err(|e| format!("Cannot read settings.json: {}", e))?;
-    let mut settings: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| format!("Cannot parse settings.json: {}", e))?;
-
-    let hooks = match settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
-        Some(h) => h,
-        None => return Ok("No hooks section — nothing to uninstall".to_string()),
-    };
-
-    let event_names: Vec<String> = hooks.keys().cloned().collect();
-
-    for event_name in &event_names {
-        if let Some(event_array) = hooks.get_mut(event_name).and_then(|v| v.as_array_mut()) {
-            // Remove hook groups that contain the fingerprint or legacy _dr_vibe marker.
-            event_array.retain(|entry| {
-                let inner = entry.get("hooks").and_then(|h| h.as_array());
-                let has_marker = inner.as_ref().is_some_and(|hooks_arr| {
-                    hooks_arr
-                        .iter()
-                        .any(|h| h.get("_dr_vibe") == Some(&serde_json::json!(true)))
-                });
-                let has_fingerprint = inner.as_ref().is_some_and(|hooks_arr| {
-                    hooks_arr.iter().any(|h| {
-                        h.get("command")
-                            .and_then(|c| c.as_str())
-                            .is_some_and(is_dr_vibe_hook_command)
-                    })
-                });
-                !has_marker && !has_fingerprint
-            });
-        }
+/// Pause tracking for the hook too: `until_secs` in unix seconds, 0 for
+/// "until I resume", None to resume. Only while the hooks are installed.
+#[tauri::command]
+pub(crate) fn set_hook_paused(until_secs: Option<u64>) -> Result<(), String> {
+    let home = dirs_home().ok_or("Cannot determine home directory")?;
+    if !hooks_deployed(&home) {
+        return Ok(());
     }
-
-    // Clean up empty event arrays
-    let empty_events: Vec<String> = hooks
-        .iter()
-        .filter(|(_, v)| v.as_array().is_some_and(|a| a.is_empty()))
-        .map(|(k, _)| k.clone())
-        .collect();
-    for key in &empty_events {
-        hooks.remove(key);
+    let path = dr_vibe_dir(&home).join("paused-until");
+    match until_secs {
+        Some(s) => write_small_atomically(&path, &format!("{s}\n")),
+        None => match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+            _ => Ok(()),
+        },
     }
-
-    // Clean up empty hooks object
-    if hooks.is_empty() {
-        settings.as_object_mut().unwrap().remove("hooks");
-    }
-
-    let output = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Cannot serialize settings: {}", e))?;
-    std::fs::write(&settings_path, output)
-        .map_err(|e| format!("Cannot write settings.json: {}", e))?;
-
-    Ok("Uninstalled Dr. Vibe hooks".to_string())
 }
 
 /// Check whether Dr. Vibe hooks are present in ~/.claude/settings.json.
@@ -536,5 +682,302 @@ mod tests {
             "bash \"C:/Users/x/.dr-vibe/claude-code-hook.sh\" PostToolUse"
         ));
         assert!(!is_dr_vibe_hook_command("prettier --write"));
+    }
+    fn other_tool_settings() -> serde_json::Value {
+        serde_json::json!({
+            "model": "opus",
+            "hooks": {
+                "PostToolUse": [
+                    { "matcher": "Write", "hooks": [{ "type": "command", "command": "prettier --write" }] },
+                    { "matcher": "Write|Edit|NotebookEdit|Read|Bash", "hooks": [{ "type": "command", "command": "/c/Users/x/.dr-vibe/claude-code-hook.sh" }] }
+                ],
+                "Stop": [{ "hooks": [{ "type": "command", "command": "bash \"C:/Users/x/.dr-vibe/claude-code-hook.sh\" Stop" }] }]
+            }
+        })
+    }
+
+    #[test]
+    fn install_replaces_old_entries_and_drops_the_read_matcher() {
+        let s = with_dr_vibe_hooks(
+            other_tool_settings(),
+            "/c/Users/x/.dr-vibe/claude-code-hook.sh",
+        )
+        .unwrap();
+        let post = s["hooks"]["PostToolUse"].as_array().unwrap();
+        assert_eq!(
+            post.len(),
+            2,
+            "the other tool's hook stays, ours is replaced once"
+        );
+        assert_eq!(post[0]["hooks"][0]["command"], "prettier --write");
+        assert_eq!(post[1]["matcher"], "Write|Edit|NotebookEdit|Bash");
+        assert!(!post[1]["matcher"].as_str().unwrap().contains("Read"));
+        for (event, _) in HOOK_CONFIGS {
+            let ours = s["hooks"][event]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|g| is_dr_vibe_group(g))
+                .count();
+            assert_eq!(ours, 1, "{event}");
+        }
+        assert_eq!(s["model"], "opus");
+        assert!(with_dr_vibe_hooks(serde_json::json!([]), "x").is_err());
+    }
+
+    #[test]
+    fn uninstall_leaves_only_other_tools() {
+        let s = without_dr_vibe_hooks(
+            with_dr_vibe_hooks(other_tool_settings(), "/x/claude-code-hook.sh").unwrap(),
+        );
+        assert_eq!(
+            s,
+            serde_json::json!({
+                "model": "opus",
+                "hooks": { "PostToolUse": [{ "matcher": "Write", "hooks": [{ "type": "command", "command": "prettier --write" }] }] }
+            })
+        );
+        let mine_only =
+            with_dr_vibe_hooks(serde_json::json!({}), "/x/claude-code-hook.sh").unwrap();
+        assert_eq!(without_dr_vibe_hooks(mine_only), serde_json::json!({}));
+        // Someone else's empty list is not ours to remove.
+        let theirs = serde_json::json!({ "hooks": { "Stop": [] } });
+        assert_eq!(without_dr_vibe_hooks(theirs.clone()), theirs);
+    }
+
+    #[test]
+    fn settings_are_written_atomically_with_a_backup() {
+        let dir = TempDir::new("claude-settings");
+        let path = dir.join("settings.json");
+        std::fs::write(&path, "{\"model\":\"old\"}").unwrap();
+        write_settings_atomically(&path, &serde_json::json!({ "model": "new" })).unwrap();
+        let now: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(now["model"], "new");
+        assert_eq!(
+            std::fs::read_to_string(path.with_extension("json.bak")).unwrap(),
+            "{\"model\":\"old\"}"
+        );
+        assert!(!path.with_extension("json.dr-vibe-tmp").exists());
+    }
+
+    #[test]
+    fn removing_everything_cleans_settings_and_dr_vibe_folder() {
+        let dir = TempDir::new("hooks-home");
+        let home = dir.path();
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::create_dir_all(home.join(".dr-vibe")).unwrap();
+        let settings = with_dr_vibe_hooks(other_tool_settings(), "/x/claude-code-hook.sh").unwrap();
+        std::fs::write(home.join(".claude/settings.json"), settings.to_string()).unwrap();
+        for f in HOOK_FILES {
+            std::fs::write(home.join(".dr-vibe").join(f), "x").unwrap();
+        }
+        remove_everything(home).unwrap();
+        assert!(
+            !home.join(".dr-vibe").exists(),
+            "log, scripts and lists are gone"
+        );
+        let left: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(home.join(".claude/settings.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(!left.to_string().contains("claude-code-hook"));
+        assert_eq!(left["model"], "opus");
+        // Nothing to do is fine too.
+        remove_everything(home).unwrap();
+    }
+
+    #[test]
+    fn a_folder_with_other_files_is_kept() {
+        let dir = TempDir::new("hooks-keep");
+        let home = dir.path();
+        std::fs::create_dir_all(home.join(".dr-vibe")).unwrap();
+        std::fs::write(home.join(".dr-vibe/claude-code-events.jsonl"), "{}\n").unwrap();
+        std::fs::write(home.join(".dr-vibe/notes.txt"), "mine").unwrap();
+        remove_hook_files(home);
+        assert!(!home.join(".dr-vibe/claude-code-events.jsonl").exists());
+        assert!(home.join(".dr-vibe/notes.txt").exists());
+    }
+
+    #[test]
+    fn tracked_list_uses_the_js_repo_keys() {
+        assert_eq!(
+            repo_key("C:\\Users\\Ada\\Code\\App\\"),
+            "c:/users/ada/code/app"
+        );
+        assert_eq!(repo_key("/home/ada/App/"), "/home/ada/App");
+        assert_eq!(repo_key("/"), "/");
+        assert_eq!(
+            tracked_list(
+                &[
+                    "C:\\A".into(),
+                    "c:/a/".into(),
+                    " ".into(),
+                    "/x/y".into(),
+                    "bad\npath".into()
+                ],
+                true
+            ),
+            "#discover\n/x/y\nc:/a\n"
+        );
+        assert_eq!(tracked_list(&[], false), "");
+    }
+
+    /// Git Bash on Windows (never WSL's bash), plain bash elsewhere.
+    fn test_bash() -> Option<PathBuf> {
+        #[cfg(windows)]
+        {
+            [
+                r"C:\Program Files\Git\bin\bash.exe",
+                r"C:\Program Files (x86)\Git\bin\bash.exe",
+            ]
+            .iter()
+            .map(PathBuf::from)
+            .find(|p| p.exists())
+        }
+        #[cfg(not(windows))]
+        {
+            Some(PathBuf::from("/bin/bash"))
+        }
+    }
+
+    /// Runs tools/claude-code-hook.sh with `home` as $HOME and `input` on stdin.
+    fn run_hook(bash: &Path, home: &Path, input: &serde_json::Value) {
+        use std::process::{Command, Stdio};
+        let script = std::fs::canonicalize("../tools/claude-code-hook.sh").unwrap();
+        let mut child = Command::new(bash)
+            .arg(hook_path_for_bash(&script).unwrap())
+            .env("HOME", home.to_string_lossy().replace('\\', "/"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(input.to_string().as_bytes())
+            .unwrap();
+        assert!(child.wait().unwrap().success());
+    }
+
+    fn logged(home: &Path) -> Vec<serde_json::Value> {
+        std::fs::read_to_string(home.join(".dr-vibe/claude-code-events.jsonl"))
+            .unwrap_or_default()
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("every line is valid JSON"))
+            .collect()
+    }
+
+    #[test]
+    fn hook_script_logs_only_inside_tracked_repos() {
+        let Some(bash) = test_bash() else {
+            eprintln!("no bash here; skipping the hook script test");
+            return;
+        };
+        let dir = TempDir::new("hook-gate");
+        let home = dir.join("home");
+        let repo = dir.join("work").join("App");
+        let elsewhere = dir.join("work").join("Client Secret");
+        for d in [&home.join(".dr-vibe"), &repo, &elsewhere] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let marker = hook_path_for_bash(&dir.join("work")).unwrap();
+        std::fs::write(home.join(".dr-vibe/install-marker"), format!("{marker}\n")).unwrap();
+        std::fs::write(
+            home.join(".dr-vibe/tracked.txt"),
+            tracked_list(&[repo.to_string_lossy().into_owned()], false),
+        )
+        .unwrap();
+        let path_in =
+            |root: &Path, name: &str| root.join("src").join(name).to_string_lossy().into_owned();
+        let edit = |cwd: &Path, file: String| {
+            serde_json::json!({
+                "hook_event_name": "PostToolUse", "tool_name": "Edit", "session_id": "s1",
+                "cwd": cwd.to_string_lossy(), "tool_input": { "file_path": file }
+            })
+        };
+
+        // A crafted name cannot add fields: quotes and backslashes stay escaped.
+        let tricky = path_in(&repo, "a\",\"injected\":\"1.rs");
+        run_hook(&bash, &home, &edit(&repo, tricky.clone()));
+        run_hook(
+            &bash,
+            &home,
+            &edit(&repo.join("src"), path_in(&repo, "b.rs")),
+        );
+        run_hook(
+            &bash,
+            &home,
+            &edit(&elsewhere, path_in(&elsewhere, "secret.rs")),
+        );
+        run_hook(
+            &bash,
+            &home,
+            &serde_json::json!({ "hook_event_name": "SessionStart", "session_id": "s2", "cwd": elsewhere.to_string_lossy() }),
+        );
+        let lines = logged(&home);
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert_eq!(lines[0]["event"], "file_changed");
+        assert_eq!(lines[0]["file"], tricky);
+        assert!(lines[0].get("injected").is_none());
+        assert!(lines.iter().all(|l| !l.to_string().contains("Secret")));
+
+        // An edit counts where the file is: outside the tracked repo it is not
+        // logged even from a session inside it, and inside it is logged even
+        // from a session started in a parent folder.
+        run_hook(
+            &bash,
+            &home,
+            &edit(&repo, path_in(&elsewhere, "outside.rs")),
+        );
+        run_hook(
+            &bash,
+            &home,
+            &edit(&dir.join("work"), path_in(&repo, "c.rs")),
+        );
+        let lines = logged(&home);
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert!(lines[2]["file"].as_str().unwrap().ends_with("c.rs"));
+        assert!(!lines.iter().any(|l| l.to_string().contains("outside.rs")));
+
+        // "#discover": a session starting elsewhere notes only its folder.
+        std::fs::write(
+            home.join(".dr-vibe/tracked.txt"),
+            tracked_list(&[repo.to_string_lossy().into_owned()], true),
+        )
+        .unwrap();
+        run_hook(
+            &bash,
+            &home,
+            &edit(&elsewhere, path_in(&elsewhere, "secret.rs")),
+        );
+        run_hook(
+            &bash,
+            &home,
+            &serde_json::json!({ "hook_event_name": "SessionStart", "session_id": "s3", "cwd": elsewhere.to_string_lossy() }),
+        );
+        let lines = logged(&home);
+        assert_eq!(lines.len(), 4);
+        assert_eq!(lines[3]["event"], "session_start");
+        assert!(!lines.iter().any(|l| l.to_string().contains("secret.rs")));
+
+        // Paused: nothing at all.
+        std::fs::write(home.join(".dr-vibe/paused-until"), "0\n").unwrap();
+        run_hook(&bash, &home, &edit(&repo, path_in(&repo, "c.rs")));
+        assert_eq!(logged(&home).len(), 4);
+        std::fs::remove_file(home.join(".dr-vibe/paused-until")).unwrap();
+
+        // App gone (marker points nowhere, or no marker): silent.
+        std::fs::write(
+            home.join(".dr-vibe/install-marker"),
+            "/nowhere/DrVibe.exe\n",
+        )
+        .unwrap();
+        run_hook(&bash, &home, &edit(&repo, path_in(&repo, "d.rs")));
+        std::fs::remove_file(home.join(".dr-vibe/install-marker")).unwrap();
+        run_hook(&bash, &home, &edit(&repo, path_in(&repo, "e.rs")));
+        assert_eq!(logged(&home).len(), 4);
     }
 }

@@ -20,6 +20,19 @@ const DEFAULT_COMMUNITY_ACTIONS = {
 
 const MASTERY_LEVEL_NAMES = ['Rookie', 'Builder', 'Adept', 'Expert', 'Master'];
 
+/**
+ * A short, one-way tag for a repo name: Multi-repo counts distinct repos
+ * without the names being stored (sync sends only the count).
+ */
+export function repoTag(name) {
+  let h = 0x811c9dc5;
+  for (const ch of String(name).toLowerCase()) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
 export class AchievementSystem {
   constructor() {
     // { [id]: { unlocked: bool, unlockedAt: number|null, progress: number } }
@@ -33,7 +46,7 @@ export class AchievementSystem {
 
     // Git tracking - persisted across sessions
     this.lifetimeCommitCount = 0;
-    this.seenRepos = new Set();
+    this.seenRepos = new Set(); // short hashes of repo names (never the names), for Multi-repo
     this.totalBranchSwitches = 0;
     this.commitDays = []; // YYYY-MM-DD strings for commit-streak tracking
 
@@ -102,7 +115,8 @@ export class AchievementSystem {
 
       // Git counters
       this.lifetimeCommitCount = saved.lifetimeCommitCount || 0;
-      this.seenRepos = new Set(saved.seenRepos || []);
+      // Older saves kept the names; only a hash of each is kept now.
+      this.seenRepos = new Set(saved.seenRepoKeys || (saved.seenRepos || []).map(repoTag));
       this.totalBranchSwitches = saved.totalBranchSwitches || 0;
       this.commitDays = saved.commitDays || [];
 
@@ -134,7 +148,8 @@ export class AchievementSystem {
       streakData: { days: this.streakDays },
       seenApps: [...this.seenApps],
       lifetimeCommitCount: this.lifetimeCommitCount,
-      seenRepos: [...this.seenRepos],
+      seenRepoKeys: [...this.seenRepos],
+      seenRepoCount: this.seenRepos.size,
       totalBranchSwitches: this.totalBranchSwitches,
       commitDays: this.commitDays,
       gallerySubmissions: [...this.gallerySubmissions],
@@ -311,7 +326,7 @@ export class AchievementSystem {
 
       // Multi-repo
       if (project) {
-        this.seenRepos.add(project);
+        this.seenRepos.add(repoTag(project));
         this.setProgressIfHigher('multi_repo', this.seenRepos.size);
       }
 

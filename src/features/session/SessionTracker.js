@@ -321,6 +321,18 @@ export class SessionTracker {
     return this._getSessionHistory();
   }
 
+  /**
+   * "Forget project history": project names leave every day of the history
+   * and the last files list is emptied. Coding time per day stays.
+   */
+  forgetProjects() {
+    this.recentFiles = [];
+    const saved = db.getSection('session') || {};
+    const history = (saved.history || []).map(({ projects, ...day }) => ({ ...day, projects: [] }));
+    db.setSection('session', { ...saved, history, recentFiles: [] });
+    db.setSection('scanner', null);
+  }
+
   _startPeriodicUpdate() {
     // Emit updated stats every 30 seconds.
     // Auto-save: every tick (30s) in dev to survive hot-reloads, every 5 min in prod.

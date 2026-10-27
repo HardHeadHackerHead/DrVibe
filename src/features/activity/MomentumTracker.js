@@ -184,12 +184,29 @@ export class MomentumTracker {
    * can't drop a single folder, so it restarts when one leaves the list.
    */
   watchRepos(repos) {
+    this._lastRepos = repos || [];
     this._watching = this._watching.then(() => this._syncWatched(repos || []));
     return this._watching;
   }
 
+  /** Pause tracking: the folder watcher stops until resumeWatching(). */
+  pauseWatching() {
+    this._paused = true;
+    this._watching = this._watching.then(async () => {
+      if (!tauri.isAvailable) return;
+      await tauri.stopWatching();
+      this.watched.clear();
+    });
+    return this._watching;
+  }
+
+  resumeWatching() {
+    this._paused = false;
+    return this.watchRepos(this._lastRepos || []);
+  }
+
   async _syncWatched(repos) {
-    if (!tauri.isAvailable) return;
+    if (!tauri.isAvailable || this._paused) return;
     const paths = repos.flatMap(r => (r.worktrees?.length ? r.worktrees : [r.path])).filter(Boolean);
     const keys = new Set(paths.map(repoKey));
     if ([...this.watched.keys()].some(k => !keys.has(k))) {

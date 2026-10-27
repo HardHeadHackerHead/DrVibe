@@ -1,38 +1,45 @@
 // Dr. Vibe — "What Dr. Vibe sees": a plain-language list of what stays on
 // this computer and what is sent when linked. Shown in the setup wizard and
 // in Settings → Privacy. Keep it in step with the sync payload in
-// src-tauri/src/sync.rs and the poll in src/core/PollClient.js.
+// src-tauri/src/sync.rs, the events in src/features/economy, the poll in
+// src/core/PollClient.js and the switches in src/ui/privacyChoices.js.
 
 export const STAYS_LOCAL = [
-  'The names and titles of the windows you use, to tell when you are coding',
+  'The name and title of the window in front, checked every few seconds, to tell when you are coding',
+  'The titles of all open windows, checked every few seconds only to spot a screen share or a fullscreen app (if "Hide Dr. Vibe while I share my screen" is on). Nothing is stored',
   'How long since your last keyboard or mouse input (never what you typed), to tell whether you are using your editor',
-  'File paths and file changes inside the repos Dr. Vibe tracks',
-  'Git details: branches, commit messages and changed files',
-  'Where your git repos are: the ones Claude Code works in (if "Track repos Claude Code works in" is on in Tracking) and the ones in folders you add',
-  'Claude Code activity from its hooks (which files it reads and edits, never prompts or code), if Claude Code is switched on in Tracking',
+  'File changes inside the repos Dr. Vibe tracks, and the last few file paths',
+  'Git details in tracked repos: branches, commit messages and the number of changed files',
+  'Where your tracked repos are: the ones in folders you add and, if "Also track the repos Claude Code works in" is on, the ones Claude Code starts sessions in (forgotten after 90 days unseen)',
+  'With "Follow Claude Code" on: 4 hooks in Claude Code’s settings note, in tracked repos only, which files Claude writes or edits, that it ran a command (never the command) and when sessions start and stop, in ~/.dr-vibe. Never prompts, replies or code. Off removes the hooks and that log, and so does uninstalling',
   'Whether Antigravity is the app in front, from its window',
-  'Your break, hydration, posture and focus history',
+  'Your break, hydration, posture and focus history, and 90 days of coding time per day',
 ];
 
 export const SENT_WHEN_LINKED = [
-  'Coding time: today, the last 7 days, by hour of day, and your streaks',
-  'Totals: commit counts and dates, number of repos (never their names), top languages by hours',
+  'Coding time: today, the last 7 days and in total, your streaks and top languages by hours',
+  'Totals: commit counts and the number of repos (never their names)',
   'Achievements, mastery levels and momentum',
-  'Your Dr. Vibe look (skin and skin tone) and whether you are coding right now',
-  'The current project name, only if you turn on "Show project names"',
-  'Activity events that earn Vibe Points (a commit, a finished pomodoro…), without file or window names',
-  'Once a week, last week’s totals for your recap card: coding time, active days, files created and changed, longest session and streak, never project names (switch "Share my weekly recap" in Privacy)',
+  'Your Dr. Vibe look (skin and skin tone); for a skin you drew yourself, its picture',
+  'With "Send my activity times" on: your coding time by hour of the day, the days you committed, past streak dates and when each achievement unlocked. Off sends none of these, and unlock dates only to the day; activity events still carry their time rounded to the minute',
+  'With "Send when I’m coding right now" on: whether you are coding now. Off always sends “not coding”',
+  'With "Send my project name" on: the folder name of the tracked git repo you are in. Never a window title or a path',
+  'Activity events that earn Vibe Points (a commit, a finished pomodoro, a hydration check…), with their time rounded to the minute and, for a commit, a scrambled id (a keyed hash, not the commit’s hash) so it counts once. Never file, repo or window names',
+  'Your time zone, so daily limits reset at your midnight',
+  'A check-in every 60 seconds for news, visits and your equipped Dr. Vibe, so drvibe.io can tell when you are online',
+  'Once a week, with "Share my weekly recap" on: last week’s totals for your recap card (coding time, active days, files created and changed, longest session and streak), never project names. You see the first card before it is posted',
+  '"Sync my stats" off sends none of the above while you stay linked',
 ];
 
-/** Sent whether or not you are linked, unless you turn off crash reports in Privacy. */
+/** Sent whether or not you are linked, only if you turn crash reports on. */
 export const CRASH_REPORTS = [
-  'When Dr. Vibe crashes: the error message, where in Dr. Vibe it happened, and the app version. Your home folder name is removed first, and it goes only to drvibe.io (no outside service). Kept 30 days.',
+  'Crash reports, only if you turn them on: the error message, where in Dr. Vibe it happened, and the app version. Folder paths, web addresses and keys are removed first, and they go only to drvibe.io (no outside service). Kept 30 days. You can see what is queued in Settings → Privacy.',
 ];
 
 export const NEVER_SENT = [
-  'Window titles, file names, file contents or code',
+  'Window titles, file names or paths, repo names or paths, file contents or code, commit messages, branch names',
   'Your computer’s name or your login name (a linked device shows as “Dr. Vibe on Windows”)',
-  'Your location (the Vibe Map uses a city only if you opt in)',
+  'Your precise location (the Vibe Map uses a city only if you opt in)',
 ];
 
 function list(items) {
