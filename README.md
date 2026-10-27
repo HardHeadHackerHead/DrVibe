@@ -41,8 +41,9 @@ works offline, with no account.
   out hotspot files, fix-test-fix loops, big refactors and new files, and sums up each
   session. [More below](#claude-code).
 - **Git.** Commit celebrations, branch changes, and reminders that get more insistent
-  the longer changes sit uncommitted, in the repos Claude Code works in plus any
-  folders you add in Settings → Tracking. Temp and system folders are never tracked.
+  the longer changes sit uncommitted, in the project folders you add in Settings →
+  Tracking and, if you choose, the repos Claude Code works in. Temp and system folders
+  are never tracked.
 - **Focus and wellness.** Pomodoro or activity-based breaks, focus mode
   (`Ctrl+Shift+F`), hydration, 20-20-20 eye breaks, posture checks, fatigue and stuck
   detection, overwork warnings, and late-night and weekend nudges. Every one can be
@@ -98,22 +99,31 @@ Settings → Privacy. Visits need a linked account.
 
 <img src="docs/images/setup-wizard.png" alt="Setup wizard: Pick your look, with the 12 Lab Originals" width="400" align="right">
 
-**First run.** The wizard has five steps, and you can skip any of them or close it:
+**First run.** The wizard has seven steps, and you can skip any of them or close it:
 
 1. **Meet Dr. Vibe**
 2. **Pick your look**: one of the 12 Lab Originals, a skin tone, a size and a voice
 3. **Your coding setup**: the apps that count as coding and the folders that hold
    your projects
-4. **Wellness**: which reminders you want
-5. **Join the community** (optional): link GitHub or Discord, or skip it
+4. **What Dr. Vibe watches**: git tracking, Claude Code, and hiding while you share
+   your screen
+5. **Wellness**: which reminders you want
+6. **What Dr. Vibe sends**: your profile, leaderboards, project name, activity times,
+   the weekly recap and crash reports
+7. **Join the community** (optional): link GitHub or Discord, or skip it
+
+Skipping or closing the wizard saves none of its choices: the defaults apply, so the
+Claude Code hooks and crash reports stay off. Each choice has the same wording in
+Settings, and Settings → Privacy → *Run setup again* goes through it once more.
 
 After that, everything lives in the **tray icon**: right-click it for Settings,
 Dashboard, Session Stats, *Make your own Dr. Vibe*, About and Quit. Drag Dr. Vibe to
 move him; he walks along the taskbar on his own when you're idle.
 
 Updates: Dr. Vibe checks drvibe.io for a new version 30 seconds after start and every
-4 hours, tells you when one is out, and installs it from **About → Check for Updates**.
-Updates are signed, and the app refuses one with a bad signature.
+4 hours and tells you when one is out. Before installing it shows the new version and
+its release notes and asks you (also from **About → Check for Updates**). Updates are
+signed, and the app refuses one with a bad signature.
 
 <br clear="right">
 
@@ -121,26 +131,35 @@ Updates are signed, and the app refuses one with a bad signature.
 
 Dr. Vibe watches window titles and file changes so it can react, and all of that stays
 on your computer. **Without an account, nothing about your coding leaves your
-machine.** The only network calls are the update check and, unless you turn them
-off, crash reports (the error text and app version, with your home-folder name
-removed, sent only to drvibe.io).
+machine.** The only network calls are the update check and, if you switch them on,
+crash reports (the error text and app version, with folder paths, web addresses and
+keys removed, sent only to drvibe.io).
 
 If you link an account, the app sends your coding totals, streaks, achievements,
 momentum, your Dr. Vibe's look and whether you're coding right now, every 15 minutes.
-It never sends window titles, file names, file contents or code. Project names are
-sent only if you switch on **Show project names** (off by default).
+It never sends window titles, file names, file contents or code. A project name (the
+folder name of the tracked git repo you're in) is sent only if you switch on **Send my
+project name** (off by default). **Send my activity times** and **Send when I'm coding
+right now** (both on by default) hold that data back on your computer when off, and
+**Sync my stats** off sends nothing at all while you stay linked.
 
 <img src="docs/images/settings-privacy.png" alt="Settings, Privacy tab" width="420" align="right">
 
 Settings → **Privacy** has:
 
-- **Who sees what** on drvibe.io: profile visibility, project names, the Vibe Map,
-  leaderboards, and who can visit you
-- **Hide Dr. Vibe during screen shares and fullscreen apps** (on by default)
-- **Share my weekly recap** (last week's totals for a share card, never project names)
-- **Send crash reports** (on by default)
-- **What Dr. Vibe sees**: *Show my last sync* displays the exact payload last sent,
-  with a button to copy it
+- **Pause tracking** for an hour, until tomorrow or until you resume (also in the tray
+  menu)
+- **What Dr. Vibe sends**: who can see your profile, leaderboards, *Send my project
+  name*, *Send my activity times*, *Send when I'm coding right now*, the Vibe Map, who
+  can visit you, *Share my weekly recap* (on; you see the first card before it's
+  posted), *Send crash reports* (off until you choose) and, once linked, *Sync my stats*
+- **Hide Dr. Vibe while I share my screen** (on by default)
+- **What will be sent next**: the next sync, waiting events, the next recap and queued
+  crash reports, built by the same code that sends them; *Show my last sync* displays
+  the exact payload last sent, with a button to copy it
+- **What Dr. Vibe sees**: everything it looks at, in plain words
+- **Your local data**: export it, forget project history or tracked repos, delete all
+  of it, or delete your account on drvibe.io; and *Run setup again*
 
 The full list of what's collected, where it's stored and what each switch does is in
 **[docs/privacy.md](docs/privacy.md)**.
@@ -150,29 +169,34 @@ The full list of what's collected, where it's stored and what each switch does i
 ## Claude Code
 
 Dr. Vibe reads Claude Code's activity through [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks).
-If Claude Code is installed (there's a `~/.claude` folder), Dr. Vibe copies a small
-bash script to `~/.dr-vibe/claude-code-hook.sh` and registers it in
-`~/.claude/settings.json` for `PostToolUse` (Write, Edit, NotebookEdit, Read and Bash),
-`SessionStart`, `SessionEnd` and `Stop`. The script appends one line per event (event
+It's off until you switch it on (in setup or Settings). Then, if Claude Code is
+installed (there's a `~/.claude` folder), Dr. Vibe copies a small bash script to
+`~/.dr-vibe/claude-code-hook.sh` and registers it in `~/.claude/settings.json` for
+`PostToolUse` (Write, Edit, NotebookEdit and Bash), `SessionStart`, `SessionEnd` and
+`Stop`. Inside the repos Dr. Vibe tracks, the script appends one line per event (event
 type, tool, file path, session ID, working folder) to
-`~/.dr-vibe/claude-code-events.jsonl`, which the app reads every few seconds. It never
-sees your prompts, Claude's replies, commands or file contents, and nothing from the
-log is sent anywhere. Without Claude Code, Dr. Vibe doesn't touch `~/.claude` at all.
+`~/.dr-vibe/claude-code-events.jsonl`, which the app reads every few seconds; anywhere
+else it writes nothing. It never sees your prompts, Claude's replies, commands or file
+contents, never logs files Claude only reads, and nothing from the log is sent
+anywhere. Without Claude Code, Dr. Vibe doesn't touch `~/.claude` at all.
 
 With the hooks in place, Dr. Vibe:
 
 - fills the heat bar from Claude's edits as well as yours
 - comments on hotspot files, rewrite sprees, new files and cross-cutting changes
 - spots fix-test-fix loops and celebrates when the tests finally pass
-- sums up each session (files changed and read, top language, most-edited file)
+- sums up each session (files changed, top language, most-edited file)
 - marks pair-programming milestones when you and Claude are both working
 
-**Turn it on or off** in Settings → Tracking → **Follow Claude Code** (on by default).
-Off removes Dr. Vibe's hooks from `~/.claude/settings.json` and keeps them out; on
-puts them back, and *Install / Fix* repairs them. Restart Claude Code after a change.
+**Turn it on or off** in Settings → Tracking → **Follow Claude Code** (off by default).
+Off removes Dr. Vibe's hooks from `~/.claude/settings.json` and deletes the log and
+scripts in `~/.dr-vibe`; on puts them back, and *Install / Fix* repairs them. *Also
+track the repos Claude Code works in* (off by default, needs the hooks) adds the repo a
+Claude Code session starts in to the tracked repos. Restart Claude Code after a change.
 While it's on, the hooks stay in place when you quit Dr. Vibe: the script only appends
 to the local log (capped at 5 MB, then rotated) and always exits at once, so Claude
-Code doesn't notice. On Windows the hooks run through Git Bash, which Claude Code needs
+Code doesn't notice. It does nothing while tracking is paused or once Dr. Vibe is
+uninstalled, and the uninstaller removes the hooks and `~/.dr-vibe`. On Windows the hooks run through Git Bash, which Claude Code needs
 anyway. Details: **[docs/claude-code.md](docs/claude-code.md)**.
 
 **Codex.** OpenAI's Codex CLI isn't tracked. Dr. Vibe uses Codex (or Claude Code) only
@@ -190,7 +214,9 @@ Appearance.
 Tray → **Make your own Dr. Vibe…** opens the workshop:
 
 - **Generate with AI** using your own Claude Code or Codex CLI, so it runs on your plan
-  and costs nothing extra.
+  and costs nothing extra. Your description goes to Anthropic or OpenAI through that
+  CLI (a one-time notice says so), and the agent works in a private temporary folder
+  with limited tools.
 - **Draw it yourself**: download the sprite template, import a PNG, or open the
   built-in sprite editor.
 - **Preview all 17 rows**, then **wear it** right away or save it to your designs.
