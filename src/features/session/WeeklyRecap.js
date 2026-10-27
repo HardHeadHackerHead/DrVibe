@@ -10,13 +10,19 @@
 // history days are UTC dates, see SessionTracker.saveSession), and the
 // Monday of the last week sent is stored here. Network errors and 429/5xx
 // retry (short backoff, then the hourly check). Nothing is sent while
-// unlinked, with a private profile, or with "Share my weekly recap" off.
+// unlinked, with "Sync my stats" off, with a private profile, or with
+// "Share my weekly recap" off.
+//
+// The very first recap is not posted on its own: RECAP_NEEDS_APPROVAL asks
+// the player to look at its card first (Settings → Privacy → What will be
+// sent next), and approve() posts it. Later weeks go out by themselves.
 
 import { eventBus, Events } from '../../core/EventBus.js';
 import { db } from '../../core/Database.js';
 import { desktopApi } from '../../core/api/client.js';
 import { accountState } from '../../core/AccountState.js';
 import { privacySync } from '../privacy/PrivacySync.js';
+import { syncSwitch } from '../../core/SyncSwitch.js';
 import { aggregateDays } from './WeeklySummary.js';
 import { localDay } from '../../core/localDay.js';
 
@@ -94,6 +100,8 @@ export class WeeklyRecapSync {
    * @param {{get: () => {profileVisibility: string}}} [deps.privacy]
    * @param {{load: () => any, save: (v: any) => void}} [deps.store]
    * @param {() => Date} [deps.now]
+   * @param {{enabled: boolean}} [deps.sync]  "Sync my stats"
+   * @param {typeof eventBus} [deps.bus]
    */
   constructor({
     getHistory,
@@ -105,7 +113,11 @@ export class WeeklyRecapSync {
     privacy = privacySync,
     store = { load: () => db.getSection(SECTION), save: (v) => db.setSection(SECTION, v) },
     now = () => new Date(),
+    sync = syncSwitch,
+    bus = eventBus,
   }) {
+    this._sync = sync;
+    this._bus = bus;
     this._getHistory = getHistory;
     this._getStreak = getStreak;
     this._settings = settings;
@@ -120,16 +132,19 @@ export class WeeklyRecapSync {
     this._retries = 0;
     this._interval = null;
     this._onLinked = () => { this.maybeSend(); };
+    this._onSyncSwitch = ({ enabled } = {}) => { if (enabled) this.maybeSend(); };
   }
 
   init() {
     eventBus.on(Events.ACCOUNT_LINKED, this._onLinked);
+    eventBus.on(Events.SYNC_ENABLED_CHANGED, this._onSyncSwitch);
     this._interval = setInterval(() => this.maybeSend(), CHECK_EVERY_MS);
     return this.maybeSend();
   }
 
   destroy() {
     eventBus.off?.(Events.ACCOUNT_LINKED, this._onLinked);
+    eventBus.off?.(Events.SYNC_ENABLED_CHANGED, this._onSyncSwitch);
     clearInterval(this._interval);
     clearTimeout(this._retryTimer);
   }
@@ -137,6 +152,29 @@ export class WeeklyRecapSync {
   /** The Monday of the last week sent, or null. */
   get lastSentWeek() {
     return this._state().lastSentWeek ?? null;
+  }
+
+  /** Whether the first recap's card was approved (any recap already sent counts). */
+  get approved() {
+    const s = this._state();
+    return s.firstApproved === true || !!s.lastSentWeek;
+  }
+
+  /** The player looked at the first card and said post it. */
+  approve() {
+    this._store.save({ ...this._state(), firstApproved: true });
+    return this.maybeSend();
+  }
+
+  /**
+   * The Outbox: the body the next recap would send, or null when none is
+   * due (already sent, nothing coded, or sharing is off).
+   */
+  async preview() {
+    const week = lastCompleteWeek(this._now());
+    if (this.lastSentWeek === week || !this.sharingAllowed()) return null;
+    const request = buildRecapRequest(await this._getHistory(), week, this._getStreak());
+    return request.summary.totalSeconds === 0 ? null : request;
   }
 
   /** False when the player hid their profile or turned the recap off. */
@@ -147,7 +185,8 @@ export class WeeklyRecapSync {
 
   /**
    * Send last week's recap if it is due. Resolves to what happened:
-   * `sent`, `already_sent`, `unlinked`, `opted_out`, `empty`, `retry` or `rejected`.
+   * `sent`, `already_sent`, `unlinked`, `sync_off`, `opted_out`, `empty`,
+   * `needs_approval`, `retry` or `rejected`.
    */
   maybeSend() {
     if (this._sending) return this._sending;
@@ -159,10 +198,20 @@ export class WeeklyRecapSync {
     const week = lastCompleteWeek(this._now());
     if (this.lastSentWeek === week) return 'already_sent';
     if (!this._account.linked) return 'unlinked';
+    if (!this._sync.enabled) return 'sync_off';
     if (!this.sharingAllowed()) return 'opted_out';
 
     const request = buildRecapRequest(await this._getHistory(), week, this._getStreak());
     if (request.summary.totalSeconds === 0) return 'empty';
+    if (!this.approved) {
+      // Asked once per week; the Outbox keeps offering it.
+      const state = this._state();
+      if (state.askedWeek !== week) {
+        this._store.save({ ...state, askedWeek: week });
+        this._bus.emit(Events.RECAP_NEEDS_APPROVAL, { request });
+      }
+      return 'needs_approval';
+    }
 
     const r = await this._api.sendRecap(request);
     if (r.unlinked) return 'unlinked';
@@ -170,7 +219,7 @@ export class WeeklyRecapSync {
     if (r.ok) {
       this._retries = 0;
       const cardUrl = r.data?.cardUrl ?? null;
-      this._store.save({ lastSentWeek: week, cardUrl });
+      this._store.save({ ...this._state(), lastSentWeek: week, cardUrl });
       if (cardUrl) this._onSent(cardUrl, request);
       return 'sent';
     }
@@ -181,7 +230,7 @@ export class WeeklyRecapSync {
     if (r.status === 401) return 'unlinked';
     // Any other 4xx (e.g. 422 for a week the server no longer takes) will
     // not change on a retry: count the week as done.
-    this._store.save({ lastSentWeek: week, cardUrl: null });
+    this._store.save({ ...this._state(), lastSentWeek: week, cardUrl: null });
     return 'rejected';
   }
 

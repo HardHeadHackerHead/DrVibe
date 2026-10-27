@@ -89,7 +89,10 @@ export const DEFAULT_SETTINGS = {
   notifyVpEarned: true,   // "+X VP" toasts when you earn Vibe Points
   notifyTrades: true,     // trade proposed / accepted notifications
   notifyCommunity: true,
-  shareWeeklyRecap: true, // send last week's numbers for the recap card and feed post (linked only)
+  shareWeeklyRecap: true, // send last week's numbers for the recap card and feed post (linked only; the first card waits for a look)
+  syncEnabled: true,      // "Sync my stats": off keeps the account linked but sends nothing (SyncSwitch)
+  trackingPausedUntil: null, // Pause tracking: epoch ms, 'manual' (until I resume) or null (TrackingPause)
+  aiGeneratorConsentAt: null, // when the "your description goes to Anthropic/OpenAI" notice was accepted (ms)
   communityInviteDismissed: false, // wizard "don't ask again" or already joined
   communityInviteShown: false,     // the one-time join toast after the first achievement
   hideWhenPresenting: true, // hide Dr. Vibe, hold visits and toasts during screen shares / fullscreen apps  // server notifications from the poll (follows, donations, visits while away)
@@ -115,8 +118,9 @@ export const DEFAULT_SETTINGS = {
   soundTalkEnabled: false,        // opt-in: chattering noises when speech bubble appears
   soundVolume: 50,                // 0-100 volume level
   soundTalkVoice: 'mumble',       // voice style preset for talk sounds
-  // Claude Code integration: hooks in ~/.claude/settings.json (Settings → Tracking)
-  claudeCodeHooksEnabled: true,
+  // Claude Code integration: hooks in ~/.claude/settings.json (Settings → Tracking).
+  // Off until chosen in setup or Settings; installed only after setup.
+  claudeCodeHooksEnabled: false,
   // Git tracking settings
   gitTrackingEnabled: true,           // master toggle for git integration
   gitCommitNotificationsEnabled: true, // show speech bubble on new commits
@@ -126,7 +130,7 @@ export const DEFAULT_SETTINGS = {
   gitReminderThresholdMinutes: 30,    // minutes before first gentle reminder
   gitReminderMinChanges: 3,           // minimum changed files before reminding
   projectFolders: [],              // folders whose repos are tracked (the folder's own, or one level down)
-  trackClaudeRepos: true,          // track the repos Claude Code works in
+  trackClaudeRepos: false,         // also track the repos Claude Code starts sessions in (needs the hooks)
   ignoredRepos: [],                // repo paths never tracked
   // Activity overlay visibility
   momentumMeterEnabled: true,         // show/hide the heat bar

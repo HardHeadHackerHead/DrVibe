@@ -116,9 +116,12 @@ pub(crate) fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommitInfo {
+    /// First 8 chars of the hash: local display and new-commit checks only.
     pub hash: String,
+    /// What a `GIT_COMMIT` event carries instead of the hash:
+    /// `drvibe_protocol::signing::commit_event_id` keyed by the install id.
+    pub event_id: Option<String>,
     pub message: String,
-    pub author: String,
     pub timestamp: String,
 }
 
@@ -134,19 +137,26 @@ pub struct GitInfo {
     pub recent_commits: Vec<CommitInfo>,
     pub has_uncommitted_changes: bool,
     pub uncommitted_count: usize,
-    pub remote_url: Option<String>,
 }
 
-/// Gather git info for the repository containing `path`.
-/// Returns the repo name, current branch, recent commits, and remote URL.
+/// Gather git info for the repository containing `path`: the repo name,
+/// current branch, recent commits and the uncommitted count. No remote URL
+/// and no author: nothing uses them, and a remote can embed credentials.
 #[tauri::command]
-pub(crate) async fn get_git_info(path: String) -> Result<GitInfo, String> {
-    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path))
+pub(crate) async fn get_git_info(
+    path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<GitInfo, String> {
+    let install_id = crate::account::install_id(&app_handle);
+    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path, Some(&install_id)))
         .await
         .map_err(|e| e.to_string())?
 }
 
-pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
+pub(crate) fn get_git_info_blocking(
+    path: String,
+    install_id: Option<&str>,
+) -> Result<GitInfo, String> {
     let (toplevel, root) = git_repo_paths(Path::new(&path))?;
     let git_root = toplevel.to_string_lossy().into_owned();
     let repo_name = repo_name(&root);
@@ -156,19 +166,22 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    // Format: hash|subject|author|ISO date
-    let log_raw = run_git(&git_root, &["log", "--format=%H|%s|%an|%ai", "-5"]).unwrap_or_default();
+    // Format: hash|ISO date|subject (the subject last: it may contain '|')
+    let log_raw = run_git(&git_root, &["log", "--format=%H|%ai|%s", "-5"]).unwrap_or_default();
 
     let recent_commits = log_raw
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|line| {
-            let parts: Vec<&str> = line.splitn(4, '|').collect();
+            let parts: Vec<&str> = line.splitn(3, '|').collect();
+            let sha = parts.first().unwrap_or(&"").trim();
             CommitInfo {
-                hash: parts.first().unwrap_or(&"").chars().take(8).collect(),
-                message: parts.get(1).unwrap_or(&"").to_string(),
-                author: parts.get(2).unwrap_or(&"").to_string(),
-                timestamp: parts.get(3).unwrap_or(&"").to_string(),
+                hash: sha.chars().take(8).collect(),
+                event_id: install_id
+                    .filter(|_| !sha.is_empty())
+                    .map(|id| drvibe_protocol::signing::commit_event_id(id, sha)),
+                timestamp: parts.get(1).unwrap_or(&"").to_string(),
+                message: parts.get(2).unwrap_or(&"").to_string(),
             }
         })
         .collect();
@@ -176,11 +189,6 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
     let status = run_git(&git_root, &["status", "--porcelain"]).unwrap_or_default();
     let has_uncommitted_changes = !status.trim().is_empty();
     let uncommitted_count = status.lines().filter(|l| !l.trim().is_empty()).count();
-
-    let remote_url = run_git(&git_root, &["remote", "get-url", "origin"])
-        .ok()
-        .map(|u| u.trim().to_string())
-        .filter(|u| !u.is_empty());
 
     Ok(GitInfo {
         repo_name,
@@ -190,7 +198,6 @@ pub(crate) fn get_git_info_blocking(path: String) -> Result<GitInfo, String> {
         recent_commits,
         has_uncommitted_changes,
         uncommitted_count,
-        remote_url,
     })
 }
 
@@ -265,20 +272,30 @@ mod tests {
         git(&["commit", "-q", "-m", "first commit"]);
         std::fs::write(dir.join("b.txt"), "dirty").unwrap();
 
-        let info = get_git_info_blocking(path.clone()).unwrap();
+        let info = get_git_info_blocking(path.clone(), Some("install-a")).unwrap();
         assert_eq!(info.branch, "main");
         assert_eq!(info.recent_commits.len(), 1);
         assert_eq!(info.recent_commits[0].message, "first commit");
         assert_eq!(info.recent_commits[0].hash.len(), 8);
+        let full = git(&["rev-parse", "HEAD"]);
+        assert_eq!(
+            info.recent_commits[0].event_id.as_deref(),
+            Some(drvibe_protocol::signing::commit_event_id("install-a", full.trim()).as_str())
+        );
+        assert!(!full.starts_with(info.recent_commits[0].event_id.as_deref().unwrap()));
         assert!(info.has_uncommitted_changes);
         assert_eq!(info.uncommitted_count, 1);
-        assert_eq!(info.remote_url, None);
+        let json = serde_json::to_value(&info).unwrap();
+        assert!(
+            json.get("remote_url").is_none() && json["recent_commits"][0].get("author").is_none()
+        );
         assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
 
         // A linked worktree reports its main repo's name and root
         let wt = dir.join("wt-fix");
         git(&["worktree", "add", "-q", "-b", "fix", &wt.to_string_lossy()]);
-        let info = get_git_info_blocking(wt.to_string_lossy().into_owned()).unwrap();
+        let info = get_git_info_blocking(wt.to_string_lossy().into_owned(), None).unwrap();
+        assert_eq!(info.recent_commits[0].event_id, None);
         assert_eq!(info.branch, "fix");
         assert_eq!(info.repo_name, dir.file_name().unwrap().to_string_lossy());
         assert!(info.git_root.ends_with("wt-fix"), "{}", info.git_root);

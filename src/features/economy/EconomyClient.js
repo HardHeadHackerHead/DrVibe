@@ -24,6 +24,7 @@ import { eventBus, Events } from '../../core/EventBus.js';
 import { db } from '../../core/Database.js';
 import { desktopApi } from '../../core/api/client.js';
 import { accountState } from '../../core/AccountState.js';
+import { syncSwitch } from '../../core/SyncSwitch.js';
 
 const DB_SECTION = 'economy';
 const DB_KEY_QUEUE = 'pendingEvents';
@@ -66,6 +67,13 @@ function isRetryableRejection(reasonCode) {
   return RETRYABLE_REJECTION_PREFIXES.some((p) => reasonCode.startsWith(p) || reasonCode.includes(p));
 }
 
+/** Event time as sent: rounded down to the minute (the server's caps need no more). */
+export function minuteOf(date = new Date()) {
+  const d = new Date(date);
+  d.setUTCSeconds(0, 0);
+  return d.toISOString();
+}
+
 function uuid() {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -85,10 +93,12 @@ export class EconomyClient {
    * @param {Object} [deps]
    * @param {typeof desktopApi} [deps.api]
    * @param {{linked: boolean, markTokenRejected?: Function}} [deps.account]
+   * @param {{enabled: boolean}} [deps.sync]  "Sync my stats": off holds the queue
    */
-  constructor({ api = desktopApi, account = accountState } = {}) {
+  constructor({ api = desktopApi, account = accountState, sync = syncSwitch } = {}) {
     this._api = api;
     this._account = account;
+    this._sync = sync;
     this._queue = [];
     this._flushing = false;
     this._paused = false; // paused on 401 until resume()
@@ -151,8 +161,10 @@ export class EconomyClient {
     }
     this._startDeferredCheckLoop();
 
-    // Linking (or re-linking after a rejected token) restarts the queue.
+    // Linking (or re-linking after a rejected token) restarts the queue, and
+    // so does turning "Sync my stats" back on.
     eventBus.on(Events.ACCOUNT_LINKED, () => this.resume());
+    eventBus.on(Events.SYNC_ENABLED_CHANGED, ({ enabled } = {}) => { if (enabled) this.resume(); });
   }
 
   /**
@@ -168,7 +180,7 @@ export class EconomyClient {
     const item = {
       eventType,
       clientEventId: clientEventId || uuid(),
-      occurredAt: new Date().toISOString(),
+      occurredAt: minuteOf(),
       metadata: metadata || {},
       attempts: 0,
     };
@@ -187,6 +199,24 @@ export class EconomyClient {
 
   get queueLength() {
     return this._queue.length;
+  }
+
+  /** The Outbox: queued events exactly as the next batch would send them. */
+  pendingEvents() {
+    return [...this._queue, ...this._deferred].map((item) => ({
+      eventType: item.eventType,
+      clientEventId: item.clientEventId,
+      occurredAt: item.occurredAt,
+      metadata: item.metadata || {},
+    }));
+  }
+
+  /** "Delete all local data": the queue goes too. */
+  clear() {
+    this._queue = [];
+    this._deferred = [];
+    this._persistQueue();
+    this._persistDeferred();
   }
 
   // --- Internal ---
@@ -223,8 +253,9 @@ export class EconomyClient {
   async _flush() {
     if (this._flushing || this._paused) return;
     if (this._queue.length === 0) return;
-    // Unlinked: hold the queue until ACCOUNT_LINKED calls resume().
-    if (!this._account.linked) return;
+    // Unlinked: hold the queue until ACCOUNT_LINKED calls resume(). Sync
+    // off: the events wait until it is turned back on.
+    if (!this._account.linked || !this._sync.enabled) return;
 
     this._flushing = true;
     try {

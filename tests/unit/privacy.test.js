@@ -5,12 +5,12 @@ import { PrivacySync } from '../../src/features/privacy/PrivacySync.js';
 import { PRIVACY_DEFAULTS } from '../../src/core/api/contract.js';
 import { eventBus, Events } from '../../src/core/EventBus.js';
 
-function make({ linked = true, ok = true } = {}) {
+function make({ linked = true, ok = true, syncOn = true } = {}) {
   let saved = null;
   const store = { load: () => saved, save: (v) => { saved = JSON.parse(JSON.stringify(v)); } };
   const api = { updatePrivacy: vi.fn(async () => ({ ok, status: ok ? 200 : 503 })) };
   const account = { linked, markTokenRejected: vi.fn() };
-  const sync = new PrivacySync({ api, account, store });
+  const sync = new PrivacySync({ api, account, store, sync: { enabled: syncOn } });
   return { sync, api, account, store, saved: () => saved };
 }
 
@@ -85,6 +85,35 @@ describe('PrivacySync', () => {
     const { toPrivacyPatch } = await import('../../src/core/api/contract.js');
     expect(toPrivacyPatch({ visitsFrom: 'everyone' })).toEqual({
       profileVisibility: 'public', showProjectNames: false, showOnVibeMap: false, appearInLeaderboards: true, whoCanVisit: 'everyone',
+      shareActivityTimes: true, shareCodingNow: true,
     });
+  });
+
+  it('keeps a local send switch when the server leaves it out', async () => {
+    const { parsePrivacy } = await import('../../src/core/api/contract.js');
+    const { sync, store } = make();
+    await sync.update({ shareActivityTimes: false });
+    expect(store.load().pending).toBe(false);
+    const old = parsePrivacy({ profileVisibility: 'followers', showProjectNames: false, showOnVibeMap: false, appearInLeaderboards: true, whoCanVisit: 'followers', updatedAt: 't9' });
+    expect('shareActivityTimes' in old).toBe(false);
+    expect(sync.applyServer(old)).toBe(true);
+    expect(sync.get()).toMatchObject({ profileVisibility: 'followers', shareActivityTimes: false, shareCodingNow: true });
+    // A server that knows the switch wins like any other web change.
+    expect(sync.applyServer(parsePrivacy({ ...old, shareActivityTimes: true, updatedAt: 't10' }))).toBe(true);
+    expect(sync.get().shareActivityTimes).toBe(true);
+  });
+
+  it('the setup wizard can send the whole body even when nothing changed', async () => {
+    const { sync, api } = make();
+    expect(await sync.update({}, { force: false })).toBe(false);
+    expect(await sync.update({}, { force: true })).toBe(true);
+    expect(api.updatePrivacy).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds changes while "Sync my stats" is off', async () => {
+    const { sync, api } = make({ syncOn: false });
+    expect(await sync.update({ showOnVibeMap: true })).toBe(false);
+    expect(sync.pending).toBe(true);
+    expect(api.updatePrivacy).not.toHaveBeenCalled();
   });
 });

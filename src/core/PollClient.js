@@ -15,11 +15,14 @@
 //   NOTIFICATION_RECEIVED { notification }     every desktop toast (then acked)
 //   VISIT_RECEIVED { visit }                   another player's Dr. Vibe stopped by
 //                                              (VisitorController acks played / missed)
-//   POLL_STATUS { state }                      unlinked | connecting | live | offline | error
+//   POLL_STATUS { state }                      unlinked | connecting | live | offline | error | paused
+//
+// "Sync my stats" off (SyncSwitch) stops the poll too: status `paused`.
 
 import { eventBus, Events } from './EventBus.js';
 import { desktopApi } from './api/client.js';
 import { accountState } from './AccountState.js';
+import { syncSwitch } from './SyncSwitch.js';
 
 export const POLL_INTERVAL_MS = 60_000;
 
@@ -31,11 +34,13 @@ export class PollClient {
    * @param {{linked: boolean, markTokenRejected?: Function}} [deps.account]
    * @param {() => string|null} [deps.getEquippedId]  id currently on the desktop
    * @param {number} [deps.intervalMs]
+   * @param {{enabled: boolean}} [deps.sync]  "Sync my stats"
    */
-  constructor({ api = desktopApi, bus = eventBus, account = accountState, getEquippedId = () => null, intervalMs = POLL_INTERVAL_MS } = {}) {
+  constructor({ api = desktopApi, bus = eventBus, account = accountState, getEquippedId = () => null, intervalMs = POLL_INTERVAL_MS, sync = syncSwitch } = {}) {
     this._api = api;
     this._bus = bus;
     this._account = account;
+    this._sync = sync;
     this._getEquippedId = getEquippedId;
     this._intervalMs = intervalMs;
     this._timer = null;
@@ -63,8 +68,20 @@ export class PollClient {
         this._pause();
         this._setStatus('unlinked');
       }),
+      this._bus.on(Events.SYNC_ENABLED_CHANGED, ({ enabled } = {}) => {
+        if (!this._account.linked) return;
+        if (enabled) {
+          this._setStatus('connecting');
+          this._schedule(0);
+        } else {
+          this._pause();
+          this._setStatus('paused');
+        }
+      }),
     );
-    if (this._account.linked) {
+    if (this._account.linked && !this._sync.enabled) {
+      this._setStatus('paused');
+    } else if (this._account.linked) {
       this._setStatus('connecting');
       this._schedule(0);
     } else {
@@ -82,6 +99,7 @@ export class PollClient {
   /** Poll now (also used after waking from sleep). */
   async pollNow() {
     if (!this._running || this._inFlight || !this._account.linked) return;
+    if (!this._sync.enabled) return this._setStatus('paused');
     this._inFlight = true;
     let nextMs = this._intervalMs;
     try {
@@ -112,7 +130,7 @@ export class PollClient {
       console.warn('[poll] failed:', e);
     } finally {
       this._inFlight = false;
-      if (this._running && this._account.linked) this._schedule(nextMs);
+      if (this._running && this._account.linked && this._sync.enabled) this._schedule(nextMs);
     }
   }
 

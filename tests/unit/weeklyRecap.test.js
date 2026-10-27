@@ -19,9 +19,11 @@ const HISTORY = [
 
 function make({
   linked = true, response = { ok: true, status: 200, data: { cardUrl: 'http://localhost:8092/api/v1/recaps/r1/card.png' } },
-  share = true, visibility = 'public', history = HISTORY, now = NOW,
+  share = true, visibility = 'public', history = HISTORY, now = NOW, approved = true, syncOn = true,
 } = {}) {
-  let saved = null;
+  // Most tests start after the first card was approved (see "first recap").
+  const APPROVED = { firstApproved: true };
+  let saved = approved ? { ...APPROVED } : null;
   const store = { load: () => saved, save: (v) => { saved = JSON.parse(JSON.stringify(v)); } };
   const api = { sendRecap: vi.fn(async () => (typeof response === 'function' ? response() : response)) };
   const account = { linked, markTokenRejected: vi.fn() };
@@ -29,11 +31,12 @@ function make({
   const privacy = { profileVisibility: visibility, get() { return { profileVisibility: this.profileVisibility }; } };
   const onSent = vi.fn();
   const clock = { now };
+  const sync = { enabled: syncOn };
   const recap = new WeeklyRecapSync({
     getHistory: async () => history, getStreak: () => 4, settings, onSent, api, account, privacy, store,
-    now: () => clock.now,
+    now: () => clock.now, sync,
   });
-  return { recap, api, account, settings, privacy, onSent, clock, saved: () => saved };
+  return { recap, api, account, settings, privacy, onSent, clock, sync, saved: () => saved };
 }
 
 afterEach(() => {
@@ -89,7 +92,7 @@ describe('WeeklyRecapSync', () => {
     expect(await ctx.recap.maybeSend()).toBe('sent');
     expect(ctx.api.sendRecap).toHaveBeenCalledTimes(1);
     expect(ctx.api.sendRecap.mock.calls[0][0].weekStart).toBe('2026-10-12');
-    expect(ctx.saved()).toEqual({ lastSentWeek: '2026-10-12', cardUrl: 'http://localhost:8092/api/v1/recaps/r1/card.png' });
+    expect(ctx.saved()).toEqual({ firstApproved: true, lastSentWeek: '2026-10-12', cardUrl: 'http://localhost:8092/api/v1/recaps/r1/card.png' });
     expect(ctx.onSent).toHaveBeenCalledWith('http://localhost:8092/api/v1/recaps/r1/card.png', expect.any(Object));
 
     expect(await ctx.recap.maybeSend()).toBe('already_sent');
@@ -122,7 +125,7 @@ describe('WeeklyRecapSync', () => {
     expect(await hidden.recap.maybeSend()).toBe('opted_out');
     expect(off.api.sendRecap).not.toHaveBeenCalled();
     expect(hidden.api.sendRecap).not.toHaveBeenCalled();
-    expect(off.saved()).toBeNull();
+    expect(off.saved()).toEqual({ firstApproved: true });
 
     // Turning it back on sends the week after all.
     off.settings.values.shareWeeklyRecap = true;
@@ -142,7 +145,7 @@ describe('WeeklyRecapSync', () => {
     const replies = [{ ok: false, status: 0 }, { ok: false, status: 503 }];
     const ctx = make({ response: () => replies.shift() ?? { ok: true, status: 200, data: { cardUrl: 'http://x/card.png' } } });
     expect(await ctx.recap.maybeSend()).toBe('retry');
-    expect(ctx.saved()).toBeNull();
+    expect(ctx.saved()).toEqual({ firstApproved: true });
     await vi.advanceTimersByTimeAsync(60_000);
     expect(ctx.api.sendRecap).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(5 * 60_000);
@@ -154,7 +157,7 @@ describe('WeeklyRecapSync', () => {
   it('gives up on a week the server refuses (4xx)', async () => {
     const ctx = make({ response: { ok: false, status: 422, error: 'validation' } });
     expect(await ctx.recap.maybeSend()).toBe('rejected');
-    expect(ctx.saved()).toEqual({ lastSentWeek: '2026-10-12', cardUrl: null });
+    expect(ctx.saved()).toEqual({ firstApproved: true, lastSentWeek: '2026-10-12', cardUrl: null });
     expect(ctx.onSent).not.toHaveBeenCalled();
   });
 
@@ -162,6 +165,33 @@ describe('WeeklyRecapSync', () => {
     const ctx = make({ response: { ok: false, status: 401, error: 'invalid_signature' } });
     expect(await ctx.recap.maybeSend()).toBe('unlinked');
     expect(ctx.account.markTokenRejected).toHaveBeenCalled();
-    expect(ctx.saved()).toBeNull();
+    expect(ctx.saved()).toEqual({ firstApproved: true });
+  });
+
+  it('holds the very first recap until its card is approved', async () => {
+    const ctx = make({ approved: false });
+    const asked = vi.fn();
+    eventBus.on(Events.RECAP_NEEDS_APPROVAL, asked);
+    expect(await ctx.recap.maybeSend()).toBe('needs_approval');
+    expect(await ctx.recap.maybeSend()).toBe('needs_approval');
+    expect(ctx.api.sendRecap).not.toHaveBeenCalled();
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(asked.mock.calls[0][0].request.weekStart).toBe('2026-10-12');
+    expect((await ctx.recap.preview()).summary.totalSeconds).toBe(6000);
+
+    expect(await ctx.recap.approve()).toBe('sent');
+    expect(ctx.saved()).toMatchObject({ firstApproved: true, lastSentWeek: '2026-10-12' });
+    expect(await ctx.recap.preview()).toBeNull();
+  });
+
+  it('sends nothing while "Sync my stats" is off, and catches up when it is back on', async () => {
+    const ctx = make({ syncOn: false });
+    expect(await ctx.recap.maybeSend()).toBe('sync_off');
+    expect(ctx.api.sendRecap).not.toHaveBeenCalled();
+    await ctx.recap.init();
+    ctx.sync.enabled = true;
+    eventBus.emit(Events.SYNC_ENABLED_CHANGED, { enabled: true });
+    await vi.waitFor(() => expect(ctx.api.sendRecap).toHaveBeenCalledTimes(1));
+    ctx.recap.destroy();
   });
 });

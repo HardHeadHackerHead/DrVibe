@@ -251,7 +251,13 @@ export const PRIVACY_DEFAULTS = Object.freeze({
   showOnVibeMap: false,
   appearInLeaderboards: true,
   visitsFrom: 'followers',
+  // Send switches: the desktop holds the data back itself (sync.rs).
+  shareActivityTimes: true,
+  shareCodingNow: true,
 });
+
+/** The switches that stop data on this computer, not just on the site. */
+export const SEND_SWITCHES = Object.freeze(['shareActivityTimes', 'shareCodingNow']);
 
 const VISIBILITY = ['public', 'followers', 'private'];
 const VISITS_FROM = ['everyone', 'followers', 'nobody'];
@@ -264,6 +270,8 @@ export function buildPrivacyBody(p = {}) {
     showOnVibeMap: typeof p.showOnVibeMap === 'boolean' ? p.showOnVibeMap : PRIVACY_DEFAULTS.showOnVibeMap,
     appearInLeaderboards: typeof p.appearInLeaderboards === 'boolean' ? p.appearInLeaderboards : PRIVACY_DEFAULTS.appearInLeaderboards,
     visitsFrom: VISITS_FROM.includes(p.visitsFrom) ? p.visitsFrom : PRIVACY_DEFAULTS.visitsFrom,
+    shareActivityTimes: typeof p.shareActivityTimes === 'boolean' ? p.shareActivityTimes : PRIVACY_DEFAULTS.shareActivityTimes,
+    shareCodingNow: typeof p.shareCodingNow === 'boolean' ? p.shareCodingNow : PRIVACY_DEFAULTS.shareCodingNow,
   };
 }
 
@@ -276,15 +284,25 @@ export function toPrivacyPatch(p) {
     showOnVibeMap: b.showOnVibeMap,
     appearInLeaderboards: b.appearInLeaderboards,
     whoCanVisit: b.visitsFrom,
+    shareActivityTimes: b.shareActivityTimes,
+    shareCodingNow: b.shareCodingNow,
   };
 }
 
-/** Server `PrivacySettings` → app privacy plus `updatedAt`. */
+/**
+ * Server `PrivacySettings` → app privacy plus `updatedAt`. A send switch the
+ * server did not return (a server older than it) is left out, so the local
+ * value stands instead of the default.
+ */
 export function parsePrivacy(s) {
-  return {
+  const out = {
     ...buildPrivacyBody({ ...s, visitsFrom: s?.whoCanVisit }),
     updatedAt: str(s?.updatedAt),
   };
+  for (const key of SEND_SWITCHES) {
+    if (typeof s?.[key] !== 'boolean') delete out[key];
+  }
+  return out;
 }
 
 // ── Community tab: from the last SyncResponse ────────────────────────────

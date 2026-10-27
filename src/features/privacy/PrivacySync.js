@@ -15,6 +15,7 @@ import { db } from '../../core/Database.js';
 import { desktopApi } from '../../core/api/client.js';
 import { accountState } from '../../core/AccountState.js';
 import { PRIVACY_DEFAULTS, buildPrivacyBody } from '../../core/api/contract.js';
+import { syncSwitch } from '../../core/SyncSwitch.js';
 
 const SECTION = 'privacy';
 
@@ -24,24 +25,31 @@ export class PrivacySync {
    * @param {typeof desktopApi} [deps.api]
    * @param {{linked: boolean, markTokenRejected?: Function}} [deps.account]
    * @param {{load: () => any, save: (v: any) => void}} [deps.store]
+   * @param {{enabled: boolean}} [deps.sync]  "Sync my stats"
    */
   constructor({
     api = desktopApi,
     account = accountState,
     store = { load: () => db.getSection(SECTION), save: (v) => db.setSection(SECTION, v) },
+    sync = syncSwitch,
   } = {}) {
     this._api = api;
     this._account = account;
+    this._sync = sync;
     this._store = store;
     this._sending = null;
   }
 
   init() {
     eventBus.on(Events.ACCOUNT_LINKED, () => { this.flush(); });
+    eventBus.on(Events.SYNC_ENABLED_CHANGED, ({ enabled } = {}) => { if (enabled) this.flush(); });
     eventBus.on(Events.PRIVACY_FROM_SERVER, ({ privacy } = {}) => { this.applyServer(privacy); });
     const listen = window.__TAURI__?.event?.listen;
     if (listen) {
-      listen('privacy-changed', (e) => { this.update(e?.payload || {}); });
+      listen('privacy-changed', (e) => {
+        const { force, ...patch } = e?.payload || {};
+        this.update(patch, { force: force === true });
+      });
     }
     this.flush();
   }
@@ -55,11 +63,15 @@ export class PrivacySync {
     return !!this._state().pending;
   }
 
-  /** Apply a local change. Only real changes are marked for sending. */
-  update(patch) {
+  /**
+   * Apply a local change. Only real changes are marked for sending, unless
+   * `force` (the setup wizard): then the whole body goes out as an explicit
+   * choice even where it equals the defaults.
+   */
+  update(patch, { force = false } = {}) {
     const before = this.get();
     const after = buildPrivacyBody({ ...before, ...patch });
-    if (JSON.stringify(before) === JSON.stringify(after)) return Promise.resolve(false);
+    if (!force && JSON.stringify(before) === JSON.stringify(after)) return Promise.resolve(false);
     this._store.save({ settings: after, pending: true });
     return this.flush();
   }
@@ -70,7 +82,8 @@ export class PrivacySync {
    */
   applyServer(server) {
     if (!server || this.pending) return false;
-    const next = buildPrivacyBody(server);
+    // Fields the server left out (see parsePrivacy) keep their local value.
+    const next = buildPrivacyBody({ ...this.get(), ...server });
     const state = this._state();
     if (JSON.stringify(next) === JSON.stringify(this.get()) && state.serverUpdatedAt === server.updatedAt) return false;
     this._store.save({ settings: next, pending: false, serverUpdatedAt: server.updatedAt ?? null });
@@ -80,7 +93,7 @@ export class PrivacySync {
   /** Send a pending change if linked. Resolves true when the server accepted it. */
   flush() {
     if (this._sending) return this._sending;
-    if (!this.pending || !this._account.linked) return Promise.resolve(false);
+    if (!this.pending || !this._account.linked || !this._sync.enabled) return Promise.resolve(false);
     const sent = this.get();
     this._sending = (async () => {
       try {
