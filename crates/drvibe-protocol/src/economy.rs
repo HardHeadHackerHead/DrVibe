@@ -19,7 +19,9 @@ pub enum EconomyEventType {
     PomodoroComplete,
     /// metadata: `{ "durationMinutes": number }`
     FocusSessionEnd,
-    /// metadata: `{ "repo"?: string }` (repo name is never shown publicly)
+    /// metadata: `{ "sha": string }`: 16 hex chars of a keyed hash of the
+    /// commit (`signing::commit_event_id`), never the git hash itself. The
+    /// desktop never sends a repo name.
     GitCommit,
     /// metadata: `{}`
     CodingSessionStart,

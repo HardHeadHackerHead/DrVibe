@@ -61,6 +61,19 @@ pub fn verify_request(
     mac.verify_slice(&sig).is_ok()
 }
 
+/// The id a `GIT_COMMIT` event carries instead of the commit hash: the first
+/// 16 lowercase hex chars of `HMAC-SHA256(key = install_id, msg = sha)`,
+/// where `sha` is the full commit hash as git prints it. Stable per install,
+/// so the server can still de-duplicate, but it cannot be looked up in a
+/// public repo.
+pub fn commit_event_id(install_id: &str, sha: &str) -> String {
+    let mut mac = HmacSha256::new_from_slice(install_id.as_bytes()).expect("HMAC accepts any key length");
+    mac.update(sha.trim().to_ascii_lowercase().as_bytes());
+    let mut id = hex::encode(mac.finalize().into_bytes());
+    id.truncate(16);
+    id
+}
+
 /// True if `nonce` has an acceptable length and alphabet.
 pub fn nonce_is_well_formed(nonce: &str) -> bool {
     (16..=64).contains(&nonce.len()) && nonce.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
@@ -131,6 +144,19 @@ mod tests {
             pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
+    }
+
+    #[test]
+    fn commit_ids_are_keyed_and_short() {
+        let sha = "0123456789abcdef0123456789abcdef01234567";
+        let id = commit_event_id("install-a", sha);
+        assert_eq!(id.len(), 16);
+        assert!(id.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+        assert_eq!(id, commit_event_id("install-a", &format!(" {} ", sha.to_uppercase())));
+        assert_ne!(id, commit_event_id("install-b", sha), "another install gets another id");
+        assert!(!sha.starts_with(&id[..8]), "never the hash prefix");
+        // Python: hmac.new(b"install-a", sha.encode(), hashlib.sha256).hexdigest()[:16]
+        assert_eq!(id, "acae9402f1cc3212");
     }
 
     #[test]
