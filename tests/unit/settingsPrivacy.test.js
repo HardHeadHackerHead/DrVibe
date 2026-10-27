@@ -59,6 +59,9 @@ describe('Settings → Privacy, not linked', () => {
 
   it('greys out what needs an account, with one line saying why; crash reports stay usable', async () => {
     expect(document.getElementById('privacy-gate-note').textContent).toContain('Not linked');
+    expect(document.getElementById('privacy-gate-note').textContent).toContain('Crash reports work either way');
+    expect(document.getElementById('privacy-who-gate-note').textContent).toContain('Not linked');
+    expect(document.getElementById('privacy-who-gate-note').textContent).not.toMatch(/crash/i);
     expect(document.getElementById('choice-shareActivityTimes').disabled).toBe(true);
     expect(document.getElementById('choice-profileVisibility').disabled).toBe(true);
     expect(document.getElementById('choice-syncEnabled').disabled).toBe(true);
