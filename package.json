@@ -1,6 +1,6 @@
 {
   "name": "dr-vibe",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "Desktop coding companion - a mad scientist who reacts to your coding activity",
   "type": "module",
   "scripts": {
