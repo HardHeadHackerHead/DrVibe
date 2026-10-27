@@ -218,7 +218,15 @@
           <button class="btn primary big" id="btn-generate" disabled>Generate ▶</button>
           <button class="btn" id="btn-cancel" hidden>Cancel</button>
         </div>
-        <p class="note" id="generate-note">Takes a few minutes. Your AI draws all 17 animations, then you can check them, name it and wear it.</p>
+        <div class="callout" id="ai-consent" style="margin:10px 0 0" hidden>
+          <strong>Before your first one</strong>
+          Your description, and the Dr. Vibe you start from if you pick one, go to <span id="ai-consent-vendor">Anthropic (Claude Code) or OpenAI (Codex)</span> through your own CLI and account, under their terms. Dr. Vibe sends it nowhere else. The AI works only in a private temporary folder, with its permission checks on.
+          <div class="links">
+            <button class="btn primary" type="button" id="btn-ai-consent-ok">OK, generate</button>
+            <button class="btn" type="button" id="btn-ai-consent-cancel">Not now</button>
+          </div>
+        </div>
+        <p class="note" id="generate-note">Takes a few minutes. Your description goes to Anthropic or OpenAI through your own Claude Code or Codex. Your AI draws all 17 animations, then you can check them, name it and wear it.</p>
       </div>
 
       <!-- Draw it -->

@@ -44,19 +44,111 @@ impl Drop for GenerationSlot {
     }
 }
 
-/// A fresh, empty folder the CLI writes a new character into. New
+/// The only folder the AI agent works in: a fresh private folder with a
+/// random name in the temp folder. It holds the prompt (a random name too),
+/// the scripts the agent writes and, in `out/`, the sheet it draws. New
 /// characters are moved into the skins folder under a free slug afterwards
 /// ([`adopt_generated`]), so the slug the agent picks can never overwrite one
-/// of the player's skins or shadow a Lab Original.
-fn generation_staging_dir() -> Result<PathBuf, String> {
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let dir =
-        std::env::temp_dir().join(format!("dr-vibe-generate-{}-{}", std::process::id(), stamp));
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create a work folder: {e}"))?;
-    Ok(dir)
+/// of the player's skins or shadow a Lab Original. Removed when dropped.
+pub(crate) struct AgentWorkspace {
+    root: PathBuf,
+}
+
+impl AgentWorkspace {
+    pub(crate) fn new() -> Result<Self, String> {
+        Self::new_in(&std::env::temp_dir())
+    }
+
+    pub(crate) fn new_in(parent: &std::path::Path) -> Result<Self, String> {
+        let root = parent.join(format!("dr-vibe-agent-{}", uuid::Uuid::new_v4().simple()));
+        // create_dir, not create_dir_all: fails if anything already sits there.
+        #[allow(unused_mut)] // only Unix sets a mode
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&root)
+            .map_err(|e| format!("Failed to create a work folder: {e}"))?;
+        let ws = Self { root };
+        std::fs::create_dir(ws.out_dir())
+            .map_err(|e| format!("Failed to create a work folder: {e}"))?;
+        Ok(ws)
+    }
+
+    /// The agent's working directory, and where its scripts go.
+    pub(crate) fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
+    /// Where a new sheet and its sidecar are written.
+    pub(crate) fn out_dir(&self) -> PathBuf {
+        self.root.join("out")
+    }
+
+    /// Writes the prompt to a new file with a random name and returns its path.
+    pub(crate) fn write_prompt(&self, prompt: &str) -> Result<PathBuf, String> {
+        use std::io::Write as _;
+        let path = self
+            .root
+            .join(format!("prompt-{}.txt", uuid::Uuid::new_v4().simple()));
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|e| format!("Failed to write prompt file: {e}"))?;
+        file.write_all(prompt.as_bytes())
+            .map_err(|e| format!("Failed to write prompt file: {e}"))?;
+        Ok(path)
+    }
+}
+
+impl Drop for AgentWorkspace {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+/// Tools the Claude CLI may use without asking: files in its working folder
+/// (Claude Code keeps edits inside it) and `node` to run the script.
+/// Replaces `--dangerously-skip-permissions`.
+pub(crate) const CLAUDE_ALLOWED_TOOLS: &str = "Read,Write,Edit,Bash(node:*)";
+
+/// Arguments for the Claude CLI run in an [`AgentWorkspace`].
+pub(crate) fn claude_agent_args(short_prompt: &str) -> Vec<String> {
+    [
+        "--allowedTools",
+        CLAUDE_ALLOWED_TOOLS,
+        "--verbose",
+        "--output-format",
+        "stream-json",
+        "-p",
+        short_prompt,
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// Arguments for `codex exec` in an [`AgentWorkspace`]: it may write only
+/// in that folder (`--sandbox workspace-write`).
+pub(crate) fn codex_agent_args(work_dir: &std::path::Path, short_prompt: &str) -> Vec<String> {
+    [
+        "exec",
+        "--full-auto",
+        "--sandbox",
+        "workspace-write",
+        "--skip-git-repo-check",
+        "--json",
+        "-C",
+        &work_dir.to_string_lossy(),
+        short_prompt,
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 /// Move `<slug>.png` and its sidecar from `staging` into `skins_dir` under
@@ -83,38 +175,26 @@ pub(crate) fn adopt_generated(
     Ok(final_slug)
 }
 
-/// Resolve the project root directory (the parent of src-tauri/).
-/// In dev mode Tauri runs from src-tauri/, so we go one level up.
-pub(crate) fn resolve_project_root() -> Result<PathBuf, String> {
-    // Try current dir first (works in both dev and prod contexts)
-    let candidates = [
-        PathBuf::from(".."), // dev: running from src-tauri/
-        PathBuf::from("."),  // prod or running from root
-    ];
-    for c in &candidates {
-        if c.join("package.json").exists() {
-            return std::fs::canonicalize(c).map_err(|e| e.to_string());
-        }
-    }
-    Err("Could not locate project root (package.json not found)".to_string())
-}
-
 /// Resolve and read a skill file (e.g. "generate-character.md").
-/// Dev mode: looks in the project source tree (tools/).
-/// Production: falls back to Tauri's bundled resource directory (commands/).
+/// Dev builds: the project source tree (tools/) first.
+/// Release builds: only Tauri's bundled resource directory (commands/), so
+/// a file in whatever folder the app was launched from never becomes the
+/// agent's instructions.
 pub(crate) fn resolve_skill_content(
     app_handle: &tauri::AppHandle,
     name: &str,
 ) -> Result<String, String> {
-    // Dev mode: project source tree
-    let dev_candidates = [
-        PathBuf::from("../tools").join(name), // running from src-tauri/
-        PathBuf::from("tools").join(name),    // running from project root
-    ];
-    for c in &dev_candidates {
-        if c.exists() {
-            return std::fs::read_to_string(c)
-                .map_err(|e| format!("Failed to read skill file '{}': {}", name, e));
+    #[cfg(debug_assertions)]
+    {
+        let dev_candidates = [
+            PathBuf::from("../tools").join(name), // running from src-tauri/
+            PathBuf::from("tools").join(name),    // running from project root
+        ];
+        for c in &dev_candidates {
+            if c.exists() {
+                return std::fs::read_to_string(c)
+                    .map_err(|e| format!("Failed to read skill file '{}': {}", name, e));
+            }
         }
     }
 
@@ -366,7 +446,13 @@ pub(crate) fn claude_command(args: &[&str]) -> std::process::Command {
         let mut cmd = std::process::Command::new("cmd");
         cmd.arg("/c").arg("claude");
         for a in args {
-            cmd.arg(a);
+            // cmd.exe would read `(`, `)` or `,` in a bare word: quote such
+            // a word (the tool list) itself; Rust quotes words with spaces.
+            if !a.contains([' ', '"']) && a.contains(['(', ')', ',', '&', '|', '<', '>', '^']) {
+                cmd.raw_arg(format!("\"{a}\""));
+            } else {
+                cmd.arg(a);
+            }
         }
         cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
@@ -856,11 +942,12 @@ pub(crate) fn generate_character_blocking(
     description: String,
     agent: String,
     window: tauri::WebviewWindow,
-    skins_dir: PathBuf,
+    ws: &AgentWorkspace,
     app_handle: &tauri::AppHandle,
     reference_script: Option<String>,
     reference_slug: Option<String>,
 ) -> Result<String, String> {
+    let skins_dir = ws.out_dir();
     let agent = if agent.is_empty() {
         "claude".to_string()
     } else {
@@ -895,7 +982,7 @@ pub(crate) fn generate_character_blocking(
         &PromptVars {
             arguments: description.trim(),
             skins_dir: &skins_dir,
-            scripts_dir: &generator_scripts_dir()?,
+            scripts_dir: ws.root(),
             reference_section: &reference_section,
             model_name,
             agent: &agent,
@@ -903,8 +990,8 @@ pub(crate) fn generate_character_blocking(
         },
     );
 
-    // Working directory for the CLI agent — project root in dev, temp dir in production
-    let work_dir = resolve_project_root().unwrap_or_else(|_| std::env::temp_dir());
+    // The agent works only in its private folder, never in the launch folder.
+    let work_dir = ws.root().to_path_buf();
 
     // Snapshot existing skins so we can detect new ones after generation
     let skins_before: std::collections::HashSet<String> = if skins_dir.is_dir() {
@@ -926,12 +1013,10 @@ pub(crate) fn generate_character_blocking(
         std::collections::HashSet::new()
     };
 
-    // Write the full instructions to a temp file to stay under Windows's
-    // 8191-char command-line limit, then pass a short argument that tells
-    // the agent to read and follow that file.
-    let temp_path = std::env::temp_dir().join("dr-vibe-char-prompt.txt");
-    std::fs::write(&temp_path, &full_prompt)
-        .map_err(|e| format!("Failed to write prompt file: {}", e))?;
+    // Write the full instructions to a file in the workspace to stay under
+    // Windows's 8191-char command-line limit, then pass a short argument
+    // that tells the agent to read and follow that file.
+    let temp_path = ws.write_prompt(&full_prompt)?;
     let temp_path_str = temp_path.to_string_lossy().replace('\\', "/");
 
     let mut child = if agent == "codex" {
@@ -939,42 +1024,26 @@ pub(crate) fn generate_character_blocking(
             "Read the file '{}', then immediately follow its instructions: write the script and run it. Do not read any other files first.",
             temp_path_str
         );
-        let work_dir_str = work_dir.to_string_lossy().to_string();
-        codex_command(&[
-            "exec",
-            "--full-auto",
-            "--sandbox",
-            "danger-full-access",
-            "--skip-git-repo-check",
-            "--json",
-            "-C",
-            &work_dir_str,
-            &short_prompt,
-        ])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start Codex CLI: {}. Is it installed?", e))?
+        let args = codex_agent_args(&work_dir, &short_prompt);
+        codex_command(&args.iter().map(String::as_str).collect::<Vec<_>>())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start Codex CLI: {}. Is it installed?", e))?
     } else {
         let short_prompt = format!(
             "Read '{}', then immediately write the script and run it. Do not read any other files first.",
             temp_path_str
         );
-        claude_command(&[
-            "--dangerously-skip-permissions",
-            "--verbose",
-            "--output-format",
-            "stream-json",
-            "-p",
-            &short_prompt,
-        ])
-        .current_dir(&work_dir)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start Claude CLI: {}. Is it installed?", e))?
+        let args = claude_agent_args(&short_prompt);
+        claude_command(&args.iter().map(String::as_str).collect::<Vec<_>>())
+            .current_dir(&work_dir)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start Claude CLI: {}. Is it installed?", e))?
     };
 
     // Store PID so cancel_generation can kill it
@@ -1091,15 +1160,6 @@ pub(crate) struct PromptVars<'a> {
     pub based_on: &'a str,
 }
 
-/// Where the CLI writes its generate-/patch- scripts: a temp folder, never
-/// the app's own tree or the (possibly read-only) bundled skins folder.
-pub(crate) fn generator_scripts_dir() -> Result<PathBuf, String> {
-    let dir = std::env::temp_dir().join("dr-vibe-generator");
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create the generator scripts folder: {}", e))?;
-    Ok(dir)
-}
-
 /// Fill the generator prompt's placeholders.
 pub(crate) fn fill_prompt(template: &str, vars: &PromptVars) -> String {
     let slashes = |p: &std::path::Path| p.to_string_lossy().replace('\\', "/");
@@ -1151,7 +1211,7 @@ pub(crate) async fn generate_character(
 ) -> Result<String, String> {
     let _slot = GenerationSlot::acquire()?;
     let skins_dir = resolve_custom_skins_dir(&app_handle)?;
-    let staging = generation_staging_dir()?;
+    let ws = AgentWorkspace::new()?;
 
     // If a reference slug is provided, analyze that sprite to generate a reference script
     let reference_script = if let Some(ref slug) = reference_slug {
@@ -1187,25 +1247,22 @@ pub(crate) async fn generate_character(
     };
 
     let app_handle_clone = app_handle.clone();
-    let work = staging.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         let slug = generate_character_blocking(
             description,
             agent,
             window,
-            work.clone(),
+            &ws,
             &app_handle_clone,
             reference_script,
             reference_slug,
         )?;
-        adopt_generated(&work, &skins_dir, &slug, |s| {
+        adopt_generated(&ws.out_dir(), &skins_dir, &slug, |s| {
             slug_taken(&app_handle_clone, s)
         })
     })
     .await
-    .map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_dir_all(&staging);
-    result
+    .map_err(|e| e.to_string())?
 }
 
 /// Regenerate an entire character: run generate_character_blocking to create a fresh skin,
@@ -1216,9 +1273,10 @@ pub(crate) fn regenerate_character_blocking(
     agent: String,
     window: tauri::WebviewWindow,
     skins_dir: std::path::PathBuf,
-    custom_skins_dir: std::path::PathBuf,
+    ws: &AgentWorkspace,
     app_handle: &tauri::AppHandle,
 ) -> Result<String, String> {
+    let custom_skins_dir = ws.out_dir();
     // Verify original skin exists
     let orig_path = skins_dir.join(format!("{}.png", slug));
     if !orig_path.exists() {
@@ -1230,7 +1288,7 @@ pub(crate) fn regenerate_character_blocking(
         description.clone(),
         agent,
         window,
-        custom_skins_dir.clone(),
+        ws,
         app_handle,
         None,
         Some(slug.clone()),
@@ -1269,26 +1327,23 @@ pub(crate) async fn regenerate_character(
 ) -> Result<String, String> {
     let _slot = GenerationSlot::acquire()?;
     let skins_dir = editable_skins_dir(&app_handle, &slug)?;
-    // The fresh character is drawn in a staging folder; only its draft copy
-    // lands next to the original.
-    let staging = generation_staging_dir()?;
+    // The fresh character is drawn in the agent's private folder; only its
+    // draft copy lands next to the original.
+    let ws = AgentWorkspace::new()?;
     let app_handle_clone = app_handle.clone();
-    let work = staging.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         regenerate_character_blocking(
             slug,
             description,
             agent,
             window,
             skins_dir,
-            work,
+            &ws,
             &app_handle_clone,
         )
     })
     .await
-    .map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_dir_all(&staging);
-    result
+    .map_err(|e| e.to_string())?
 }
 
 /// The folder to edit `slug` in. Bundled skins live in the install's
@@ -1340,13 +1395,20 @@ pub(crate) fn patch_character_blocking(
     };
     let skill_content = resolve_skill_content(app_handle, "generate-character.md")?;
 
-    let png_input = skins_dir.join(format!("{}.png", slug));
+    let original = skins_dir.join(format!("{}.png", slug));
     let draft_slug = format!("{}--draft", slug);
-    let png_output = skins_dir.join(format!("{}.png", draft_slug));
+    let draft = skins_dir.join(format!("{}.png", draft_slug));
 
-    if !png_input.exists() {
+    if !original.exists() {
         return Err(format!("Skin not found: {}", slug));
     }
+
+    // The agent works on a copy in its private folder; the draft is copied
+    // back next to the original afterwards.
+    let ws = AgentWorkspace::new()?;
+    let png_input = ws.root().join("input.png");
+    let png_output = ws.root().join("output.png");
+    std::fs::copy(&original, &png_input).map_err(|e| format!("Failed to copy the sheet: {e}"))?;
 
     let png_input_str = png_input.to_string_lossy().replace('\\', "/");
     let png_output_str = png_output.to_string_lossy().replace('\\', "/");
@@ -1363,8 +1425,8 @@ pub(crate) fn patch_character_blocking(
         &skill_content,
         &PromptVars {
             arguments: &arguments,
-            skins_dir: &skins_dir,
-            scripts_dir: &generator_scripts_dir()?,
+            skins_dir: &ws.out_dir(),
+            scripts_dir: ws.root(),
             reference_section: "",
             model_name: if agent == "codex" {
                 "codex-cli"
@@ -1376,55 +1438,37 @@ pub(crate) fn patch_character_blocking(
         },
     );
 
-    let temp_path = std::env::temp_dir().join("dr-vibe-patch-prompt.txt");
-    std::fs::write(&temp_path, &full_prompt)
-        .map_err(|e| format!("Failed to write prompt file: {}", e))?;
+    let temp_path = ws.write_prompt(&full_prompt)?;
     let temp_path_str = temp_path.to_string_lossy().replace('\\', "/");
 
-    // Working directory for the CLI agent — project root in dev, temp dir in production
-    let work_dir = resolve_project_root().unwrap_or_else(|_| std::env::temp_dir());
+    // The agent works only in its private folder, never in the launch folder.
+    let work_dir = ws.root().to_path_buf();
 
     let mut child = if agent == "codex" {
         let short_prompt = format!(
             "Read the file '{}', then immediately follow its instructions: write the patch script and run it. Do not read any other files first.",
             temp_path_str
         );
-        let work_dir_str = work_dir.to_string_lossy().to_string();
-        codex_command(&[
-            "exec",
-            "--full-auto",
-            "--sandbox",
-            "danger-full-access",
-            "--skip-git-repo-check",
-            "--json",
-            "-C",
-            &work_dir_str,
-            &short_prompt,
-        ])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start Codex CLI: {}. Is it installed?", e))?
+        let args = codex_agent_args(&work_dir, &short_prompt);
+        codex_command(&args.iter().map(String::as_str).collect::<Vec<_>>())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start Codex CLI: {}. Is it installed?", e))?
     } else {
         let short_prompt = format!(
             "Read '{}', then immediately write the patch script and run it. Do not read any other files first.",
             temp_path_str
         );
-        claude_command(&[
-            "--dangerously-skip-permissions",
-            "--verbose",
-            "--output-format",
-            "stream-json",
-            "-p",
-            &short_prompt,
-        ])
-        .current_dir(&work_dir)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to start Claude CLI: {}. Is it installed?", e))?
+        let args = claude_agent_args(&short_prompt);
+        claude_command(&args.iter().map(String::as_str).collect::<Vec<_>>())
+            .current_dir(&work_dir)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start Claude CLI: {}. Is it installed?", e))?
     };
 
     GENERATION_PID.store(child.id(), Ordering::SeqCst);
@@ -1485,10 +1529,8 @@ pub(crate) fn patch_character_blocking(
             agent_name
         ));
     }
-    if let Err(e) = check_sheet_file(&png_output) {
-        let _ = std::fs::remove_file(&png_output);
-        return Err(e);
-    }
+    check_sheet_file(&png_output)?;
+    std::fs::copy(&png_output, &draft).map_err(|e| format!("Failed to save the draft: {e}"))?;
 
     Ok(draft_slug)
 }
@@ -1867,50 +1909,83 @@ mod tests {
         assert!(check_sheet_file(&dir.join("missing.png")).is_err());
     }
 
+    #[test]
+    fn agent_workspace_is_private_random_and_removed() {
+        let tmp = TempDir::new("agent-ws");
+        let (a, b) = (
+            AgentWorkspace::new_in(tmp.path()).unwrap(),
+            AgentWorkspace::new_in(tmp.path()).unwrap(),
+        );
+        assert_ne!(a.root(), b.root());
+        assert!(a
+            .root()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("dr-vibe-agent-"));
+        assert!(a.out_dir().is_dir());
+        let p1 = a.write_prompt("one").unwrap();
+        let p2 = a.write_prompt("two").unwrap();
+        assert_ne!(p1, p2, "prompt names are random");
+        assert!(p1.starts_with(a.root()));
+        assert_eq!(std::fs::read_to_string(&p1).unwrap(), "one");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(a.root()).unwrap().permissions().mode();
+            assert_eq!(mode & 0o077, 0, "only the player can enter it");
+        }
+        let root = a.root().to_path_buf();
+        drop(a);
+        assert!(!root.exists());
+    }
+
+    #[test]
+    fn agents_never_run_without_permission_checks() {
+        let claude = claude_agent_args("Read 'x'").join(" ");
+        assert!(claude.contains("--allowedTools Read,Write,Edit,Bash(node:*)"));
+        assert!(!claude.contains("dangerously"));
+        let codex = codex_agent_args(std::path::Path::new("/tmp/ws"), "Read 'x'").join(" ");
+        assert!(codex.contains("--sandbox workspace-write"));
+        assert!(!codex.contains("danger-full-access"));
+        assert!(codex.contains("-C /tmp/ws"));
+    }
+
     /// One real generation through the player's `claude` CLI: the bundled
-    /// prompt, the same CLI arguments, slug parsing, staging and the sheet
-    /// check (everything but the window's progress events). Spends real AI
-    /// usage, so it only runs on request:
+    /// prompt, the same CLI arguments and workspace, slug parsing and the
+    /// sheet check (everything but the window's progress events). Spends real
+    /// AI usage, so it only runs on request:
     /// `cargo test real_claude_generation -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn real_claude_generation() {
         let tmp = TempDir::new("real-gen");
-        let root = tmp.path().to_path_buf();
-        let skins = root.join("skins");
-        let staging = root.join("staging");
-        std::fs::create_dir_all(&staging).unwrap();
+        let skins = tmp.path().join("skins");
+        let ws = AgentWorkspace::new().unwrap();
         let prompt = fill_prompt(
             include_str!("../../tools/generate-character.md"),
             &PromptVars {
                 arguments: "a cheerful lighthouse keeper with a yellow raincoat and a lantern",
-                skins_dir: &staging,
-                scripts_dir: &root.join("scripts"),
+                skins_dir: &ws.out_dir(),
+                scripts_dir: ws.root(),
                 reference_section: "",
                 model_name: "claude-code",
                 agent: "claude",
                 based_on: "none",
             },
         );
-        let prompt_path = root.join("prompt.txt");
-        std::fs::write(&prompt_path, prompt).unwrap();
+        let prompt_path = ws.write_prompt(&prompt).unwrap();
         let short = format!(
             "Read '{}', then immediately write the script and run it. Do not read any other files first.",
             prompt_path.to_string_lossy().replace('\\', "/")
         );
-        let out = claude_command(&[
-            "--dangerously-skip-permissions",
-            "--verbose",
-            "--output-format",
-            "stream-json",
-            "-p",
-            &short,
-        ])
-        .current_dir(&root)
-        .env_remove("CLAUDECODE")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("claude runs");
+        let args = claude_agent_args(&short);
+        let out = claude_command(&args.iter().map(String::as_str).collect::<Vec<_>>())
+            .current_dir(ws.root())
+            .env_remove("CLAUDECODE")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("claude runs");
         let stdout = String::from_utf8_lossy(&out.stdout);
         for line in stdout.lines() {
             for msg in parse_claude_stream_line(line) {
@@ -1926,7 +2001,7 @@ mod tests {
             .lines()
             .find_map(extract_slug_from_stream_line)
             .expect("GENERATED_SKIN line");
-        let adopted = adopt_generated(&staging, &skins, &slug, |_| false).unwrap();
+        let adopted = adopt_generated(&ws.out_dir(), &skins, &slug, |_| false).unwrap();
         let png = skins.join(format!("{adopted}.png"));
         check_sheet_file(&png).unwrap();
         println!("generated {} at {}", adopted, png.display());
