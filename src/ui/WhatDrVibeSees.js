@@ -21,7 +21,7 @@ export const SENT_WHEN_LINKED = [
   'Totals: commit counts and the number of repos (never their names)',
   'Achievements, mastery levels and momentum',
   'Your Dr. Vibe look (skin and skin tone); for a skin you drew yourself, its picture',
-  'With "Send my activity times" on: your coding time by hour of the day, the days you committed, past streak dates and when each achievement unlocked. Off sends none of these, and unlock dates only to the day',
+  'With "Send my activity times" on: your coding time by hour of the day, the days you committed, past streak dates and when each achievement unlocked. Off sends none of these, and unlock dates only to the day; activity events still carry their time rounded to the minute',
   'With "Send when I’m coding right now" on: whether you are coding now. Off always sends “not coding”',
   'With "Send my project name" on: the folder name of the tracked git repo you are in. Never a window title or a path',
   'Activity events that earn Vibe Points (a commit, a finished pomodoro, a hydration check…), with their time rounded to the minute and, for a commit, a scrambled id (a keyed hash, not the commit’s hash) so it counts once. Never file, repo or window names',

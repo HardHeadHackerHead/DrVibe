@@ -924,6 +924,24 @@ mod tests {
         assert!(lines[0].get("injected").is_none());
         assert!(lines.iter().all(|l| !l.to_string().contains("Secret")));
 
+        // An edit counts where the file is: outside the tracked repo it is not
+        // logged even from a session inside it, and inside it is logged even
+        // from a session started in a parent folder.
+        run_hook(
+            &bash,
+            &home,
+            &edit(&repo, path_in(&elsewhere, "outside.rs")),
+        );
+        run_hook(
+            &bash,
+            &home,
+            &edit(&dir.join("work"), path_in(&repo, "c.rs")),
+        );
+        let lines = logged(&home);
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert!(lines[2]["file"].as_str().unwrap().ends_with("c.rs"));
+        assert!(!lines.iter().any(|l| l.to_string().contains("outside.rs")));
+
         // "#discover": a session starting elsewhere notes only its folder.
         std::fs::write(
             home.join(".dr-vibe/tracked.txt"),
@@ -941,14 +959,14 @@ mod tests {
             &serde_json::json!({ "hook_event_name": "SessionStart", "session_id": "s3", "cwd": elsewhere.to_string_lossy() }),
         );
         let lines = logged(&home);
-        assert_eq!(lines.len(), 3);
-        assert_eq!(lines[2]["event"], "session_start");
+        assert_eq!(lines.len(), 4);
+        assert_eq!(lines[3]["event"], "session_start");
         assert!(!lines.iter().any(|l| l.to_string().contains("secret.rs")));
 
         // Paused: nothing at all.
         std::fs::write(home.join(".dr-vibe/paused-until"), "0\n").unwrap();
         run_hook(&bash, &home, &edit(&repo, path_in(&repo, "c.rs")));
-        assert_eq!(logged(&home).len(), 3);
+        assert_eq!(logged(&home).len(), 4);
         std::fs::remove_file(home.join(".dr-vibe/paused-until")).unwrap();
 
         // App gone (marker points nowhere, or no marker): silent.
@@ -960,6 +978,6 @@ mod tests {
         run_hook(&bash, &home, &edit(&repo, path_in(&repo, "d.rs")));
         std::fs::remove_file(home.join(".dr-vibe/install-marker")).unwrap();
         run_hook(&bash, &home, &edit(&repo, path_in(&repo, "e.rs")));
-        assert_eq!(logged(&home).len(), 3);
+        assert_eq!(logged(&home).len(), 4);
     }
 }

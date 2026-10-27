@@ -55,12 +55,17 @@ export const SEND_CHOICES = Object.freeze([
   {
     key: 'shareActivityTimes', store: 'privacy', kind: 'check', default: PRIVACY_DEFAULTS.shareActivityTimes,
     label: 'Send my activity times',
-    help: 'Which hours of the day you code, the days you committed, the dates of past streaks and when each achievement unlocked. Off sends none of these, and unlock dates only to the day.',
+    help: 'Which hours of the day you code, the days you committed, the dates of past streaks and when each achievement unlocked. Off sends none of these, and unlock dates only to the day. Activity events that earn Vibe Points still carry their time, rounded to the minute: the daily limits need it.',
   },
   {
     key: 'shareCodingNow', store: 'privacy', kind: 'check', default: PRIVACY_DEFAULTS.shareCodingNow,
     label: 'Send when I’m coding right now',
     help: 'Lets friends see that you are coding now. Off always sends “not coding”.',
+  },
+  {
+    key: 'allowSearchIndexing', store: 'privacy', kind: 'check', default: PRIVACY_DEFAULTS.allowSearchIndexing,
+    label: 'Let search engines index my profile',
+    help: 'Whether Google and other search engines may list your public profile page. Off asks them not to.',
   },
   {
     key: 'showOnVibeMap', store: 'privacy', kind: 'check', default: PRIVACY_DEFAULTS.showOnVibeMap,

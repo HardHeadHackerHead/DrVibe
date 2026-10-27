@@ -254,10 +254,16 @@ export const PRIVACY_DEFAULTS = Object.freeze({
   // Send switches: the desktop holds the data back itself (sync.rs).
   shareActivityTimes: true,
   shareCodingNow: true,
+  // Website-only (search engines and the public profile); kept as the site
+  // has it and sent back unchanged.
+  allowSearchIndexing: true,
 });
 
 /** The switches that stop data on this computer, not just on the site. */
 export const SEND_SWITCHES = Object.freeze(['shareActivityTimes', 'shareCodingNow']);
+
+/** Fields an older server may leave out: a missing one keeps the local value. */
+export const OPTIONAL_PRIVACY_FIELDS = Object.freeze([...SEND_SWITCHES, 'allowSearchIndexing']);
 
 const VISIBILITY = ['public', 'followers', 'private'];
 const VISITS_FROM = ['everyone', 'followers', 'nobody'];
@@ -272,6 +278,7 @@ export function buildPrivacyBody(p = {}) {
     visitsFrom: VISITS_FROM.includes(p.visitsFrom) ? p.visitsFrom : PRIVACY_DEFAULTS.visitsFrom,
     shareActivityTimes: typeof p.shareActivityTimes === 'boolean' ? p.shareActivityTimes : PRIVACY_DEFAULTS.shareActivityTimes,
     shareCodingNow: typeof p.shareCodingNow === 'boolean' ? p.shareCodingNow : PRIVACY_DEFAULTS.shareCodingNow,
+    allowSearchIndexing: typeof p.allowSearchIndexing === 'boolean' ? p.allowSearchIndexing : PRIVACY_DEFAULTS.allowSearchIndexing,
   };
 }
 
@@ -286,6 +293,7 @@ export function toPrivacyPatch(p) {
     whoCanVisit: b.visitsFrom,
     shareActivityTimes: b.shareActivityTimes,
     shareCodingNow: b.shareCodingNow,
+    allowSearchIndexing: b.allowSearchIndexing,
   };
 }
 
@@ -299,7 +307,7 @@ export function parsePrivacy(s) {
     ...buildPrivacyBody({ ...s, visitsFrom: s?.whoCanVisit }),
     updatedAt: str(s?.updatedAt),
   };
-  for (const key of SEND_SWITCHES) {
+  for (const key of OPTIONAL_PRIVACY_FIELDS) {
     if (typeof s?.[key] !== 'boolean') delete out[key];
   }
   return out;

@@ -160,7 +160,9 @@ class App {
     // Initialize settings first (other modules depend on it)
     this.settings = new Settings();
     await this.settings.init();
-    syncSwitch.set(this.settings.get('syncEnabled'));
+    // Nothing is shared before setup is finished, even if the player links
+    // an account on its Join step.
+    syncSwitch.set(this._setupDone() && this.settings.get('syncEnabled') !== false);
 
     // First-run setup wizard: open if the user hasn't completed it yet
     const setupState = db.getSection('setupWizard');
@@ -340,7 +342,7 @@ class App {
     await this._initOptional('StreakDisplay', async () => {
       this.streakDisplay = new StreakDisplay({
         tracker: this.dailyStreakTracker,
-        isLinked: () => accountState.linked,
+        isLinked: () => accountState.linked && syncSwitch.enabled,
         fetchStreak: () => desktopApi.streak(),
       });
       this.streakDisplay.init();
@@ -712,11 +714,15 @@ class App {
 
       // Setup finished (or skipped): now the chosen extras may start. The
       // wizard sent its settings (settings-saved) just before this.
-      tauri.window.listen('setup-wizard-completed', () => {
+      tauri.window.listen('setup-wizard-completed', async () => {
         db.setSection('setupWizard', { completed: true });
         db.saveNow().catch(() => {});
         console.log('Setup wizard completed');
         this._applyClaudeHooks().catch(() => {});
+        // Sharing starts now (settings-saved brought the Join step's choice);
+        // the privacy choices go out before the first sync.
+        syncSwitch.set(this.settings.get('syncEnabled') !== false);
+        await privacySync.flush().catch(() => {});
         this._syncProfile().catch(() => {});
       });
 
@@ -883,6 +889,9 @@ class App {
 
     // Update timer and break system when settings change
     eventBus.on(Events.SETTINGS_CHANGED, ({ key, value }) => {
+      // Follow Claude Code switched in Settings: (re)write the hook's repo
+      // list and pause state, which only this window keeps.
+      if (key === 'claudeCodeHooksEnabled' && this._setupDone()) this._applyClaudeHooks().catch(() => {});
       if (key === 'workInterval' || key === 'breakInterval') {
         this.timer.setIntervals(this.settings.workInterval, this.settings.breakInterval);
       }
@@ -890,7 +899,7 @@ class App {
         this.activityMonitor?.setIdleThreshold(value);
       }
       if (key === 'syncEnabled') {
-        syncSwitch.set(value);
+        syncSwitch.set(this._setupDone() && value !== false);
         if (value !== false) this._syncProfile().catch(() => {});
       }
       // Sync immediately when skin changes so the website shows the new skin

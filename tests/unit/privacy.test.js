@@ -85,7 +85,7 @@ describe('PrivacySync', () => {
     const { toPrivacyPatch } = await import('../../src/core/api/contract.js');
     expect(toPrivacyPatch({ visitsFrom: 'everyone' })).toEqual({
       profileVisibility: 'public', showProjectNames: false, showOnVibeMap: false, appearInLeaderboards: true, whoCanVisit: 'everyone',
-      shareActivityTimes: true, shareCodingNow: true,
+      shareActivityTimes: true, shareCodingNow: true, allowSearchIndexing: true,
     });
   });
 
@@ -94,13 +94,29 @@ describe('PrivacySync', () => {
     const { sync, store } = make();
     await sync.update({ shareActivityTimes: false });
     expect(store.load().pending).toBe(false);
-    const old = parsePrivacy({ profileVisibility: 'followers', showProjectNames: false, showOnVibeMap: false, appearInLeaderboards: true, whoCanVisit: 'followers', updatedAt: 't9' });
+    const iso = (ms) => new Date(Date.now() + ms).toISOString();
+    const old = parsePrivacy({ profileVisibility: 'followers', showProjectNames: false, showOnVibeMap: false, appearInLeaderboards: true, whoCanVisit: 'followers', updatedAt: iso(60_000) });
     expect('shareActivityTimes' in old).toBe(false);
+    expect('allowSearchIndexing' in old).toBe(false);
     expect(sync.applyServer(old)).toBe(true);
-    expect(sync.get()).toMatchObject({ profileVisibility: 'followers', shareActivityTimes: false, shareCodingNow: true });
-    // A server that knows the switch wins like any other web change.
-    expect(sync.applyServer(parsePrivacy({ ...old, shareActivityTimes: true, updatedAt: 't10' }))).toBe(true);
+    expect(sync.get()).toMatchObject({ profileVisibility: 'followers', shareActivityTimes: false, shareCodingNow: true, allowSearchIndexing: true });
+    // A website change made after the local choice wins like any other.
+    expect(sync.applyServer(parsePrivacy({ ...old, whoCanVisit: 'followers', shareActivityTimes: true, updatedAt: iso(120_000) }))).toBe(true);
     expect(sync.get().shareActivityTimes).toBe(true);
+  });
+
+  it('a server value no newer than the local choice never resets a send switch', async () => {
+    const { parsePrivacy } = await import('../../src/core/api/contract.js');
+    const acked = new Date(Date.now() + 5_000).toISOString();
+    const { sync, api } = make();
+    api.updatePrivacy.mockResolvedValue({ ok: true, status: 200, data: { updatedAt: acked } });
+    await sync.update({ shareCodingNow: false });
+    // A server that saved nothing for the switch echoes the default with its own timestamp.
+    const echoed = parsePrivacy({ ...PRIVACY_DEFAULTS, whoCanVisit: 'followers', shareCodingNow: true, allowSearchIndexing: false, updatedAt: acked });
+    sync.applyServer(echoed);
+    expect(sync.get().shareCodingNow).toBe(false);
+    // Website-only fields still follow the site.
+    expect(sync.get().allowSearchIndexing).toBe(false);
   });
 
   it('the setup wizard can send the whole body even when nothing changed', async () => {

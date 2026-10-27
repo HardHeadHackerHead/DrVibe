@@ -119,7 +119,8 @@ pub struct CommitInfo {
     /// First 8 chars of the hash: local display and new-commit checks only.
     pub hash: String,
     /// What a `GIT_COMMIT` event carries instead of the hash:
-    /// `drvibe_protocol::signing::commit_event_id` keyed by the install id.
+    /// [`commit_event_id`] keyed by the linked account's user id; None while
+    /// unlinked (no events are sent then).
     pub event_id: Option<String>,
     pub message: String,
     pub timestamp: String,
@@ -147,15 +148,38 @@ pub(crate) async fn get_git_info(
     path: String,
     app_handle: tauri::AppHandle,
 ) -> Result<GitInfo, String> {
-    let install_id = crate::account::install_id(&app_handle);
-    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path, Some(&install_id)))
+    // The linked account's user id: the same commit gets the same id on all
+    // of the player's computers. Unlinked: no id (no events are sent then).
+    let user_id = crate::account::get_profile(app_handle)
+        .get("userId")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .filter(|id| !id.is_empty());
+    tauri::async_runtime::spawn_blocking(move || get_git_info_blocking(path, user_id.as_deref()))
         .await
         .map_err(|e| e.to_string())?
 }
 
+/// What a `GIT_COMMIT` event carries instead of the commit hash: the first
+/// 16 lowercase hex chars of `HMAC-SHA256(key = user_id, msg = sha)`, where
+/// `sha` is the full commit hash as git prints it (drvibe-protocol
+/// `EconomyEventType::GitCommit`).
+pub(crate) fn commit_event_id(user_id: &str, sha: &str) -> String {
+    use hmac::{Hmac, Mac};
+    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(user_id.as_bytes())
+        .expect("HMAC accepts any key length");
+    mac.update(sha.trim().to_ascii_lowercase().as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .take(8)
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 pub(crate) fn get_git_info_blocking(
     path: String,
-    install_id: Option<&str>,
+    user_id: Option<&str>,
 ) -> Result<GitInfo, String> {
     let (toplevel, root) = git_repo_paths(Path::new(&path))?;
     let git_root = toplevel.to_string_lossy().into_owned();
@@ -177,9 +201,9 @@ pub(crate) fn get_git_info_blocking(
             let sha = parts.first().unwrap_or(&"").trim();
             CommitInfo {
                 hash: sha.chars().take(8).collect(),
-                event_id: install_id
+                event_id: user_id
                     .filter(|_| !sha.is_empty())
-                    .map(|id| drvibe_protocol::signing::commit_event_id(id, sha)),
+                    .map(|id| commit_event_id(id, sha)),
                 timestamp: parts.get(1).unwrap_or(&"").to_string(),
                 message: parts.get(2).unwrap_or(&"").to_string(),
             }
@@ -205,6 +229,23 @@ pub(crate) fn get_git_info_blocking(
 mod tests {
     use super::*;
     use crate::test_util::TempDir;
+
+    #[test]
+    fn commit_ids_are_keyed_and_short() {
+        let sha = "0123456789abcdef0123456789abcdef01234567";
+        let id = commit_event_id("install-a", sha);
+        // Python: hmac.new(b"install-a", sha.encode(), hashlib.sha256).hexdigest()[:16]
+        assert_eq!(id, "acae9402f1cc3212");
+        assert_eq!(
+            id,
+            commit_event_id("install-a", &format!(" {} ", sha.to_uppercase()))
+        );
+        assert_ne!(
+            id,
+            commit_event_id("user-b", sha),
+            "another account gets another id"
+        );
+    }
 
     /// A project folder (removed when dropped).
     fn temp_project(name: &str, files: &[&str]) -> TempDir {
@@ -280,7 +321,7 @@ mod tests {
         let full = git(&["rev-parse", "HEAD"]);
         assert_eq!(
             info.recent_commits[0].event_id.as_deref(),
-            Some(drvibe_protocol::signing::commit_event_id("install-a", full.trim()).as_str())
+            Some(commit_event_id("install-a", full.trim()).as_str())
         );
         assert!(!full.starts_with(info.recent_commits[0].event_id.as_deref().unwrap()));
         assert!(info.has_uncommitted_changes);

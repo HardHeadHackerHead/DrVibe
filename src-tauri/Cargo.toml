@@ -30,6 +30,10 @@ png = "0.17"
 chrono = "0.4"
 keyring = { version = "3", features = ["sync-secret-service", "windows-native", "apple-native"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+# Already in the tree through drvibe-protocol's signing feature: the keyed
+# commit id for GIT_COMMIT events (projects.rs).
+hmac = "0.12"
+sha2 = "0.10"
 drvibe-protocol = { path = "../crates/drvibe-protocol", features = ["signing"] }
 
 # Cross-platform active window detection

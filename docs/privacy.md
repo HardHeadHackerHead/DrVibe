@@ -125,14 +125,20 @@ it:
 
 - *Send my activity times* off: coding by hour of day is all zeros, commit dates and
   past streaks are empty, and achievement unlock times are cut to the day (UTC).
-- *Send when I'm coding right now* off: always sends "not coding".
+  Activity events (below) still carry their time, rounded to the minute: the daily
+  Vibe Point limits need it.
+- *Send when I'm coding right now* off: always sends "not coding", with the current
+  session's minutes and momentum as 0.
+- *Let search engines index my profile* (on by default) is a website setting: the app
+  shows it and sends it back unchanged, and never resets it.
 
 **Activity events** (`POST /api/v1/desktop/events`) that earn Vibe Points: a finished
 pomodoro or focus session, a commit, a coding session starting, a wellness check, a
 personal best, a streak day, a skill milestone. They carry the event type, its time
 rounded to the minute and a few values (a focus session's length; for a commit, a keyed
 id so it's counted only once: the first 16 hex digits of an HMAC-SHA256 of the commit
-hash keyed by your install ID, never the hash itself or the repo), never file names,
+hash keyed by your account's user ID, so the same commit counts once across your
+computers; never the hash itself or the repo), never file names,
 window titles or commit messages. Requests also carry your time zone, for the daily
 limits. Offline, they wait in a capped queue on disk and send later.
 

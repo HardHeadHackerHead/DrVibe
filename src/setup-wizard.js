@@ -1085,7 +1085,11 @@ async function skipWizard() {
   closeWindow();
 }
 
+// Set once finish or skip has run, so the close they ask for goes through.
+let closingForGood = false;
+
 function closeWindow() {
+  closingForGood = true;
   try {
     const win = window.__TAURI__?.window?.getCurrentWindow();
     if (win) { win.close(); return; }
@@ -1229,6 +1233,15 @@ function bindControls() {
     if (isSignedIn) return;
     checkProfileSignedIn().then(ok => { if (ok) renderSigninState(); });
   });
+
+  // Closing the window any other way (Alt+F4, the taskbar) is a skip too.
+  try {
+    window.__TAURI__?.window?.getCurrentWindow?.()?.onCloseRequested?.((e) => {
+      if (closingForGood) return;
+      e.preventDefault();
+      skipWizard();
+    })?.catch?.(() => {});
+  } catch { /* not in Tauri */ }
 
   // Titlebar drag
   const titlebar = document.querySelector('.titlebar');

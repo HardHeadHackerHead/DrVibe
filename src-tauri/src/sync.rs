@@ -72,8 +72,14 @@ pub(crate) fn apply_send_switches(
     share_coding_now: bool,
 ) {
     if !share_coding_now {
+        // Live session length and momentum would say "coding now" too.
         if let Some(p) = payload.presence.as_mut() {
             p.is_currently_coding = false;
+        }
+        payload.current_session_minutes = Some(0);
+        if let Some(m) = payload.momentum.as_mut() {
+            m.current = 0;
+            m.peak_this_session = Some(0);
         }
     }
     if share_activity_times {
@@ -621,6 +627,9 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(json["presence"]["isCurrentlyCoding"], false);
+        assert_eq!(json["currentSessionMinutes"], 0);
+        assert_eq!(json["momentum"]["current"], 0);
+        assert_eq!(json["momentum"]["peakThisSession"], 0);
         assert_eq!(json["codingHourOfDay"], serde_json::json!([0.0, 1.0, 2.0]));
     }
 

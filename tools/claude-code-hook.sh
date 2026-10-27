@@ -63,23 +63,39 @@ FILE_PATH=$(extract "file_path")
 SESSION_ID=$(extract "session_id")
 CWD=$(extract "cwd")
 
-# Is the session working inside a tracked repo?
-INSIDE=0
+# Is `path` inside one of the tracked repos? (0 = yes)
 DISCOVER=0
-if [ -f "$DIR/tracked.txt" ] && [ -n "$CWD" ]; then
-  KEY=$(normalize "$CWD")
-  while IFS= read -r ROOT || [ -n "$ROOT" ]; do
-    ROOT="${ROOT%$'\r'}"
-    if [ "$ROOT" = "#discover" ]; then DISCOVER=1; continue; fi
-    [ -n "$ROOT" ] || continue
-    if [ "$KEY" = "$ROOT" ] || [ "${KEY#"$ROOT"/}" != "$KEY" ]; then
-      INSIDE=1
-      break
+inside_tracked() {
+  local key root
+  [ -f "$DIR/tracked.txt" ] && [ -n "$1" ] || return 1
+  key=$(normalize "$1")
+  while IFS= read -r root || [ -n "$root" ]; do
+    root="${root%$'\r'}"
+    [ -n "$root" ] && [ "$root" != "#discover" ] || continue
+    if [ "$key" = "$root" ] || [ "${key#"$root"/}" != "$key" ]; then
+      return 0
     fi
   done < "$DIR/tracked.txt"
+  return 1
+}
+if [ -f "$DIR/tracked.txt" ] && [ "$(head -n 1 "$DIR/tracked.txt" | tr -d '\r')" = "#discover" ]; then
+  DISCOVER=1
 fi
 
-if [ "$INSIDE" -ne 1 ]; then
+# A file edit counts where the file is (wherever the session runs); any
+# other event where the session runs.
+case "$EVENT:$TOOL" in
+  PostToolUse:Write|PostToolUse:Edit|PostToolUse:NotebookEdit)
+    TARGET="$FILE_PATH"
+    case "$TARGET" in
+      /*|[A-Za-z]:*|\\\\*) ;;
+      *) [ -n "$TARGET" ] && TARGET="$CWD/$TARGET" ;;
+    esac
+    ;;
+  *) TARGET="$CWD" ;;
+esac
+
+if ! inside_tracked "$TARGET"; then
   # "Also track the repos Claude Code works in": the folder a session starts
   # in, and nothing else, so Dr. Vibe can offer to track that repo.
   if [ "$DISCOVER" -eq 1 ] && [ "$EVENT" = "SessionStart" ] && [ -n "$CWD" ]; then

@@ -102,8 +102,18 @@ pub(crate) fn is_sharing_call(method: &reqwest::Method, path: &str) -> bool {
     let route = path.split('?').next().unwrap_or(path);
     matches!(
         route,
-        "/desktop/sync" | "/desktop/events" | "/desktop/poll" | "/desktop/ack" | "/me/recap"
+        "/desktop/sync"
+            | "/desktop/events"
+            | "/desktop/poll"
+            | "/desktop/ack"
+            | "/me/recap"
+            | "/me/streak"
     ) || (route == "/privacy" && method != reqwest::Method::GET)
+}
+
+/// Whether "Sync my stats" is on.
+pub(crate) fn sync_enabled() -> bool {
+    SYNC_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Reads `settings.syncEnabled` from the store (default on).
@@ -345,7 +355,11 @@ pub(crate) fn drop_unsent_privacy_fields(
     let Some(parsed) = data.get_mut("privacy").and_then(|p| p.as_object_mut()) else {
         return;
     };
-    for key in ["shareActivityTimes", "shareCodingNow"] {
+    for key in [
+        "shareActivityTimes",
+        "shareCodingNow",
+        "allowSearchIndexing",
+    ] {
         if raw.and_then(|r| r.get(key)).is_none() {
             parsed.remove(key);
         }
@@ -643,6 +657,7 @@ mod tests {
             (Method::GET, "/desktop/poll"),
             (Method::POST, "/desktop/ack"),
             (Method::POST, "/me/recap"),
+            (Method::GET, "/me/streak"),
             (Method::PUT, "/privacy"),
         ] {
             assert!(is_sharing_call(&m, p), "{m} {p}");

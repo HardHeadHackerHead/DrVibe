@@ -14,7 +14,7 @@ import { eventBus, Events } from '../../core/EventBus.js';
 import { db } from '../../core/Database.js';
 import { desktopApi } from '../../core/api/client.js';
 import { accountState } from '../../core/AccountState.js';
-import { PRIVACY_DEFAULTS, buildPrivacyBody } from '../../core/api/contract.js';
+import { PRIVACY_DEFAULTS, SEND_SWITCHES, buildPrivacyBody } from '../../core/api/contract.js';
 import { syncSwitch } from '../../core/SyncSwitch.js';
 
 const SECTION = 'privacy';
@@ -32,7 +32,9 @@ export class PrivacySync {
     account = accountState,
     store = { load: () => db.getSection(SECTION), save: (v) => db.setSection(SECTION, v) },
     sync = syncSwitch,
+    now = () => Date.now(),
   } = {}) {
+    this._now = now;
     this._api = api;
     this._account = account;
     this._sync = sync;
@@ -72,7 +74,7 @@ export class PrivacySync {
     const before = this.get();
     const after = buildPrivacyBody({ ...before, ...patch });
     if (!force && JSON.stringify(before) === JSON.stringify(after)) return Promise.resolve(false);
-    this._store.save({ settings: after, pending: true });
+    this._store.save({ settings: after, pending: true, localChangedAt: this._now() });
     return this.flush();
   }
 
@@ -83,10 +85,20 @@ export class PrivacySync {
   applyServer(server) {
     if (!server || this.pending) return false;
     // Fields the server left out (see parsePrivacy) keep their local value.
-    const next = buildPrivacyBody({ ...this.get(), ...server });
+    const local = this.get();
     const state = this._state();
-    if (JSON.stringify(next) === JSON.stringify(this.get()) && state.serverUpdatedAt === server.updatedAt) return false;
-    this._store.save({ settings: next, pending: false, serverUpdatedAt: server.updatedAt ?? null });
+    const incoming = { ...server };
+    // The send switches stop data on this computer: a server value replaces
+    // a local choice only when it is newer than that choice (and than the
+    // server's answer to it), i.e. a change made on the website since.
+    const serverMs = Date.parse(server.updatedAt ?? '') || 0;
+    const localMs = Math.max(state.localChangedAt || 0, Date.parse(state.ackedAt ?? '') || 0);
+    if (localMs && serverMs <= localMs) {
+      for (const key of SEND_SWITCHES) delete incoming[key];
+    }
+    const next = buildPrivacyBody({ ...local, ...incoming });
+    if (JSON.stringify(next) === JSON.stringify(local) && state.serverUpdatedAt === server.updatedAt) return false;
+    this._store.save({ ...state, settings: next, pending: false, serverUpdatedAt: server.updatedAt ?? null });
     return true;
   }
 
@@ -103,7 +115,7 @@ export class PrivacySync {
         const stored = r.data?.updatedAt ?? null;
         // Only clear pending if nothing changed while the request was in flight.
         if (JSON.stringify(this.get()) === JSON.stringify(sent)) {
-          this._store.save({ settings: sent, pending: false, serverUpdatedAt: stored });
+          this._store.save({ ...this._state(), settings: sent, pending: false, serverUpdatedAt: stored, ackedAt: stored });
         }
         return true;
       } finally {

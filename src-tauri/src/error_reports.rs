@@ -191,7 +191,15 @@ fn path_rest(chars: &[char], j: usize) -> (usize, usize, String) {
         while e < k && name_char(chars[e]) {
             e += 1;
         }
-        return (e, dirs, chars[seg_start..e].iter().collect());
+        // Only a file name (with an extension) is kept: a last folder name
+        // (C:\Users\mara) can be the person's name.
+        let name: String = chars[seg_start..e].iter().collect();
+        let name = if name.contains('.') {
+            name
+        } else {
+            String::new()
+        };
+        return (e, dirs, name);
     }
 }
 
@@ -394,7 +402,9 @@ async fn flush(app: tauri::AppHandle) {
         let _guard = QUEUE_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         read_queue(dir)
     };
-    let linked = matches!(get_token(), Ok(Some(_)));
+    // With "Sync my stats" off, reports go without the device token, like
+    // an unlinked install's.
+    let linked = crate::api::sync_enabled() && matches!(get_token(), Ok(Some(_)));
     let mut keep = Vec::new();
     for report in pending.iter().cloned() {
         let ctx = if linked {
@@ -607,17 +617,21 @@ mod tests {
                 "at /Users/mara/Projects/acme/src/index.js:12:3",
                 "at <path>/index.js:12:3",
             ),
-            ("cd ~/acme/payroll && ls", "cd <path>/payroll && ls"),
+            ("cd ~/acme/payroll && ls", "cd <path>/ && ls"),
             (
                 "json \"C:\\\\Users\\\\mara\\\\a.txt\"",
                 "json \"<path>/a.txt\"",
             ),
             ("(E:\\repos\\acme\\)", "(<path>/)"),
+            (
+                "Cannot open C:\\Users\\mara: denied",
+                "Cannot open <path>/: denied",
+            ),
             ("route /settings.html stays", "route /settings.html stays"),
             ("ratio 3/4 stays", "ratio 3/4 stays"),
             // Folder names may hold spaces, so text after a path can go too:
             // more is cut rather than less.
-            ("/home/mara/a.rs then x/y", "<path>/y"),
+            ("/home/mara/a.rs then x/y", "<path>/"),
             (
                 "src\\sync.rs:42 stays relative",
                 "src\\sync.rs:42 stays relative",
