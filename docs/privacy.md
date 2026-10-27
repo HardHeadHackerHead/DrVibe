@@ -10,8 +10,9 @@ The same lists appear in the app, in the setup wizard and under Settings → Pri
 
 ## Your choices
 
-The setup wizard asks before anything is watched or sent, in two steps: *What Dr. Vibe
-watches* and *What Dr. Vibe sends*. Settings shows the same choices with the same words
+The setup wizard asks before anything is watched or sent, in three steps: *What Dr.
+Vibe watches*, *What Dr. Vibe sends* and *Who can see it*. Each choice has a one-line
+description, with the full text behind *More*. Settings shows the same choices with the same words
 (`src/ui/privacyChoices.js`), and Settings → Privacy → *Run setup again* goes through
 the wizard once more. Skipping or closing the wizard saves none of its choices, so the
 defaults below apply. Nothing is synced, no crash report is sent and no Claude Code
