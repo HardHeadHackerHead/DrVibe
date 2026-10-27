@@ -99,7 +99,7 @@ Settings → Privacy. Visits need a linked account.
 
 <img src="docs/images/setup-wizard.png" alt="Setup wizard: Pick your look, with the 12 Lab Originals" width="400" align="right">
 
-**First run.** The wizard has seven steps, and you can skip any of them or close it:
+**First run.** The wizard has eight steps, and you can skip any of them or close it:
 
 1. **Meet Dr. Vibe**
 2. **Pick your look**: one of the 12 Lab Originals, a skin tone, a size and a voice
@@ -108,9 +108,11 @@ Settings → Privacy. Visits need a linked account.
 4. **What Dr. Vibe watches**: git tracking, Claude Code, and hiding while you share
    your screen
 5. **Wellness**: which reminders you want
-6. **What Dr. Vibe sends**: your profile, leaderboards, project name, activity times,
-   the weekly recap and crash reports
-7. **Join the community** (optional): link GitHub or Discord, or skip it
+6. **What Dr. Vibe sends**: project name, activity times, coding right now, the
+   weekly recap and crash reports
+7. **Who can see it**: your profile, leaderboards, search engines, the Vibe Map and
+   visits
+8. **Join the community** (optional): link GitHub or Discord, or skip it
 
 Skipping or closing the wizard saves none of its choices: the defaults apply, so the
 Claude Code hooks and crash reports stay off. Each choice has the same wording in
@@ -190,7 +192,7 @@ With the hooks in place, Dr. Vibe:
 
 **Turn it on or off** in Settings → Tracking → **Follow Claude Code** (off by default).
 Off removes Dr. Vibe's hooks from `~/.claude/settings.json` and deletes the log and
-scripts in `~/.dr-vibe`; on puts them back, and *Install / Fix* repairs them. *Also
+scripts in `~/.dr-vibe`; on puts them back, and *Repair hooks* puts them back if they went missing. *Also
 track the repos Claude Code works in* (off by default, needs the hooks) adds the repo a
 Claude Code session starts in to the tracked repos. Restart Claude Code after a change.
 While it's on, the hooks stay in place when you quit Dr. Vibe: the script only appends

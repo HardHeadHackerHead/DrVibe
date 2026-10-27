@@ -88,7 +88,7 @@ script needs only bash (no `jq`) and always exits 0, so it can't block Claude Co
 ## Checking and repairing
 
 Settings → **Tracking** → **Claude Code** shows whether the hooks are in place.
-**Install / Fix** rewrites them; restart Claude Code afterwards so it reloads its
+**Repair hooks** (shown while *Follow Claude Code* is on) rewrites them; restart Claude Code afterwards so it reloads its
 settings.
 
 On Windows, Claude Code runs hooks through bash, so you need Git for Windows (which

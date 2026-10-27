@@ -149,9 +149,10 @@ one waits until you've seen its card and chosen to post it. **Switch:** *Share m
 recap*.
 
 **Privacy choices** (`PUT /api/v1/privacy`), only when you change one (and when you
-finish the setup's *What Dr. Vibe sends* step): *Who can see my profile*, *Send my
-project name*, *Send my activity times*, *Send when I'm coding right now*, *Show me on
-the Vibe Map*, *Show me on leaderboards* and *Who can visit me*. Choices you make on the
+reach the setup's Join step): *Who can see my profile*, *Send my project name*, *Send
+my activity times*, *Send when I'm coding right now*, *Let search engines index my
+profile*, *Show me on the Vibe Map*, *Show me on leaderboards* and *Who can visit
+me*. Choices you make on the
 website are never overwritten by the app.
 
 **The 60-second poll** (`GET /api/v1/desktop/poll`) asks for notifications, visits and
