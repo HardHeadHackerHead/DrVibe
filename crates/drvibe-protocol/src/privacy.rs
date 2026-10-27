@@ -36,15 +36,22 @@ pub struct PrivacySettings {
     pub appear_in_leaderboards: bool,
     /// Default `followers`.
     pub who_can_visit: VisitPolicy,
-    /// "Send my activity times". Default `true`. When `false` the desktop
-    /// sends an all-zero `codingHourOfDay`, empty `git.commitDates` and
-    /// `streakHistory`, and achievement `unlockedAt` rounded to the UTC day.
+    /// Default `true`. When `false` the desktop sends no hour-of-day
+    /// histogram, commit dates or streak history, and the server neither
+    /// stores nor shows them (achievement unlocks and session starts are
+    /// kept as dates only). Economy events (`POST /desktop/events`) still
+    /// carry their `occurredAt`, rounded to the minute, and `STREAK_DAY` its
+    /// `day`: daily caps, cooldowns and streaks need them.
     #[serde(default = "default_true")]
     pub share_activity_times: bool,
-    /// "Send when I'm coding right now". Default `true`. When `false` the
-    /// desktop always sends `presence.isCurrentlyCoding = false`.
+    /// Default `true`. When `false` the server treats the player as never
+    /// coding now and shows no last-active time anywhere.
     #[serde(default = "default_true")]
     pub share_coding_now: bool,
+    /// Default `true`. When `false` the public profile is left out of the
+    /// sitemap and served with `noindex`.
+    #[serde(default = "default_true")]
+    pub allow_search_indexing: bool,
     /// Last change, RFC 3339. The desktop compares it with its local copy.
     pub updated_at: Option<String>,
 }
@@ -59,13 +66,10 @@ impl Default for PrivacySettings {
             who_can_visit: VisitPolicy::Followers,
             share_activity_times: true,
             share_coding_now: true,
+            allow_search_indexing: true,
             updated_at: None,
         }
     }
-}
-
-fn default_true() -> bool {
-    true
 }
 
 /// Partial update; absent fields are left unchanged.
@@ -86,6 +90,12 @@ pub struct PrivacySettingsPatch {
     pub share_activity_times: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub share_coding_now: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_search_indexing: Option<bool>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -93,26 +103,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn send_switches_default_on_when_absent() {
-        let s: PrivacySettings = serde_json::from_value(serde_json::json!({
-            "profileVisibility": "public", "showProjectNames": false, "showOnVibeMap": false,
-            "appearInLeaderboards": true, "whoCanVisit": "followers", "updatedAt": null
-        }))
+    fn settings_from_an_older_server_default_the_new_fields_to_true() {
+        let s: PrivacySettings = serde_json::from_str(
+            r#"{"profileVisibility":"public","showProjectNames":false,"showOnVibeMap":false,
+                "appearInLeaderboards":true,"whoCanVisit":"followers","updatedAt":null}"#,
+        )
         .unwrap();
-        assert!(s.share_activity_times && s.share_coding_now);
+        assert!(s.share_activity_times && s.share_coding_now && s.allow_search_indexing);
         assert_eq!(s, PrivacySettings::default());
-        let v = serde_json::to_value(PrivacySettings::default()).unwrap();
-        assert_eq!(v["shareActivityTimes"], true);
-        assert_eq!(v["shareCodingNow"], true);
     }
 
     #[test]
-    fn patch_carries_only_what_changed() {
-        let p = PrivacySettingsPatch { share_coding_now: Some(false), ..Default::default() };
-        assert_eq!(serde_json::to_value(&p).unwrap(), serde_json::json!({ "shareCodingNow": false }));
-        let back: PrivacySettingsPatch =
-            serde_json::from_value(serde_json::json!({ "shareActivityTimes": false })).unwrap();
-        assert_eq!(back.share_activity_times, Some(false));
-        assert_eq!(back.share_coding_now, None);
+    fn patch_round_trips_the_send_switches() {
+        let p: PrivacySettingsPatch = serde_json::from_str(r#"{"shareActivityTimes":false}"#).unwrap();
+        assert_eq!(p.share_activity_times, Some(false));
+        assert_eq!(p.share_coding_now, None);
+        assert_eq!(serde_json::to_string(&p).unwrap(), r#"{"shareActivityTimes":false}"#);
     }
 }
