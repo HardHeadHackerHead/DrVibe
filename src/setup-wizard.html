@@ -252,7 +252,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
     .feature-item {
       display: flex;
@@ -452,7 +452,7 @@
     /* ── Coding apps ── */
     .coding-apps-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 4px;
       margin-bottom: 10px;
     }
@@ -600,8 +600,16 @@
       padding: 9px 12px; margin-bottom: 6px;
     }
     .choice-card .freq-select { flex-shrink: 0; }
+    .choice-card { padding: 7px 12px; margin-bottom: 5px; }
+    .choice-more { display: inline; margin-left: 4px; }
+    .choice-more summary { display: inline; cursor: pointer; color: var(--green-text); list-style: none; font-size: 10px; }
+    .choice-more summary::-webkit-details-marker { display: none; }
+    .choice-more[open] summary { color: var(--muted); }
+    .choice-more > div { margin-top: 3px; color: var(--muted-2); }
+    .join-summary .link-btn { margin-right: 10px; }
+    .join-summary-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; line-height: 1.5; }
     .choice-disabled .wcard-name, .choice-disabled .wcard-desc { opacity: 0.4; }
-    .sends-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .sends-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 11px; color: var(--muted); line-height: 1.5; }
     .sends-box ul { margin: 0 0 0 16px; }
     .sends-box li { margin-bottom: 3px; }
     .sends-box strong { color: var(--text-2); }
@@ -641,7 +649,9 @@
       <div class="step-line" data-line="4"></div>
       <div class="step-dot" data-step="5" title="What Dr. Vibe sends"></div>
       <div class="step-line" data-line="5"></div>
-      <div class="step-dot" data-step="6" title="Join the community (optional)"></div>
+      <div class="step-dot" data-step="6" title="Who can see it"></div>
+      <div class="step-line" data-line="6"></div>
+      <div class="step-dot" data-step="7" title="Join the community (optional)"></div>
     </div>
 
     <!-- Step content -->
@@ -688,7 +698,7 @@
         </div>
 
         <div class="tip-box">
-          Dr. Vibe works entirely on this computer. Nothing is sent anywhere unless you choose to in the next steps. No account needed. Right-click the tray icon for settings, stats and more.
+          Dr. Vibe works entirely on this computer: nothing is sent unless you choose so in the next steps. No account needed. Right-click the tray icon for settings and stats.
         </div>
       </div>
 
@@ -861,9 +871,9 @@
       <!-- Step 6: What Dr. Vibe sends -->
       <div class="step-panel" data-step="5">
         <div class="step-title">What Dr. Vibe sends</div>
-        <div class="step-subtitle">You choose what leaves this computer. Each switch stops that data here, before anything is sent.</div>
+        <div class="step-subtitle">Each switch stops that data on this computer, before anything is sent.</div>
         <div class="sends-box">
-          <ul>
+          <ul class="sends-lines">
             <li><strong>On this computer only:</strong> window titles, file paths, repo names, git details, Claude Code file paths.</li>
             <li><strong>Sent only if you join the community:</strong> coding time and streaks, totals (never names), achievements, your look, and what you allow below.</li>
             <li><strong>Never sent:</strong> file contents, code, window titles, file or repo paths, your computer or login name.</li>
@@ -872,11 +882,18 @@
           <div id="sends-details" class="sends-details" style="display:none"></div>
         </div>
         <div id="send-choices"></div>
-        <div class="group-note">Profile, leaderboards, project name, activity times, coding now, Vibe Map, visits and the recap apply if you join, now or later. Crash reports apply either way.</div>
+        <div class="group-note">These apply if you join, now or later. Crash reports apply either way.</div>
       </div>
 
-      <!-- Step 7: Join the community (optional) -->
+      <!-- Step 7: Who can see it -->
       <div class="step-panel" data-step="6">
+        <div class="step-title">Who can see it</div>
+        <div class="step-subtitle">What drvibe.io shows of what you send. Applies if you join, now or later.</div>
+        <div id="who-choices"></div>
+      </div>
+
+      <!-- Step 8: Join the community (optional) -->
+      <div class="step-panel" data-step="7">
         <div class="step-title">Join the community <span class="optional-tag">optional</span></div>
         <div class="step-subtitle">Dr. Vibe is complete without an account. Link GitHub or Discord to earn Vibe Points by coding, collect new Dr. Vibes and see friends coding now.</div>
 
@@ -904,7 +921,7 @@
 
         <div class="section-label" style="margin-top:14px;">The first sync</div>
         <div class="join-summary">
-          Exactly what would be sent first, built here from your choices. Nothing is sent before you finish setup.
+          Built here from your choices; nothing is sent before you finish setup.
           <button class="link-btn" id="btn-join-outbox" type="button">Show exactly what will be sent</button>
           <pre id="join-outbox" class="outbox-pre" style="display:none"></pre>
         </div>

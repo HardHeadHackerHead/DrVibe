@@ -7,7 +7,7 @@
 // saved. Skip and close save nothing, so these defaults are also what a
 // skipped setup leaves.
 
-import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE } from './privacyChoices.js';
+import { WATCH_CHOICES, SEND_CHOICES, WHO_CHOICES, SYNC_CHOICE } from './privacyChoices.js';
 
 /**
  * @param {Object} [saved]
@@ -18,7 +18,7 @@ import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE } from './privacyChoices.js';
  */
 export function wizardDefaults({ settings = {}, privacy = {}, errorReports = false } = {}) {
   const out = {};
-  for (const c of [...WATCH_CHOICES, ...SEND_CHOICES, SYNC_CHOICE]) {
+  for (const c of [...WATCH_CHOICES, ...SEND_CHOICES, ...WHO_CHOICES, SYNC_CHOICE]) {
     let v;
     if (c.store === 'settings') v = settings[c.key];
     else if (c.store === 'privacy') v = privacy[c.key];

@@ -1,16 +1,16 @@
 // Dr. Vibe - Setup Wizard
 // First-run setup: Meet → Look → Coding setup → What Dr. Vibe watches →
-// Wellness → What Dr. Vibe sends → Join the community (optional). Nothing
-// requires an account or the network; the wizard can be closed at any step.
-// Reads/writes settings via DatabaseReader and notifies the main window on
-// completion.
+// Wellness → What Dr. Vibe sends → Who can see it → Join the community
+// (optional). Nothing requires an account or the network; the wizard can be
+// closed at any step. Reads/writes settings via DatabaseReader and notifies
+// the main window on completion.
 //
 // Privacy rules: Skip or close saves nothing, so the app defaults apply
 // (Claude Code hooks off, crash reports off). Hooks are installed, crash
 // reports flushed and the first sync made only after setup completes, by
-// the main window. The send choices go to the main window (PrivacySync)
-// when the player leaves "What Dr. Vibe sends", so a link made on the Join
-// step already carries them; Skip or close puts back what was there before.
+// the main window. The send and visibility choices go to the main window
+// (PrivacySync) when the player reaches the Join step, so a link made there
+// already carries them; Skip or close puts back what was there before.
 
 import { openUrl } from './core/openUrl.js';
 import { WebRoutes } from './core/api/endpoints.js';
@@ -21,7 +21,7 @@ import { initTheme } from './core/theme.js';
 import { formatSkinName, skinVariantLabel } from './config/skinNames.js';
 import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
 import { PRIVACY_DEFAULTS, buildPrivacyBody } from './core/api/contract.js';
-import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE, renderChoices, describeValue } from './ui/privacyChoices.js';
+import { WATCH_CHOICES, SEND_CHOICES, WHO_CHOICES, SYNC_CHOICE, renderChoices, describeValue } from './ui/privacyChoices.js';
 import { wizardDefaults } from './ui/wizardDefaults.js';
 initTheme();
 
@@ -374,19 +374,16 @@ const skinPreview = createSkinPreview('skin-preview');
 const welcomePreview = createSkinPreview('welcome-character');
 
 // ── Default coding apps ──
-const DEFAULT_CODING_APPS = [
-  'Code', 'Visual Studio', 'Cursor', 'Anti-Gravity', 'Zed', 'Sublime Text',
-  'IntelliJ', 'WebStorm', 'PyCharm', 'GoLand', 'Rider', 'CLion', 'DataGrip', 'RustRover',
-  'vim', 'nvim', 'neovim', 'Emacs',
-  'Windows Terminal', 'Terminal', 'iTerm', 'Alacritty', 'Kitty', 'Warp', 'Hyper',
-  'PowerShell', 'cmd',
-];
+// The same list as Settings (WindowsTerminal and Claude included), so those
+// are not shown as custom apps.
+const DEFAULT_CODING_APPS = [...DEFAULT_SETTINGS.codingApps];
 
 // ── State ──
 let currentStep = 0;
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 const SEND_STEP = 5;
-const JOIN_STEP = 6;
+const WHO_STEP = 6;
+const JOIN_STEP = 7;
 let isSignedIn = false;
 let signinUsername = null;
 let signinPollTimer = null;
@@ -425,9 +422,9 @@ let updateSyncChoice = () => {};
 
 function goToStep(step) {
   if (step < 0 || step >= TOTAL_STEPS) return;
-  // Leaving "What Dr. Vibe sends" forward: hand the choices to the main
-  // window now, so a link on the Join step sends them before anything else.
-  if (currentStep === SEND_STEP && step > SEND_STEP) sendPrivacyChoices();
+  // Reaching the Join step: hand the send and visibility choices to the
+  // main window now, so a link there sends them before anything else.
+  if (step === JOIN_STEP && currentStep < JOIN_STEP) sendPrivacyChoices();
   currentStep = step;
   if (step === JOIN_STEP) renderJoinSummary();
 
@@ -852,7 +849,7 @@ function renderSigninState() {
 /** The privacy section values the wizard shows (send choices of store 'privacy'). */
 function privacyValues() {
   return buildPrivacyBody(Object.fromEntries(
-    SEND_CHOICES.filter(c => c.store === 'privacy').map(c => [c.key, choices[c.key]]),
+    [...SEND_CHOICES, ...WHO_CHOICES].filter(c => c.store === 'privacy').map(c => [c.key, choices[c.key]]),
   ));
 }
 
@@ -878,6 +875,9 @@ function initPrivacySteps() {
     updateWatchChoices(choices);
   }, { variant: 'wizard', disabled: watchDisabled });
   updateSendChoices = renderChoices(document.getElementById('send-choices'), SEND_CHOICES, choices, (key, value) => {
+    choices[key] = value;
+  }, { variant: 'wizard' });
+  renderChoices(document.getElementById('who-choices'), WHO_CHOICES, choices, (key, value) => {
     choices[key] = value;
   }, { variant: 'wizard' });
   updateSyncChoice = renderChoices(document.getElementById('join-sync-choice'), [SYNC_CHOICE], choices, (key, value) => {
@@ -920,9 +920,13 @@ function requestOutbox() {
 function renderJoinSummary() {
   const el = document.getElementById('join-summary');
   if (!el) return;
-  const items = SEND_CHOICES.map(c => `${c.label}: <b>${describeValue(c, choices[c.key])}</b>`);
-  el.innerHTML = `${items.join('<br>')}<br><button class="link-btn" id="btn-join-change" type="button">Change</button>`;
+  const line = (list) => list.map(c => `${c.label}: <b>${describeValue(c, choices[c.key])}</b>`).join('<br>');
+  el.innerHTML = `<div class="join-summary-cols">`
+    + `<div>${line(SEND_CHOICES)}<br><button class="link-btn" id="btn-join-change" type="button">Change what is sent</button></div>`
+    + `<div>${line(WHO_CHOICES)}<br><button class="link-btn" id="btn-join-change-who" type="button">Change who can see it</button></div>`
+    + `</div>`;
   document.getElementById('btn-join-change')?.addEventListener('click', () => goToStep(SEND_STEP));
+  document.getElementById('btn-join-change-who')?.addEventListener('click', () => goToStep(WHO_STEP));
 }
 
 async function checkProfileSignedIn() {
@@ -1277,7 +1281,7 @@ async function init() {
     loadWelcomeCharacter();
   });
 
-  // Step 5: Join the community. Bind the Tauri event listener early so we
+  // Join step. Bind the Tauri event listener early so we
   // never miss the auth callback; an install that is already linked shows it.
   await safe('join-init', async () => {
     bindSigninListener();
@@ -1320,7 +1324,7 @@ async function init() {
     initBreakModeCards();
   });
 
-  // Steps 4, 6 and the Join step's Sync switch
+  // Steps 4, 6, 7 and the Join step's Sync switch
   await safe('privacy', async () => {
     initPrivacySteps();
   });

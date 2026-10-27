@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { wizardDefaults } from '../../src/ui/wizardDefaults.js';
-import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE, choiceByKey } from '../../src/ui/privacyChoices.js';
+import { WATCH_CHOICES, SEND_CHOICES, WHO_CHOICES, SYNC_CHOICE, choiceByKey } from '../../src/ui/privacyChoices.js';
 import { SENT_WHEN_LINKED, STAYS_LOCAL } from '../../src/ui/WhatDrVibeSees.js';
 import { PRIVACY_DEFAULTS } from '../../src/core/api/contract.js';
 
@@ -49,12 +49,14 @@ describe('wizard defaults', () => {
   });
 
   it('every choice has a label, help text and a default', () => {
-    for (const c of [...WATCH_CHOICES, ...SEND_CHOICES, SYNC_CHOICE]) {
+    for (const c of [...WATCH_CHOICES, ...SEND_CHOICES, ...WHO_CHOICES, SYNC_CHOICE]) {
+      // One plain line in the row, the long text behind "More".
+      expect(c.short.length, c.key).toBeLessThanOrEqual(72);
       expect(c.label.length, c.key).toBeGreaterThan(3);
       expect(c.help.length, c.key).toBeGreaterThan(20);
       expect(c.default, c.key).not.toBeUndefined();
     }
-    const sendKeys = SEND_CHOICES.filter(c => c.store === 'privacy').map(c => c.key).sort();
+    const sendKeys = [...SEND_CHOICES, ...WHO_CHOICES].filter(c => c.store === 'privacy').map(c => c.key).sort();
     expect(sendKeys).toEqual(Object.keys(PRIVACY_DEFAULTS).sort());
   });
 });
@@ -133,7 +135,9 @@ describe('setup wizard window', () => {
     await openWizard();
     for (let i = 0; i < 5; i++) next();
     document.querySelector('#send-choices [data-choice="shareCodingNow"]').click();
-    next(); // leaves "What Dr. Vibe sends": handed over early
+    next();
+    expect(emitted('privacy-changed')).toEqual([]);
+    next(); // reaches the Join step: handed over early
     expect(emitted('privacy-changed')[0]).toMatchObject({ shareCodingNow: false, force: true });
     document.getElementById('btn-close').click();
     await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
@@ -145,6 +149,7 @@ describe('setup wizard window', () => {
     await openWizard();
     for (let i = 0; i < 5; i++) next();
     document.querySelector('#send-choices [data-choice="shareActivityTimes"]').click();
+    next();
     next();
     const event = { preventDefault: vi.fn() };
     osClose(event);
@@ -163,13 +168,19 @@ describe('setup wizard window', () => {
     document.querySelector('#send-choices [data-choice="errorReports"]').click();
     document.querySelector('#send-choices [data-choice="shareActivityTimes"]').click();
     next();
+    document.querySelector('#who-choices [data-choice="showOnVibeMap"]').click();
+    next();
     expect(document.getElementById('join-summary').textContent).toContain('Send my activity times: off');
+    expect(document.getElementById('join-summary').textContent).toContain('Show me on the Vibe Map: on');
+    document.getElementById('btn-join-change-who').click();
+    expect(document.querySelector('.step-panel.active').dataset.step).toBe('6');
+    next();
     next(); // Finish without joining
     await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
     const saved = emitted('settings-saved').at(-1);
     expect(saved).toMatchObject({ claudeCodeHooksEnabled: true, trackClaudeRepos: true, shareWeeklyRecap: true, syncEnabled: true });
     expect(invoke).toHaveBeenCalledWith('error_reports_set_enabled', { enabled: true });
-    expect(emitted('privacy-changed').at(-1)).toEqual({ ...PRIVACY_DEFAULTS, shareActivityTimes: false, force: true });
+    expect(emitted('privacy-changed').at(-1)).toEqual({ ...PRIVACY_DEFAULTS, shareActivityTimes: false, showOnVibeMap: true, force: true });
     // The main window installs hooks after completion, never the wizard.
     expect(invoke.mock.calls.map(c => c[0])).not.toContain('install_claude_code_hooks');
   });
@@ -177,7 +188,8 @@ describe('setup wizard window', () => {
   it('without Claude Code the hooks cannot be chosen', async () => {
     await openWizard({ claude: false });
     expect(document.querySelector('#watch-choices [data-choice="claudeCodeHooksEnabled"]')).toBeNull();
-    for (let i = 0; i < 6; i++) next();
+    for (let i = 0; i < 7; i++) next();
+    expect(document.querySelectorAll('.step-dot')).toHaveLength(8);
     next();
     await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
     expect(emitted('settings-saved').at(-1)).toMatchObject({ claudeCodeHooksEnabled: false, trackClaudeRepos: false });
