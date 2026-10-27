@@ -14,7 +14,9 @@ import { formatSkinName, skinVariantLabel } from './config/skinNames.js';
 import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
 import { getPresetsForSkin, getDefaultTone, getToneCategory, SKIN_TONE_CATEGORIES } from './config/skinTones.js';
 import { WEB_BASE as SITE_URL, IS_DEV, syncWebBaseFromRust } from './core/config.js';
-import { getErrorReportsEnabled, installErrorReporter, setErrorReportsEnabled } from './core/errorReporter.js';
+import { getErrorReportsEnabled, getQueuedErrorReports, installErrorReporter, setErrorReportsEnabled } from './core/errorReporter.js';
+import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE, renderChoices, choiceByKey } from './ui/privacyChoices.js';
+import { isPaused, pauseLabel } from './features/privacy/TrackingPause.js';
 import { makeUrl } from './features/make/makeHub.js';
 import { formatAgo, visibleRepos, trackedSummary, repoTag } from './ui/foundRepos.js';
 import { repoName } from './features/activity/repoPaths.js';
@@ -487,8 +489,9 @@ const els = {
   notifyAchievements: () => document.getElementById('notify-achievements'),
   notifyVpEarned: () => document.getElementById('notify-vp-earned'),
   notifyTrades: () => document.getElementById('notify-trades'),
-  hideWhenPresenting: () => document.getElementById('hide-when-presenting'),
-  shareWeeklyRecap: () => document.getElementById('privacy-weekly-recap'),
+  hideWhenPresenting: () => document.getElementById('choice-hideWhenPresenting'),
+  shareWeeklyRecap: () => document.getElementById('choice-shareWeeklyRecap'),
+  syncEnabled: () => document.getElementById('choice-syncEnabled'),
   popupDuration: () => document.getElementById('popup-duration'),
   selectedSkin: () => document.getElementById('selected-skin'),
   skinTone: () => document.getElementById('skin-tone'),
@@ -1169,10 +1172,21 @@ function applyTrackedStatus(status) {
 
 function updateTrackClaudeDesc() {
   const desc = document.getElementById('track-claude-repos-desc');
+  const hooksOn = els.claudeHooksEnabled()?.checked === true;
+  const input = els.trackClaudeRepos();
+  if (input) input.disabled = !hooksOn;
   if (!desc) return;
-  desc.textContent = els.trackClaudeRepos()?.checked !== false
-    ? 'Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.'
-    : 'Off: only the repos in your project folders below (and the project in your editor, while you use it) are tracked.';
+  desc.textContent = !hooksOn
+    ? `${choiceByKey('trackClaudeRepos').help} Repos in your project folders below (and the project in your editor, while you use it) are tracked either way.`
+    : input?.checked
+      ? `${choiceByKey('trackClaudeRepos').help} Remembered repos are forgotten after 90 days without Claude Code. Temp, app-data and system folders are never tracked. Paths stay on this computer.`
+      : 'Off: only the repos in your project folders below (and the project in your editor, while you use it) are tracked.';
+}
+
+/** Tracking-tab labels and help from ui/privacyChoices.js, the wizard's wording. */
+function applyChoiceWording() {
+  document.querySelectorAll('[data-choice-label]').forEach(el => { el.textContent = choiceByKey(el.dataset.choiceLabel)?.label ?? el.textContent; });
+  document.querySelectorAll('[data-choice-help]').forEach(el => { el.textContent = choiceByKey(el.dataset.choiceHelp)?.help ?? ''; });
 }
 
 function trackedRepoRow(repo, { ignored }) {
@@ -1241,7 +1255,7 @@ async function checkHooksStatus() {
   const statusEl = document.getElementById('hooks-status');
   const btn = document.getElementById('hooks-install-btn');
   if (!statusEl) return;
-  const enabled = els.claudeHooksEnabled()?.checked !== false;
+  const enabled = els.claudeHooksEnabled()?.checked === true;
   if (btn) btn.disabled = !enabled;
   statusEl.style.color = 'var(--muted-2)';
   if (!enabled) { statusEl.textContent = 'Off'; return; }
@@ -1282,7 +1296,7 @@ async function applyHooksSwitch(enabled) {
     } else {
       resultEl.textContent = enabled
         ? 'Done! Restart Claude Code for the hooks to take effect.'
-        : 'Hooks removed. Restart Claude Code to stop them.';
+        : 'Hooks and their log removed. Restart Claude Code to stop them.';
     }
   }
   await checkHooksStatus();
@@ -1365,7 +1379,7 @@ async function loadSettings() {
   if (v('encouragementEnabled') != null) els.encouragementEnabled().checked = v('encouragementEnabled');
   if (v('encouragementFrequency') != null) els.encouragementFrequency().value = v('encouragementFrequency');
   if (v('resumeSuggestionsEnabled') != null) els.resumeSuggestions().checked = v('resumeSuggestionsEnabled');
-  if (els.claudeHooksEnabled()) els.claudeHooksEnabled().checked = v('claudeCodeHooksEnabled') !== false;
+  if (els.claudeHooksEnabled()) els.claudeHooksEnabled().checked = v('claudeCodeHooksEnabled') === true;
   checkHooksStatus();
   if (v('gitTrackingEnabled') != null && els.gitTrackingEnabled()) els.gitTrackingEnabled().checked = v('gitTrackingEnabled');
   if (v('gitCommitNotificationsEnabled') != null && els.gitCommitNotifications()) els.gitCommitNotifications().checked = v('gitCommitNotificationsEnabled');
@@ -1390,6 +1404,7 @@ async function loadSettings() {
   if (v('notifyTrades') != null) els.notifyTrades().checked = v('notifyTrades');
   if (els.hideWhenPresenting()) els.hideWhenPresenting().checked = v('hideWhenPresenting') !== false;
   if (els.shareWeeklyRecap()) els.shareWeeklyRecap().checked = v('shareWeeklyRecap') !== false;
+  if (els.syncEnabled()) els.syncEnabled().checked = v('syncEnabled') !== false;
   if (v('popupDuration') != null) els.popupDuration().value = v('popupDuration');
   if (v('clickThroughGhostEnabled') != null) els.clickThroughGhost().checked = v('clickThroughGhostEnabled');
   if (v('mouseNudgeEnabled') != null) els.mouseNudgeEnabled().checked = v('mouseNudgeEnabled');
@@ -1444,7 +1459,7 @@ async function loadSettings() {
     loadFolderRepos(folder);
   }
 
-  if (els.trackClaudeRepos()) els.trackClaudeRepos().checked = v('trackClaudeRepos') !== false;
+  if (els.trackClaudeRepos()) els.trackClaudeRepos().checked = v('trackClaudeRepos') === true;
   currentIgnoredRepos = Array.isArray(v('ignoredRepos')) ? [...v('ignoredRepos')] : [];
   updateTrackClaudeDesc();
   initTrackedRepos();
@@ -1492,7 +1507,7 @@ function gatherSettings() {
     encouragementEnabled: els.encouragementEnabled().checked,
     encouragementFrequency: parseInt(els.encouragementFrequency().value) || 60,
     resumeSuggestionsEnabled: els.resumeSuggestions().checked,
-    claudeCodeHooksEnabled: els.claudeHooksEnabled()?.checked !== false,
+    claudeCodeHooksEnabled: els.claudeHooksEnabled()?.checked === true,
     gitTrackingEnabled: els.gitTrackingEnabled()?.checked ?? true,
     gitCommitNotificationsEnabled: els.gitCommitNotifications()?.checked ?? true,
     gitBranchNotificationsEnabled: els.gitBranchNotifications()?.checked ?? true,
@@ -1522,6 +1537,7 @@ function gatherSettings() {
     notifyTrades: els.notifyTrades().checked,
     hideWhenPresenting: els.hideWhenPresenting()?.checked !== false,
     shareWeeklyRecap: els.shareWeeklyRecap()?.checked !== false,
+    syncEnabled: els.syncEnabled()?.checked !== false,
     notifyBoundary: true,
     popupDuration: parseInt(els.popupDuration().value) || 20,
     clickThroughGhostEnabled: els.clickThroughGhost().checked,
@@ -1536,7 +1552,7 @@ function gatherSettings() {
     walkingBoundRightPercent: parseInt(els.walkingBoundRight().value) || 0,
     codingApps: [...currentCodingApps],
     projectFolders: [...currentProjectFolders],
-    trackClaudeRepos: els.trackClaudeRepos()?.checked !== false,
+    trackClaudeRepos: els.claudeHooksEnabled()?.checked === true && els.trackClaudeRepos()?.checked === true,
     ignoredRepos: [...currentIgnoredRepos],
     soundReactionsEnabled: els.soundReactionsEnabled().checked,
     soundTalkEnabled: els.soundTalkEnabled().checked,
@@ -1672,6 +1688,7 @@ function setupListeners() {
     offline:    'Offline — will retry',
     error:      'Sign-in expired',
     unlinked:   'Not linked',
+    paused:     'Sync off • nothing is sent',
   };
   function applySyncStatus(status) {
     const text = document.getElementById('sync-status-text');
@@ -1679,7 +1696,7 @@ function setupListeners() {
     const state = status?.state ?? 'connecting';
     if (text) text.textContent = SYNC_STATUS_LABELS[state] || SYNC_STATUS_LABELS.connecting;
     if (dot) {
-      dot.classList.remove('sync-live', 'sync-connecting', 'sync-offline', 'sync-error', 'sync-unlinked');
+      dot.classList.remove('sync-live', 'sync-connecting', 'sync-offline', 'sync-error', 'sync-unlinked', 'sync-paused');
       dot.classList.add(`sync-${state}`);
       if (status?.detail) dot.title = status.detail;
       else if (status?.reason) dot.title = `Reason: ${status.reason}`;
@@ -1730,7 +1747,11 @@ function setupListeners() {
   checkHooksStatus();
 
   document.getElementById('hooks-install-btn')?.addEventListener('click', () => applyHooksSwitch(true));
+  applyChoiceWording();
   els.claudeHooksEnabled()?.addEventListener('change', async () => {
+    // Off also switches "Also track the repos Claude Code works in" off.
+    if (!els.claudeHooksEnabled().checked && els.trackClaudeRepos()) els.trackClaudeRepos().checked = false;
+    updateTrackClaudeDesc();
     debouncedSave();
     await applyHooksSwitch(els.claudeHooksEnabled().checked);
   });
@@ -2241,43 +2262,135 @@ function setupListeners() {
 
 // --- Privacy tab ---
 // Privacy settings are owned by the main window (PrivacySync), which sends
-// them to the site only when changed. This tab shows them and forwards edits.
-const PRIVACY_FIELDS = {
-  profileVisibility:    { id: 'privacy-visibility', kind: 'select' },
-  showProjectNames:     { id: 'privacy-project-names', kind: 'check' },
-  showOnVibeMap:        { id: 'privacy-vibe-map', kind: 'check' },
-  appearInLeaderboards: { id: 'privacy-leaderboards', kind: 'check' },
-  visitsFrom:           { id: 'privacy-visits', kind: 'select' },
-};
+// them to the site only when changed. This tab shows them and forwards
+// edits. The choices are worded in ui/privacyChoices.js, the same as in the
+// setup wizard.
+let updateSendChoices = () => {};
+let updateSyncChoice = () => {};
+let updateOnScreenChoices = () => {};
 
 async function loadPrivacyTab() {
   const saved = (await readSection('privacy')) || {};
-  const settings = { ...PRIVACY_DEFAULTS, ...(saved.settings || {}) };
-  for (const [key, f] of Object.entries(PRIVACY_FIELDS)) {
-    const el = document.getElementById(f.id);
-    if (!el) continue;
-    if (f.kind === 'check') el.checked = !!settings[key];
-    else el.value = settings[key];
-  }
+  const settings = (await readSection('settings')) || {};
+  const privacy = { ...PRIVACY_DEFAULTS, ...(saved.settings || {}) };
+  updateSendChoices({
+    ...privacy,
+    shareWeeklyRecap: settings.shareWeeklyRecap !== false,
+    errorReports: await getErrorReportsEnabled(),
+  });
+  updateSyncChoice({ syncEnabled: settings.syncEnabled !== false });
+  updateOnScreenChoices({ hideWhenPresenting: settings.hideWhenPresenting !== false });
+  const syncRow = document.getElementById('privacy-sync-choice');
+  if (syncRow) syncRow.title = apiToken ? '' : 'Applies once you join the community.';
   renderPrivacyStatus(saved.pending);
   renderWhatDrVibeSees(document.getElementById('privacy-what-sees'), { linked: !!apiToken });
-  const crash = document.getElementById('privacy-error-reports');
-  if (crash) crash.checked = await getErrorReportsEnabled();
 }
 
 function renderPrivacyStatus(pending) {
   const el = document.getElementById('privacy-status');
   if (!el) return;
-  if (!pending) el.textContent = '';
-  else el.textContent = apiToken
-    ? 'Saved here; sending to drvibe.io…'
-    : 'Saved here. Sent to drvibe.io when you join the community.';
+  if (!apiToken) el.textContent = 'Not linked: nothing is sent. These choices apply if you join the community; crash reports apply either way.';
+  else if (!pending) el.textContent = '';
+  else el.textContent = 'Saved here; sending to drvibe.io…';
 }
 
+function renderPauseState(until) {
+  const paused = isPaused(until);
+  const status = document.getElementById('pause-status');
+  if (status) status.textContent = pauseLabel(until);
+  const resume = document.getElementById('pause-resume-btn');
+  if (resume) resume.style.display = paused ? '' : 'none';
+  document.querySelectorAll('[data-pause]').forEach(b => { b.disabled = paused; });
+}
+
+/** Long strings (a custom sprite) are shortened for reading. */
+function shortenLong(_k, val) {
+  return (typeof val === 'string' && val.length > 200)
+    ? `${val.slice(0, 60)}… (${val.length - 60} more characters — use Copy full payload)`
+    : val;
+}
+
+function renderRecapCard(el, recap, approved) {
+  el.innerHTML = '';
+  if (!recap) {
+    el.innerHTML = '<div class="section-desc" style="margin:0">None due: already sent, nothing coded last week, or the recap is off.</div>';
+    return;
+  }
+  const s = recap.summary;
+  const hours = (s.totalSeconds / 3600).toFixed(1);
+  const card = document.createElement('div');
+  card.className = 'recap-card';
+  card.innerHTML = `<div class="recap-card-title">Week of ${escapeHtml(s.weekLabel)}</div>
+    <div class="recap-card-stats">
+      <span><b>${hours}h</b>coded</span><span><b>${s.activeDays}/7</b>days</span>
+      <span><b>${s.streak}</b>day streak</span><span><b>${Math.round(s.longestSessionSeconds / 60)} min</b>longest session</span>
+      <span><b>${s.totalFilesCreated + s.totalFilesModified}</b>files</span>
+    </div>`;
+  el.appendChild(card);
+  const pre = document.createElement('pre');
+  pre.textContent = JSON.stringify(recap, null, 2);
+  el.appendChild(pre);
+  if (!approved) {
+    const note = document.createElement('div');
+    note.className = 'section-desc';
+    note.style.margin = '6px 0';
+    note.textContent = 'Your first recap waits for you: it becomes a share card and a feed post on drvibe.io.';
+    const post = document.createElement('button');
+    post.className = 'privacy-btn';
+    post.textContent = 'Post it';
+    post.addEventListener('click', () => {
+      window.__TAURI__?.event?.emitTo?.('main', 'recap-approve', {})?.catch?.(() => {});
+      post.disabled = true;
+      post.textContent = 'Posting…';
+    });
+    const off = document.createElement('button');
+    off.className = 'privacy-btn';
+    off.style.marginLeft = '6px';
+    off.textContent = 'Don’t share recaps';
+    off.addEventListener('click', () => {
+      const input = els.shareWeeklyRecap();
+      if (input) input.checked = false;
+      debouncedSave();
+      el.innerHTML = '<div class="section-desc" style="margin:0">Weekly recap off.</div>';
+    });
+    el.append(note, post, off);
+  }
+}
+
+async function renderOutbox(data) {
+  const body = document.getElementById('outbox-body');
+  if (!body) return;
+  body.style.display = '';
+  const note = !data.linked
+    ? ' — not linked: nothing is sent; this is what would go after you join'
+    : !data.syncEnabled ? ' — Sync my stats is off: nothing is sent' : '';
+  document.getElementById('outbox-sync-head').textContent = `Next stats sync (POST /api/v1/desktop/sync)${note}`;
+  document.getElementById('outbox-sync').textContent = data.sync
+    ? JSON.stringify(data.sync, shortenLong, 2)
+    : (data.error || 'Not available in browser mode.');
+  const events = data.events || [];
+  document.getElementById('outbox-events-head').textContent = `Waiting activity events (POST /api/v1/desktop/events): ${events.length}`;
+  document.getElementById('outbox-events').textContent = events.length ? JSON.stringify(events, null, 2) : 'None waiting.';
+  renderRecapCard(document.getElementById('outbox-recap'), data.recap, data.recapApproved);
+  const crash = await getQueuedErrorReports();
+  document.getElementById('outbox-crash').textContent = crash.length
+    ? JSON.stringify(crash, null, 2)
+    : (await getErrorReportsEnabled() ? 'None queued.' : 'Crash reports are off: none are kept or sent.');
+}
+
+const LOCAL_DATA_DONE = {
+  export: (r) => (r.path ? `Saved to ${r.path}` : 'Export cancelled.'),
+  'forget-projects': () => 'Project history forgotten.',
+  'forget-repos': () => 'Remembered repos forgotten. Repos in your folders stay tracked.',
+  wipe: () => 'Deleted. Dr. Vibe restarts into setup…',
+};
+
 function setupPrivacyTab() {
-  for (const [key, f] of Object.entries(PRIVACY_FIELDS)) {
-    document.getElementById(f.id)?.addEventListener('change', (e) => {
-      const value = f.kind === 'check' ? e.target.checked : e.target.value;
+  const tell = (event, payload = {}) => window.__TAURI__?.event?.emitTo?.('main', event, payload)?.catch?.(() => {});
+
+  updateSendChoices = renderChoices(document.getElementById('privacy-send-choices'), SEND_CHOICES, {}, async (key, value) => {
+    const c = choiceByKey(key);
+    if (c.store === 'privacy') {
       try {
         window.__TAURI__?.event?.emitTo?.('main', 'privacy-changed', { [key]: value });
       } catch (err) {
@@ -2286,18 +2399,68 @@ function setupPrivacyTab() {
       renderPrivacyStatus(true);
       // Re-read once main has had a moment to store (and maybe send) it.
       setTimeout(() => loadPrivacyTab().catch(() => {}), 1500);
-    });
-  }
-  els.hideWhenPresenting()?.addEventListener('change', debouncedSave);
-  els.shareWeeklyRecap()?.addEventListener('change', debouncedSave);
-  document.getElementById('privacy-error-reports')?.addEventListener('change', async (e) => {
-    try {
-      e.target.checked = await setErrorReportsEnabled(e.target.checked);
-    } catch (err) {
-      console.error('[privacy] crash report switch failed:', err);
-      e.target.checked = await getErrorReportsEnabled();
+    } else if (c.store === 'errors') {
+      try {
+        await setErrorReportsEnabled(value);
+      } catch (err) {
+        console.error('[privacy] crash report switch failed:', err);
+      }
+      updateSendChoices({ errorReports: await getErrorReportsEnabled() });
+    } else {
+      debouncedSave();
     }
   });
+  updateSyncChoice = renderChoices(document.getElementById('privacy-sync-choice'), [SYNC_CHOICE], {}, () => debouncedSave());
+  updateOnScreenChoices = renderChoices(document.getElementById('privacy-onscreen-choices'),
+    WATCH_CHOICES.filter(c => c.key === 'hideWhenPresenting'), {}, () => debouncedSave());
+
+  // Pause tracking (the main window's TrackingPause owns it).
+  document.querySelectorAll('[data-pause]').forEach(b => b.addEventListener('click', () => tell('pause-tracking', { mode: b.dataset.pause })));
+  document.getElementById('pause-resume-btn')?.addEventListener('click', () => tell('pause-tracking', { mode: 'resume' }));
+  window.__TAURI__?.event?.listen?.('tracking-pause-state', (e) => renderPauseState(e.payload?.until ?? null));
+  tell('request-pause-state');
+
+  // What will be sent next / Show my last sync
+  document.querySelectorAll('[data-outbox-tab]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-outbox-tab]').forEach(x => x.classList.toggle('active', x === b));
+    document.getElementById('outbox-next').style.display = b.dataset.outboxTab === 'next' ? '' : 'none';
+    document.getElementById('outbox-last').style.display = b.dataset.outboxTab === 'last' ? '' : 'none';
+  }));
+  document.getElementById('outbox-refresh-btn')?.addEventListener('click', (e) => {
+    e.target.textContent = 'Refresh';
+    tell('outbox-request', { for: 'settings' });
+  });
+  window.__TAURI__?.event?.listen?.('outbox-data', (e) => {
+    if (e.payload?.for === 'settings') renderOutbox(e.payload).catch(err => console.error('[privacy] outbox:', err));
+  });
+
+  // Your local data
+  const status = (msg) => { const el = document.getElementById('local-data-status'); if (el) el.textContent = msg; };
+  const ask = (action) => { status('Working…'); tell('local-data', { action }); };
+  window.__TAURI__?.event?.listen?.('local-data-result', (e) => {
+    const r = e.payload || {};
+    status(r.ok ? (LOCAL_DATA_DONE[r.action]?.(r) ?? 'Done.') : `That did not work: ${r.error}`);
+  });
+  document.getElementById('local-export-btn')?.addEventListener('click', () => ask('export'));
+  document.getElementById('local-forget-projects-btn')?.addEventListener('click', () => ask('forget-projects'));
+  document.getElementById('local-forget-repos-btn')?.addEventListener('click', () => ask('forget-repos'));
+  const wipeBtn = document.getElementById('local-wipe-btn');
+  let wipeArmed = null;
+  wipeBtn?.addEventListener('click', () => {
+    if (!wipeArmed) {
+      wipeBtn.textContent = 'Click again to delete everything';
+      status('This deletes your stats, settings, history, the Claude Code hooks and log, and signs this computer out. Your skins stay.');
+      wipeArmed = setTimeout(() => { wipeArmed = null; wipeBtn.textContent = 'Delete all local data'; status(''); }, 6000);
+      return;
+    }
+    clearTimeout(wipeArmed);
+    wipeArmed = null;
+    wipeBtn.disabled = true;
+    clearTimeout(_saveTimer); // nothing from this window is written back
+    ask('wipe');
+  });
+  document.getElementById('account-delete-btn')?.addEventListener('click', () => openUrl(`${SITE_URL}${WebRoutes.accountSettings()}`));
+  document.getElementById('privacy-setup-again-btn')?.addEventListener('click', () => document.getElementById('open-setup-wizard-btn')?.click());
 
   document.getElementById('privacy-policy-btn')?.addEventListener('click', () => openUrl(`${SITE_URL}${WebRoutes.privacy()}`));
   document.getElementById('privacy-terms-btn')?.addEventListener('click', () => openUrl(`${SITE_URL}${WebRoutes.terms()}`));

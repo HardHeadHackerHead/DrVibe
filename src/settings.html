@@ -450,6 +450,24 @@
       border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit;
     }
     .privacy-btn:hover { border-color: var(--green-border); color: var(--text); }
+    .privacy-btn:disabled { opacity: .5; cursor: default; }
+    .privacy-danger { color: #f87171; }
+    .privacy-tabs { display: flex; gap: 6px; margin-top: 2px; }
+    .privacy-tab.active { border-color: var(--green-border); color: var(--text); }
+    .outbox-head { font-size: 10px; font-weight: 700; color: var(--text-2); margin: 10px 0 4px; }
+    #outbox-body pre, .recap-card + pre {
+      max-height: 200px; overflow: auto; background: var(--inset); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px; font-family: var(--font-mono); font-size: 10px;
+      white-space: pre-wrap; word-break: break-all; color: var(--text-2); user-select: text;
+    }
+    .recap-card {
+      border: 1px solid var(--green-border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+      background: var(--inset); font-size: 11px; color: var(--text-2); line-height: 1.5;
+    }
+    .recap-card-title { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+    .recap-card-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+    .recap-card-stats b { display: block; font-size: 14px; color: var(--text); }
+    .choice-disabled { opacity: .45; }
     .privacy-last-sync { margin-top: 8px; }
     .privacy-last-sync-meta { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
     .privacy-last-sync pre {
@@ -572,7 +590,8 @@
       animation: sync-dot-pulse 1.4s ease-in-out infinite;
     }
     .comm-hero-dot.sync-offline,
-    .comm-hero-dot.sync-unlinked {
+    .comm-hero-dot.sync-unlinked,
+    .comm-hero-dot.sync-paused {
       background: #94a3b8;
       box-shadow: 0 0 5px rgba(148,163,184,0.4);
     }
@@ -1159,8 +1178,8 @@
               <div class="section-label">Git Repos</div>
               <div class="section-card found-repos-card">
                 <div class="toggle-row" style="margin-bottom:6px">
-                  <span style="font-weight:600;color:var(--text-2)">Track repos Claude Code works in</span>
-                  <label class="toggle"><input type="checkbox" id="track-claude-repos" checked><span class="track"></span></label>
+                  <span style="font-weight:600;color:var(--text-2)" data-choice-label="trackClaudeRepos">Also track the repos Claude Code works in</span>
+                  <label class="toggle"><input type="checkbox" id="track-claude-repos"><span class="track"></span></label>
                 </div>
                 <div id="track-claude-repos-desc" class="section-desc" style="margin:0 0 10px">Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.</div>
                 <div class="found-repos-head">
@@ -1185,10 +1204,10 @@
               <div class="section-label">Claude Code</div>
               <div class="section-card" style="margin-bottom:14px">
                 <div class="toggle-row" style="margin-bottom:6px">
-                  <span style="font-weight:600;color:var(--text-2)">Follow Claude Code</span>
-                  <label class="toggle"><input type="checkbox" id="claude-hooks-enabled" checked><span class="track"></span></label>
+                  <span style="font-weight:600;color:var(--text-2)" data-choice-label="claudeCodeHooksEnabled">Follow Claude Code</span>
+                  <label class="toggle"><input type="checkbox" id="claude-hooks-enabled"><span class="track"></span></label>
                 </div>
-                <div class="section-desc" style="margin-bottom:10px">Adds hooks to Claude Code's settings that log which files it reads and edits, so its work fills the heat bar. Only file paths and event names are logged, on this computer. Off removes the hooks.</div>
+                <div class="section-desc" style="margin-bottom:10px" data-choice-help="claudeCodeHooksEnabled"></div>
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
                   <span id="hooks-status" style="font-size:11px;color:var(--muted-2)">Checking…</span>
                   <button id="hooks-install-btn" class="browse-btn">Install / Fix</button>
@@ -1197,7 +1216,7 @@
               </div>
               <div class="section-label">Git Tracking</div>
               <div class="toggle-row" style="margin-bottom:10px">
-                <span style="font-weight:600;color:var(--text-2)">Enable Git Tracking</span>
+                <span style="font-weight:600;color:var(--text-2)" data-choice-label="gitTrackingEnabled">Git tracking</span>
                 <label class="toggle"><input type="checkbox" id="git-tracking-enabled" checked><span class="track"></span></label>
               </div>
               <div id="git-tracking-sub-rows">
@@ -1395,76 +1414,102 @@
         <div id="panel-privacy" class="tab-panel">
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">Who sees what</div>
-            <div class="section-desc">Saved here and sent to drvibe.io only when you change something. Choices you make on the website are never overwritten.</div>
-            <div class="setting-row">
-              <label for="privacy-visibility">Profile visibility</label>
-              <select id="privacy-visibility">
-                <option value="public">Public</option>
-                <option value="followers">Followers</option>
-                <option value="private">Private</option>
-              </select>
+            <div class="section-label" style="margin-top:0">Tracking</div>
+            <div class="setting-row" style="margin-bottom:6px">
+              <label id="pause-status">Tracking is on</label>
+              <button id="pause-resume-btn" class="privacy-btn" style="display:none">Resume tracking</button>
             </div>
-            <div class="toggle-row">
-              <span>Show project names</span>
-              <label class="toggle"><input type="checkbox" id="privacy-project-names"><span class="track"></span></label>
+            <div id="pause-buttons" style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="privacy-btn" data-pause="1h">Pause for 1 hour</button>
+              <button class="privacy-btn" data-pause="tomorrow">Until tomorrow</button>
+              <button class="privacy-btn" data-pause="manual">Until I resume</button>
             </div>
-            <div class="toggle-row">
-              <span>Show me on the Vibe Map</span>
-              <label class="toggle"><input type="checkbox" id="privacy-vibe-map"><span class="track"></span></label>
-            </div>
-            <div class="toggle-row">
-              <span>Appear in leaderboards</span>
-              <label class="toggle"><input type="checkbox" id="privacy-leaderboards"><span class="track"></span></label>
-            </div>
-            <div class="setting-row" style="margin-bottom:0">
-              <label for="privacy-visits">Who can visit me</label>
-              <select id="privacy-visits">
-                <option value="everyone">Everyone</option>
-                <option value="followers">Followers</option>
-                <option value="nobody">Nobody</option>
-              </select>
-            </div>
-            <div class="section-desc" id="privacy-status" style="margin:8px 0 0"></div>
+            <div class="section-desc" style="margin:8px 0 0">While paused Dr. Vibe stops reading window titles, watching folders, polling git and reading the Claude Code log. The screen-share check keeps running so Dr. Vibe still hides while you present. Also in the tray menu.</div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">What Dr. Vibe sends</div>
+            <div class="section-desc">You choose what leaves this computer: each switch stops that data here, before anything is sent. The same choices as in setup. Choices made on the website are never overwritten.</div>
+            <div id="privacy-sync-choice"></div>
+            <div id="privacy-send-choices"></div>
+            <div class="section-desc" id="privacy-status" style="margin:4px 0 0"></div>
           </div>
 
           <div class="section-card">
             <div class="section-label" style="margin-top:0">On screen</div>
-            <div class="toggle-row" style="margin-bottom:0">
-              <span>Hide Dr. Vibe during screen shares and fullscreen apps <span style="color:var(--muted)">(visits and toasts wait)</span></span>
-              <label class="toggle"><input type="checkbox" id="hide-when-presenting" checked><span class="track"></span></label>
-            </div>
+            <div id="privacy-onscreen-choices"></div>
           </div>
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">Weekly recap</div>
-            <div class="toggle-row" style="margin-bottom:0">
-              <span>Share my weekly recap <span style="color:var(--muted)">(once a week when linked: last week's coding time, active days, files, longest session and streak for a share card and a feed post; never project names. Not sent while your profile is private)</span></span>
-              <label class="toggle"><input type="checkbox" id="privacy-weekly-recap" checked><span class="track"></span></label>
+            <div class="section-label" style="margin-top:0">What will be sent next</div>
+            <div class="privacy-tabs">
+              <button class="privacy-btn privacy-tab active" data-outbox-tab="next">Next</button>
+              <button class="privacy-btn privacy-tab" data-outbox-tab="last">Show my last sync</button>
             </div>
-          </div>
-
-          <div class="section-card">
-            <div class="section-label" style="margin-top:0">Crash reports</div>
-            <div class="toggle-row" style="margin-bottom:0">
-              <span>Send crash reports to drvibe.io <span style="color:var(--muted)">(the error text and app version, never your files or windows)</span></span>
-              <label class="toggle"><input type="checkbox" id="privacy-error-reports" checked><span class="track"></span></label>
+            <div id="outbox-next">
+              <div class="section-desc" style="margin:8px 0 6px">Built on this computer by the same code that sends, before anything goes out.</div>
+              <button id="outbox-refresh-btn" class="privacy-btn">Show what will be sent</button>
+              <div id="outbox-body" style="display:none">
+                <div class="outbox-head" id="outbox-sync-head">Next stats sync (POST /api/v1/desktop/sync)</div>
+                <pre id="outbox-sync"></pre>
+                <div class="outbox-head" id="outbox-events-head">Waiting activity events (POST /api/v1/desktop/events)</div>
+                <pre id="outbox-events"></pre>
+                <div class="outbox-head">Next weekly recap (POST /api/v1/me/recap)</div>
+                <div id="outbox-recap"></div>
+                <div class="outbox-head">Queued crash reports (POST /api/v1/errors)</div>
+                <pre id="outbox-crash"></pre>
+                <div class="section-desc" style="margin:6px 0 0">Requests also carry your time zone (for daily limits) and the 60-second online check-in fetches news for you; see What Dr. Vibe sees below.</div>
+              </div>
+            </div>
+            <div id="outbox-last" style="display:none">
+              <div class="setting-row" style="margin:8px 0 0">
+                <label style="color:var(--muted);font-size:11px">The exact data drvibe.io received in your last sync</label>
+                <button id="privacy-last-sync-btn" class="privacy-btn">Show</button>
+              </div>
+              <div id="privacy-last-sync" class="privacy-last-sync" style="display:none">
+                <div class="privacy-last-sync-meta" id="privacy-last-sync-meta"></div>
+                <pre id="privacy-last-sync-body"></pre>
+                <button id="privacy-last-sync-copy" class="privacy-btn">Copy full payload</button>
+              </div>
             </div>
           </div>
 
           <div class="section-card">
             <div class="section-label" style="margin-top:0">What Dr. Vibe sees</div>
             <div id="privacy-what-sees"></div>
-            <div class="setting-row" style="margin:10px 0 0">
-              <label style="color:var(--muted);font-size:11px">The exact data sent in the last sync</label>
-              <button id="privacy-last-sync-btn" class="privacy-btn">Show my last sync</button>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Your local data</div>
+            <div class="setting-row">
+              <label style="font-size:11px">Everything Dr. Vibe keeps here, as one file</label>
+              <button id="local-export-btn" class="privacy-btn">Export my local data</button>
             </div>
-            <div id="privacy-last-sync" class="privacy-last-sync" style="display:none">
-              <div class="privacy-last-sync-meta" id="privacy-last-sync-meta"></div>
-              <pre id="privacy-last-sync-body"></pre>
-              <button id="privacy-last-sync-copy" class="privacy-btn">Copy full payload</button>
+            <div class="setting-row">
+              <label style="font-size:11px">Project names in your daily history and the last files list</label>
+              <button id="local-forget-projects-btn" class="privacy-btn">Forget project history</button>
             </div>
-            <div class="setting-row" style="margin:10px 0 0">
+            <div class="setting-row">
+              <label style="font-size:11px">The repos remembered from Claude Code (your folders stay)</label>
+              <button id="local-forget-repos-btn" class="privacy-btn">Forget tracked repos</button>
+            </div>
+            <div class="setting-row">
+              <label style="font-size:11px">Everything except your skins, then a fresh start. Signs this computer out.</label>
+              <button id="local-wipe-btn" class="privacy-btn privacy-danger">Delete all local data</button>
+            </div>
+            <div class="setting-row">
+              <label style="font-size:11px">Your account and everything stored on drvibe.io</label>
+              <button id="account-delete-btn" class="privacy-btn">Delete my account on drvibe.io ↗</button>
+            </div>
+            <div class="setting-row" style="margin-bottom:0">
+              <label style="font-size:11px">Go through the setup and privacy choices again</label>
+              <button id="privacy-setup-again-btn" class="privacy-btn">Run setup again</button>
+            </div>
+            <div class="section-desc" id="local-data-status" style="margin:8px 0 0"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="setting-row" style="margin:0">
               <label style="color:var(--muted);font-size:11px">Privacy policy and terms on drvibe.io</label>
               <span>
                 <button id="privacy-policy-btn" class="privacy-btn">Privacy ↗</button>

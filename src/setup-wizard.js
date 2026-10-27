@@ -1,8 +1,16 @@
 // Dr. Vibe - Setup Wizard
-// First-run setup: Meet → Look → Coding setup → Wellness → Join the
-// community (optional). Nothing requires an account or the network; the
-// wizard can be closed at any step. Reads/writes settings via
-// DatabaseReader and notifies the main window on completion.
+// First-run setup: Meet → Look → Coding setup → What Dr. Vibe watches →
+// Wellness → What Dr. Vibe sends → Join the community (optional). Nothing
+// requires an account or the network; the wizard can be closed at any step.
+// Reads/writes settings via DatabaseReader and notifies the main window on
+// completion.
+//
+// Privacy rules: Skip or close saves nothing, so the app defaults apply
+// (Claude Code hooks off, crash reports off). Hooks are installed, crash
+// reports flushed and the first sync made only after setup completes, by
+// the main window. The send choices go to the main window (PrivacySync)
+// when the player leaves "What Dr. Vibe sends", so a link made on the Join
+// step already carries them; Skip or close puts back what was there before.
 
 import { openUrl } from './core/openUrl.js';
 import { WebRoutes } from './core/api/endpoints.js';
@@ -12,6 +20,9 @@ import { getPresetsForSkin, getDefaultTone, SKIN_TONE_CATEGORIES, BASE_SKIN_PALE
 import { initTheme } from './core/theme.js';
 import { formatSkinName, skinVariantLabel } from './config/skinNames.js';
 import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
+import { PRIVACY_DEFAULTS, buildPrivacyBody } from './core/api/contract.js';
+import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE, renderChoices, describeValue } from './ui/privacyChoices.js';
+import { wizardDefaults } from './ui/wizardDefaults.js';
 initTheme();
 
 // ── Voice presets (same definitions as settings-page.js / SoundManager) ──
@@ -373,8 +384,9 @@ const DEFAULT_CODING_APPS = [
 
 // ── State ──
 let currentStep = 0;
-const TOTAL_STEPS = 5;
-const JOIN_STEP = 4;
+const TOTAL_STEPS = 7;
+const SEND_STEP = 5;
+const JOIN_STEP = 6;
 let isSignedIn = false;
 let signinUsername = null;
 let signinPollTimer = null;
@@ -399,11 +411,25 @@ let postureFrequency = 30;
 let overworkPreventionEnabled = true;
 let breakMode = 'pomodoro';
 
+// Privacy choices (same keys and wording as Settings: ui/privacyChoices.js)
+let choices = wizardDefaults();
+let claudePresent = false;
+let privacyBefore = null;     // the privacy section before the wizard, for Skip
+let privacySentEarly = false; // the send choices went to main on leaving step 6
+let errorReportsBefore = false;
+let updateWatchChoices = () => {};
+let updateSendChoices = () => {};
+let updateSyncChoice = () => {};
+
 // ── Step Navigation ──
 
 function goToStep(step) {
   if (step < 0 || step >= TOTAL_STEPS) return;
+  // Leaving "What Dr. Vibe sends" forward: hand the choices to the main
+  // window now, so a link on the Join step sends them before anything else.
+  if (currentStep === SEND_STEP && step > SEND_STEP) sendPrivacyChoices();
   currentStep = step;
+  if (step === JOIN_STEP) renderJoinSummary();
 
   // Update panels
   document.querySelectorAll('.step-panel').forEach(p => {
@@ -816,8 +842,87 @@ function renderSigninState() {
     if (inBox)  inBox.style.display  = 'none';
     if (waiting) waiting.style.display = 'none';
   }
-  renderWhatDrVibeSees(document.getElementById('join-what-sees'), { linked: isSignedIn });
+  const syncBox = document.getElementById('join-sync-choice');
+  if (syncBox) syncBox.style.display = isSignedIn ? '' : 'none';
   updateFooterForStep(currentStep);
+}
+
+// ── Privacy steps ──
+
+/** The privacy section values the wizard shows (send choices of store 'privacy'). */
+function privacyValues() {
+  return buildPrivacyBody(Object.fromEntries(
+    SEND_CHOICES.filter(c => c.store === 'privacy').map(c => [c.key, choices[c.key]]),
+  ));
+}
+
+function sendPrivacyChoices() {
+  try {
+    // force: the whole body goes out as an explicit choice, defaults included.
+    window.__TAURI__?.event?.emitTo?.('main', 'privacy-changed', { ...privacyValues(), force: true })?.catch?.(() => {});
+    privacySentEarly = true;
+  } catch { /* main window not ready */ }
+}
+
+function watchDisabled(c, values) {
+  if (c.needsClaude && !claudePresent) return true;
+  return !!c.requires && !values[c.requires];
+}
+
+function initPrivacySteps() {
+  const watch = WATCH_CHOICES.filter(c => !c.needsClaude || claudePresent);
+  updateWatchChoices = renderChoices(document.getElementById('watch-choices'), watch, choices, (key, value) => {
+    choices[key] = value;
+    // Turning Claude Code on offers its repos too; off switches them off.
+    if (key === 'claudeCodeHooksEnabled') choices.trackClaudeRepos = value;
+    updateWatchChoices(choices);
+  }, { variant: 'wizard', disabled: watchDisabled });
+  updateSendChoices = renderChoices(document.getElementById('send-choices'), SEND_CHOICES, choices, (key, value) => {
+    choices[key] = value;
+  }, { variant: 'wizard' });
+  updateSyncChoice = renderChoices(document.getElementById('join-sync-choice'), [SYNC_CHOICE], choices, (key, value) => {
+    choices[key] = value;
+  }, { variant: 'wizard' });
+
+  document.getElementById('btn-sends-details')?.addEventListener('click', (e) => {
+    const box = document.getElementById('sends-details');
+    if (!box) return;
+    const open = box.style.display === 'none';
+    if (open) renderWhatDrVibeSees(box, { linked: isSignedIn });
+    box.style.display = open ? '' : 'none';
+    e.target.textContent = open ? 'Hide details' : 'See details';
+  });
+  document.getElementById('btn-join-outbox')?.addEventListener('click', requestOutbox);
+  window.__TAURI__?.event?.listen?.('outbox-data', (e) => {
+    const pre = document.getElementById('join-outbox');
+    if (!pre || e?.payload?.for !== 'setup-wizard') return;
+    pre.style.display = '';
+    pre.textContent = JSON.stringify(e.payload.sync ?? { note: 'Not available in browser mode.' }, shortenLong, 2);
+  })?.catch?.(() => {});
+}
+
+/** Long strings (a custom sprite) are shortened for reading. */
+function shortenLong(_k, val) {
+  return typeof val === 'string' && val.length > 200 ? `${val.slice(0, 60)}… (${val.length - 60} more characters)` : val;
+}
+
+function requestOutbox() {
+  // The main window builds it with the same code as the real sync.
+  sendPrivacyChoices();
+  const pre = document.getElementById('join-outbox');
+  if (pre) { pre.style.display = ''; pre.textContent = 'Building…'; }
+  setTimeout(() => {
+    window.__TAURI__?.event?.emitTo?.('main', 'outbox-request', { for: 'setup-wizard' })?.catch?.(() => {});
+  }, 300);
+}
+
+/** "What you chose to send", with a Change link back to the step. */
+function renderJoinSummary() {
+  const el = document.getElementById('join-summary');
+  if (!el) return;
+  const items = SEND_CHOICES.map(c => `${c.label}: <b>${describeValue(c, choices[c.key])}</b>`);
+  el.innerHTML = `${items.join('<br>')}<br><button class="link-btn" id="btn-join-change" type="button">Change</button>`;
+  document.getElementById('btn-join-change')?.addEventListener('click', () => goToStep(SEND_STEP));
 }
 
 async function checkProfileSignedIn() {
@@ -908,6 +1013,13 @@ async function finishWizard() {
 
   const merged = {
     ...existing,
+    // Privacy choices (steps 4 and 6, and Sync on the Join step)
+    gitTrackingEnabled: choices.gitTrackingEnabled,
+    claudeCodeHooksEnabled: claudePresent && choices.claudeCodeHooksEnabled,
+    trackClaudeRepos: claudePresent && choices.claudeCodeHooksEnabled && choices.trackClaudeRepos,
+    hideWhenPresenting: choices.hideWhenPresenting,
+    shareWeeklyRecap: choices.shareWeeklyRecap,
+    syncEnabled: choices.syncEnabled,
     selectedSkin,
     selectedSkinTone,
     characterScale,
@@ -932,10 +1044,19 @@ async function finishWizard() {
   // Mark setup complete
   await writeSection('setupWizard', { completed: true });
 
-  // Notify main window
+  // Crash reports: Rust owns the switch. Flushing waits for setup to complete.
+  try {
+    await window.__TAURI__?.core?.invoke?.('error_reports_set_enabled', { enabled: !!choices.errorReports });
+  } catch (e) {
+    console.log('Could not set crash reports:', e);
+  }
+
+  // Notify main window: settings, then the privacy body as an explicit
+  // choice, then completion (main installs hooks and syncs only now).
   try {
     const { emitTo } = window.__TAURI__.event;
     await emitTo('main', 'settings-saved', merged);
+    await emitTo('main', 'privacy-changed', { ...privacyValues(), force: true });
     await emitTo('main', 'setup-wizard-completed', { completed: true });
   } catch (e) {
     console.log('Could not notify main window:', e);
@@ -948,6 +1069,12 @@ async function finishWizard() {
 async function skipWizard() {
   // Mark setup complete without changing any settings, and undo the live preview
   if (previewSnapshot) await previewOnDesktop(previewSnapshot);
+  // Choices handed over early go back to what they were (defaults on a first run).
+  if (privacySentEarly && privacyBefore) {
+    try {
+      await window.__TAURI__?.event?.emitTo?.('main', 'privacy-changed', { ...privacyBefore });
+    } catch { /* main window gone */ }
+  }
   await writeSection('setupWizard', { completed: true });
 
   try {
@@ -969,7 +1096,13 @@ function closeWindow() {
 // ── Load existing settings (if any) ──
 
 async function loadExistingSettings() {
+  // "Run setup again" shows the current privacy choices.
+  const privacy = buildPrivacyBody({ ...PRIVACY_DEFAULTS, ...((await readSection('privacy'))?.settings || {}) });
+  privacyBefore = privacy;
+  errorReportsBefore = await window.__TAURI__?.core?.invoke?.('error_reports_get_enabled').then(v => v === true).catch(() => false) ?? false;
+  claudePresent = await window.__TAURI__?.core?.invoke?.('claude_code_present').then(v => v === true).catch(() => false) ?? false;
   const saved = await readSection('settings');
+  choices = wizardDefaults({ settings: saved || {}, privacy, errorReports: errorReportsBefore });
   if (!saved) return;
 
   if (saved.selectedSkin) selectedSkin = saved.selectedSkin;
@@ -1168,10 +1301,15 @@ async function init() {
     renderProjectFolders();
   });
 
-  // Step 4: Wellness
+  // Step 5: Wellness
   await safe('wellness', async () => {
     syncWellnessUI();
     initBreakModeCards();
+  });
+
+  // Steps 4, 6 and the Join step's Sync switch
+  await safe('privacy', async () => {
+    initPrivacySteps();
   });
 }
 

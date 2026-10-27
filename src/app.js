@@ -360,8 +360,13 @@ class App {
         settings: this.settings,
         invoke: tauri.isAvailable ? (cmd, args) => tauri.invoke(cmd, args) : null,
       });
-      eventBus.on(Events.TRACKING_PAUSED, () => this._setTrackersPaused(true));
-      eventBus.on(Events.TRACKING_RESUMED, () => this._setTrackersPaused(false));
+      // Settings → Privacy shows the state.
+      const tellSettings = () => {
+        window.__TAURI__?.event?.emitTo?.('settings', 'tracking-pause-state', { until: this.trackingPause.paused ? this.trackingPause.until : null })?.catch?.(() => {});
+      };
+      eventBus.on(Events.TRACKING_PAUSED, () => { this._setTrackersPaused(true); tellSettings(); });
+      eventBus.on(Events.TRACKING_RESUMED, () => { this._setTrackersPaused(false); tellSettings(); });
+      window.__TAURI__?.event?.listen?.('request-pause-state', tellSettings);
       this.trackingPause.init();
       tauri.window?.listen?.('pause-tracking', (e) => {
         const mode = e?.payload?.mode;
@@ -715,6 +720,30 @@ class App {
         this._syncProfile().catch(() => {});
       });
 
+      // Settings → Privacy and the setup wizard's Join step: "What will be
+      // sent next", built here with the same code as the real sends.
+      tauri.window.listen('outbox-request', async (event) => {
+        const target = event.payload?.for === 'setup-wizard' ? 'setup-wizard' : 'settings';
+        const outbox = await this._buildOutbox().catch((e) => ({ error: String(e) }));
+        window.__TAURI__?.event?.emitTo?.(target, 'outbox-data', { for: target, ...outbox })?.catch?.(() => {});
+      });
+
+      // The first weekly recap card was looked at and approved (Settings → Privacy).
+      tauri.window.listen('recap-approve', () => {
+        this.weeklyRecap?.approve().catch(() => {});
+      });
+
+      // Settings → Privacy → Your local data.
+      tauri.window.listen('local-data', async (event) => {
+        const action = event.payload?.action;
+        const reply = (r) => window.__TAURI__?.event?.emitTo?.('settings', 'local-data-result', { action, ...r })?.catch?.(() => {});
+        try {
+          reply({ ok: true, ...(await this._localDataAction(action)) });
+        } catch (e) {
+          reply({ ok: false, error: String(e?.message || e) });
+        }
+      });
+
       // Community engagement events from settings/deep links
       tauri.window.listen('community-account-connected', (event) => {
         eventBus.emit(Events.COMMUNITY_ACCOUNT_CONNECTED, event.payload || {});
@@ -913,6 +942,14 @@ class App {
         } catch {}
       };
       eventBus.on(Events.POLL_STATUS, broadcastSyncStatus);
+      // The first recap waits for a look at its card (Settings → Privacy).
+      eventBus.on(Events.RECAP_NEEDS_APPROVAL, () => {
+        this.notifier?.send(
+          'Your first weekly recap is ready',
+          'Have a look at its card before it is posted: Settings → Privacy → What will be sent next.',
+          'community',
+        );
+      });
       // Replay current state when the Settings window asks (it does so on load).
       window.__TAURI__?.event?.listen?.('request-sync-status', () => {
         broadcastSyncStatus(this._latestSyncStatus);
@@ -1822,6 +1859,53 @@ class App {
     this.celebrationSystem?.destroy();
     this.celebrationEffect?.destroy();
     this.resumeSuggester?.destroy();
+  }
+
+  /**
+   * The Outbox: the next sync body (sync.rs preview_sync_payload, the same
+   * builder as the real sync), the queued activity events and the next
+   * weekly recap. Crash reports are read by the Settings window itself.
+   */
+  async _buildOutbox() {
+    const sync = tauri.isAvailable
+      ? await tauri.invoke('preview_sync_payload', { transient: this._syncTransient() }).catch(() => null)
+      : null;
+    return {
+      linked: accountState.linked,
+      syncEnabled: syncSwitch.enabled,
+      sync,
+      events: economyClient.pendingEvents(),
+      recap: (await this.weeklyRecap?.preview().catch(() => null)) ?? null,
+      recapApproved: this.weeklyRecap?.approved ?? false,
+    };
+  }
+
+  /** Export, forget and wipe for Settings → Privacy → Your local data. */
+  async _localDataAction(action) {
+    switch (action) {
+      case 'export':
+        await db.saveNow();
+        return { path: await tauri.invoke('export_local_data') };
+      case 'forget-projects':
+        this.sessionTracker?.forgetProjects();
+        if (this.sessionTracker) this.sessionTracker.currentProject = null;
+        await db.saveNow();
+        return {};
+      case 'forget-repos':
+        this.trackedRepos?.forget();
+        await db.saveNow();
+        return {};
+      case 'wipe':
+        // Stop writing first, so nothing is saved back after the wipe.
+        this.trackingPause?.destroy();
+        this.activityMonitor?.stop();
+        db.wipe();
+        await tauri.invoke('wipe_local_data');
+        tauri.invoke('restart_app').catch(() => {});
+        return {};
+      default:
+        throw new Error(`unknown action ${action}`);
+    }
   }
 
   /** Stops (or restarts) everything that watches the computer, for Pause tracking. */
