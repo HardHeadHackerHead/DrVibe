@@ -454,6 +454,8 @@ pub(crate) fn build(app: &tauri::App) -> tauri::Result<()> {
                         false,
                     );
                 }
+                // Dev builds only: release builds have no devtools at all.
+                #[cfg(debug_assertions)]
                 "devtools" => {
                     if let Some(window) = app.get_webview_window("main") {
                         window.open_devtools();

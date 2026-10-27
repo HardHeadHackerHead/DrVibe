@@ -31,49 +31,63 @@ pub(crate) fn last_input_age_ms() -> Option<u64> {
     last_input_age_ms_impl()
 }
 
+/// Editors and terminals by executable name (lowercase, no `.exe`). Exact
+/// names, not substrings: "Cloudflare WARP" or "Hyper-V Manager" are not
+/// coding apps, and their window titles must not feed project detection.
+pub(crate) const CODING_EXES: &[&str] = &[
+    "code",
+    "code - insiders",
+    "codium",
+    "devenv",
+    "cursor",
+    "anti-gravity",
+    "antigravity",
+    "zed",
+    "sublime_text",
+    "idea",
+    "idea64",
+    "webstorm",
+    "webstorm64",
+    "pycharm",
+    "pycharm64",
+    "goland",
+    "goland64",
+    "rider",
+    "rider64",
+    "clion",
+    "clion64",
+    "datagrip",
+    "datagrip64",
+    "rustrover",
+    "rustrover64",
+    "vim",
+    "gvim",
+    "nvim",
+    "nvim-qt",
+    "neovide",
+    "emacs",
+    "runemacs",
+    "terminal",
+    "iterm2",
+    "alacritty",
+    "kitty",
+    "wezterm-gui",
+    "warp",
+    "hyper",
+    "windowsterminal",
+    "wt",
+    "powershell",
+    "pwsh",
+    "cmd",
+    "claude",
+];
+
 // Check if the given app name is a coding application
 #[tauri::command]
 pub(crate) fn is_coding_app(app_name: String) -> bool {
-    let coding_apps = [
-        "code",
-        "visual studio",
-        "cursor",
-        "anti-gravity",
-        "antigravity",
-        "zed",
-        "sublime",
-        "intellij",
-        "webstorm",
-        "pycharm",
-        "goland",
-        "rider",
-        "clion",
-        "datagrip",
-        "rustrover",
-        "vim",
-        "nvim",
-        "neovim",
-        "emacs",
-        "terminal",
-        "iterm",
-        "alacritty",
-        "kitty",
-        "warp",
-        "hyper",
-        "windowsterminal",
-        "powershell",
-        "cmd",
-    ];
-
-    let lower_name = app_name.to_lowercase();
-
-    for app in coding_apps.iter() {
-        if lower_name.contains(app) {
-            return true;
-        }
-    }
-
-    false
+    let lower = app_name.trim().to_lowercase();
+    let exe = lower.strip_suffix(".exe").unwrap_or(&lower);
+    CODING_EXES.contains(&exe)
 }
 
 /// A native question with a custom OK button and Cancel; false when
@@ -370,6 +384,8 @@ mod tests {
             "nvim",
             "Zed",
             "RustRover64",
+            "Code.exe",
+            "pwsh",
         ] {
             assert!(
                 is_coding_app(app.to_string()),
@@ -380,7 +396,18 @@ mod tests {
 
     #[test]
     fn ignores_everyday_apps() {
-        for app in ["chrome", "Spotify", "Slack", "explorer", "Discord"] {
+        for app in [
+            "chrome",
+            "Spotify",
+            "Slack",
+            "explorer",
+            "Discord",
+            "Cloudflare WARP",
+            "Hyper-V Manager",
+            "lxcmdagent",
+            "VSCodeSetup",
+            "unicode-viewer",
+        ] {
             assert!(
                 !is_coding_app(app.to_string()),
                 "{app} should not count as coding"

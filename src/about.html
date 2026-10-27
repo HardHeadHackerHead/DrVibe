@@ -539,8 +539,13 @@
             btn.textContent = 'Check for Updates';
             break;
           case 'update_available':
-            statusEl.textContent = `v${version} available — downloading...`;
+            statusEl.textContent = `v${version} available — see the question to install it.`;
             statusEl.classList.add('success');
+            break;
+          case 'declined':
+            statusEl.textContent = `v${version} not installed. Check again any time.`;
+            btn.disabled = false;
+            btn.textContent = 'Check for Updates';
             break;
           case 'restarting':
             statusEl.textContent = 'Restarting...';

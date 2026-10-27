@@ -149,6 +149,18 @@ export const DEFAULT_SETTINGS = {
   devServerOverride: 'auto',
 };
 
+// Executable names of coding apps listed under another name.
+const CODING_APP_EXES = {
+  'visual studio': ['devenv'],
+  'intellij': ['idea'],
+  'sublime text': ['sublime_text'],
+  'windows terminal': ['windowsterminal', 'wt'],
+  'iterm': ['iterm2'],
+  'powershell': ['pwsh'],
+  'emacs': ['runemacs'],
+  'vim': ['gvim'],
+};
+
 // Default coding apps already offered to this profile. load() backfills only
 // defaults missing from this list, so an app the user removed stays removed.
 DEFAULT_SETTINGS.codingAppsOffered = [...DEFAULT_SETTINGS.codingApps];
@@ -391,10 +403,21 @@ export class Settings {
     return out;
   }
 
+  /**
+   * Whether the app in front (its executable name) is one of the coding
+   * apps: the same name, or the name followed by a version or variant
+   * ("pycharm64", "Code - Insiders", "godot_v4"). Not any name that merely contains it,
+   * so "Cloudflare WARP" is not Warp and "lxcmdagent" is not cmd.
+   */
   isCodingApp(appName) {
     if (!appName) return false;
-    const lowerName = appName.toLowerCase();
-    return this.codingApps.some(app => lowerName.includes(app.toLowerCase()));
+    const exe = String(appName).trim().toLowerCase().replace(/\.exe$/, '');
+    return this.codingApps.some((app) => {
+      const name = String(app).trim().toLowerCase();
+      if (!name) return false;
+      return [name, ...(CODING_APP_EXES[name] || [])].some((n) =>
+        exe === n || (exe.startsWith(n) && /^[\d\s_.]/.test(exe.slice(n.length))));
+    });
   }
 
   addCodingApp(appName) {

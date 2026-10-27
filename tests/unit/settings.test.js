@@ -81,3 +81,16 @@ describe('coding app backfill', () => {
     expect(s.codingApps).not.toContain('Zed');
   });
 });
+
+describe('coding apps', () => {
+  it('match the app by its executable name, not any name containing it', async () => {
+    const { Settings } = await import('../../src/features/settings/Settings.js');
+    const s = new Settings();
+    for (const exe of ['Code', 'Code.exe', 'Code - Insiders', 'pycharm64', 'WindowsTerminal', 'devenv', 'idea64', 'sublime_text', 'pwsh', 'cmd']) {
+      expect(s.isCodingApp(exe), exe).toBe(true);
+    }
+    for (const exe of ['Cloudflare WARP', 'Hyper-V Manager', 'lxcmdagent', 'VSCodeSetup', 'chrome', 'Discord', '']) {
+      expect(s.isCodingApp(exe), exe).toBe(false);
+    }
+  });
+});

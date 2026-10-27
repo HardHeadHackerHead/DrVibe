@@ -29,6 +29,14 @@ describe('content security policy', () => {
     expect(csp['connect-src']).toContain("'self'");
   });
 
+  it('loads images only from drvibe.io, its CDN and the avatar hosts', () => {
+    const remote = csp['img-src'].split(/\s+/).filter((s) => /^https?:/.test(s) && !/asset\.localhost/.test(s));
+    expect(remote.sort()).toEqual([
+      'https://avatars.githubusercontent.com', 'https://cdn.discordapp.com', 'https://cdn.drvibe.io', 'https://drvibe.io',
+    ]);
+    expect(csp['img-src'].split(/\s+/)).not.toContain('https:');
+  });
+
   it('only talks to drvibe.io in release builds', () => {
     const remote = csp['connect-src'].split(/\s+/).filter((s) => s.startsWith('http') && !/localhost/.test(s));
     expect(remote.every((s) => /^https:\/\/(\*\.)?drvibe\.io$/.test(s))).toBe(true);
