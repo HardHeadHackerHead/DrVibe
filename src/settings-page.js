@@ -15,7 +15,7 @@ import { DEFAULT_SETTINGS } from './features/settings/Settings.js';
 import { getPresetsForSkin, getDefaultTone, getToneCategory, SKIN_TONE_CATEGORIES } from './config/skinTones.js';
 import { WEB_BASE as SITE_URL, IS_DEV, syncWebBaseFromRust } from './core/config.js';
 import { getErrorReportsEnabled, getQueuedErrorReports, installErrorReporter, setErrorReportsEnabled } from './core/errorReporter.js';
-import { WATCH_CHOICES, SEND_CHOICES, SYNC_CHOICE, renderChoices, choiceByKey } from './ui/privacyChoices.js';
+import { WATCH_CHOICES, SEND_CHOICES, WHO_CHOICES, SYNC_CHOICE, renderChoices, choiceByKey } from './ui/privacyChoices.js';
 import { isPaused, pauseLabel } from './features/privacy/TrackingPause.js';
 import { makeUrl } from './features/make/makeHub.js';
 import { formatAgo, visibleRepos, trackedSummary, repoTag } from './ui/foundRepos.js';
@@ -1175,18 +1175,33 @@ function updateTrackClaudeDesc() {
   const hooksOn = els.claudeHooksEnabled()?.checked === true;
   const input = els.trackClaudeRepos();
   if (input) input.disabled = !hooksOn;
+  document.getElementById('track-claude-repos-row')?.classList.toggle('is-disabled', !hooksOn);
   if (!desc) return;
+  const c = choiceByKey('trackClaudeRepos');
   desc.textContent = !hooksOn
-    ? `${choiceByKey('trackClaudeRepos').help} Repos in your project folders below (and the project in your editor, while you use it) are tracked either way.`
+    ? `${c.short} Needs Follow Claude Code.`
     : input?.checked
-      ? `${choiceByKey('trackClaudeRepos').help} Remembered repos are forgotten after 90 days without Claude Code. Temp, app-data and system folders are never tracked. Paths stay on this computer.`
-      : 'Off: only the repos in your project folders below (and the project in your editor, while you use it) are tracked.';
+      ? `${c.short} Forgotten after 90 days without Claude Code; never temp, app-data or system folders.`
+      : 'Off: only the repos in your project folders (and the project in your editor, while you use it) are tracked.';
 }
 
 /** Tracking-tab labels and help from ui/privacyChoices.js, the wizard's wording. */
 function applyChoiceWording() {
   document.querySelectorAll('[data-choice-label]').forEach(el => { el.textContent = choiceByKey(el.dataset.choiceLabel)?.label ?? el.textContent; });
-  document.querySelectorAll('[data-choice-help]').forEach(el => { el.textContent = choiceByKey(el.dataset.choiceHelp)?.help ?? ''; });
+  document.querySelectorAll('[data-choice-help]').forEach(el => {
+    const c = choiceByKey(el.dataset.choiceHelp);
+    if (!c) return;
+    el.textContent = c.short || c.help;
+    if (c.short && c.help !== c.short) {
+      const more = document.createElement('details');
+      more.className = 'choice-more';
+      more.innerHTML = '<summary>More</summary>';
+      const body = document.createElement('div');
+      body.textContent = c.help;
+      more.appendChild(body);
+      el.appendChild(more);
+    }
+  });
 }
 
 function trackedRepoRow(repo, { ignored }) {
@@ -1256,9 +1271,10 @@ async function checkHooksStatus() {
   const btn = document.getElementById('hooks-install-btn');
   if (!statusEl) return;
   const enabled = els.claudeHooksEnabled()?.checked === true;
-  if (btn) btn.disabled = !enabled;
+  // Repairing only makes sense while the hooks are wanted.
+  if (btn) btn.hidden = !enabled;
   statusEl.style.color = 'var(--muted-2)';
-  if (!enabled) { statusEl.textContent = 'Off'; return; }
+  if (!enabled) { statusEl.textContent = 'Off: no Dr. Vibe hooks in Claude Code’s settings.'; return; }
   statusEl.textContent = 'Checking…';
   if (!invoke) { statusEl.textContent = 'Not available in browser mode.'; return; }
   try {
@@ -1289,7 +1305,7 @@ async function applyHooksSwitch(enabled) {
   const r = await applyClaudeHooksSetting(enabled, invoke);
   if (resultEl) {
     if (r.notFound) {
-      resultEl.textContent = 'Claude Code isn’t installed on this computer (no ~/.claude folder). Install it, then press Install / Fix.';
+      resultEl.textContent = 'Claude Code isn’t installed on this computer (no ~/.claude folder). Install it, then press Repair hooks.';
     } else if (r.error) {
       resultEl.textContent = enabled ? 'Install failed. Check that Claude Code is installed.' : 'Could not remove the hooks.';
       resultEl.style.color = '#f87171';
@@ -1621,7 +1637,10 @@ function updateConditionalRows() {
 
   const gitSubRows = els.gitTrackingSubRows();
   const gitTrackingOn = els.gitTrackingEnabled()?.checked ?? true;
-  if (gitSubRows) gitSubRows.style.display = gitTrackingOn ? '' : 'none';
+  if (gitSubRows) {
+    gitSubRows.classList.toggle('is-disabled', !gitTrackingOn);
+    gitSubRows.querySelectorAll('input, select').forEach((c) => { c.disabled = !gitTrackingOn; });
+  }
 
   const gitReminderSubRows = els.gitReminderSubRows();
   const gitRemindersOn = gitTrackingOn && (els.gitCommitReminders()?.checked ?? true);
@@ -2266,22 +2285,44 @@ function setupListeners() {
 // edits. The choices are worded in ui/privacyChoices.js, the same as in the
 // setup wizard.
 let updateSendChoices = () => {};
+let updateCrashChoice = () => {};
+let updateWhoChoices = () => {};
 let updateSyncChoice = () => {};
 let updateOnScreenChoices = () => {};
+// "Sync my stats" as shown; the send and visibility rows follow it.
+let syncShownOn = true;
+
+/** Why the send and visibility choices are greyed out, or null when they aren't. */
+function privacyGateReason() {
+  if (!apiToken) return 'Not linked: these apply once you join the community. Crash reports work either way.';
+  if (!syncShownOn) return 'Sync my stats is off: none of this is sent until you turn it back on.';
+  return null;
+}
+
+function renderPrivacyGate() {
+  const reason = privacyGateReason();
+  for (const id of ['privacy-gate-note', 'privacy-who-gate-note']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.hidden = !reason;
+    el.textContent = reason || '';
+  }
+  updateSendChoices();
+  updateWhoChoices();
+  updateSyncChoice();
+}
 
 async function loadPrivacyTab() {
   const saved = (await readSection('privacy')) || {};
   const settings = (await readSection('settings')) || {};
   const privacy = { ...PRIVACY_DEFAULTS, ...(saved.settings || {}) };
-  updateSendChoices({
-    ...privacy,
-    shareWeeklyRecap: settings.shareWeeklyRecap !== false,
-    errorReports: await getErrorReportsEnabled(),
-  });
-  updateSyncChoice({ syncEnabled: settings.syncEnabled !== false });
+  syncShownOn = settings.syncEnabled !== false;
+  updateSendChoices({ ...privacy, shareWeeklyRecap: settings.shareWeeklyRecap !== false });
+  updateWhoChoices(privacy);
+  updateCrashChoice({ errorReports: await getErrorReportsEnabled() });
+  updateSyncChoice({ syncEnabled: syncShownOn });
+  renderPrivacyGate();
   updateOnScreenChoices({ hideWhenPresenting: settings.hideWhenPresenting !== false });
-  const syncRow = document.getElementById('privacy-sync-choice');
-  if (syncRow) syncRow.title = apiToken ? '' : 'Applies once you join the community.';
   renderPrivacyStatus(saved.pending);
   renderWhatDrVibeSees(document.getElementById('privacy-what-sees'), { linked: !!apiToken });
 }
@@ -2289,7 +2330,7 @@ async function loadPrivacyTab() {
 function renderPrivacyStatus(pending) {
   const el = document.getElementById('privacy-status');
   if (!el) return;
-  if (!apiToken) el.textContent = 'Not linked: nothing is sent. These choices apply if you join the community; crash reports apply either way.';
+  if (!apiToken) el.textContent = 'Not linked: nothing is sent. Join the community in Account and community.';
   else if (!pending) el.textContent = '';
   else el.textContent = 'Saved here; sending to drvibe.io…';
 }
@@ -2388,7 +2429,8 @@ const LOCAL_DATA_DONE = {
 function setupPrivacyTab() {
   const tell = (event, payload = {}) => window.__TAURI__?.event?.emitTo?.('main', event, payload)?.catch?.(() => {});
 
-  updateSendChoices = renderChoices(document.getElementById('privacy-send-choices'), SEND_CHOICES, {}, async (key, value) => {
+  const gated = (c) => !c.always && !!privacyGateReason();
+  const onPrivacyChoice = async (key, value) => {
     const c = choiceByKey(key);
     if (c.store === 'privacy') {
       try {
@@ -2405,12 +2447,25 @@ function setupPrivacyTab() {
       } catch (err) {
         console.error('[privacy] crash report switch failed:', err);
       }
-      updateSendChoices({ errorReports: await getErrorReportsEnabled() });
+      updateCrashChoice({ errorReports: await getErrorReportsEnabled() });
     } else {
       debouncedSave();
     }
+  };
+  updateSendChoices = renderChoices(document.getElementById('privacy-send-choices'),
+    SEND_CHOICES.filter(c => !c.always), {}, onPrivacyChoice, { disabled: gated });
+  updateCrashChoice = renderChoices(document.getElementById('privacy-crash-choice'),
+    SEND_CHOICES.filter(c => c.always), {}, onPrivacyChoice);
+  updateWhoChoices = renderChoices(document.getElementById('privacy-who-choices'), WHO_CHOICES, {}, onPrivacyChoice, { disabled: gated });
+  updateSyncChoice = renderChoices(document.getElementById('privacy-sync-choice'), [SYNC_CHOICE], {}, (_key, value) => {
+    syncShownOn = value;
+    renderPrivacyGate();
+    debouncedSave();
+  }, { disabled: () => !apiToken });
+  document.getElementById('privacy-to-tracking')?.addEventListener('click', () => {
+    document.querySelector('.tab-btn[data-tab="tracking"]')?.click();
+    setTimeout(() => document.getElementById('tracking-pause-card')?.scrollIntoView({ block: 'start' }), 0);
   });
-  updateSyncChoice = renderChoices(document.getElementById('privacy-sync-choice'), [SYNC_CHOICE], {}, () => debouncedSave());
   updateOnScreenChoices = renderChoices(document.getElementById('privacy-onscreen-choices'),
     WATCH_CHOICES.filter(c => c.key === 'hideWhenPresenting'), {}, () => debouncedSave());
 

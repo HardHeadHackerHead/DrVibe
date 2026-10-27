@@ -405,6 +405,7 @@
     .project-folder-scanning { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
     .project-folder-none { font-size: 9px; color: var(--muted-2); font-style: italic; margin-top: 3px; }
     .project-folders-add { display: flex; gap: 6px; }
+    .project-folders-add input { flex: 1; min-width: 0; }
     /* ── Found repos ── */
     .found-repos-card { margin-bottom: 14px; }
     .found-repos-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
@@ -468,6 +469,21 @@
     .recap-card-stats { display: flex; gap: 14px; flex-wrap: wrap; }
     .recap-card-stats b { display: block; font-size: 14px; color: var(--text); }
     .choice-disabled { opacity: .45; }
+    .choice-disabled .toggle, .choice-disabled select { pointer-events: none; }
+    .choice-more { display: inline; margin-left: 4px; }
+    .choice-more summary { display: inline; cursor: pointer; color: var(--green-text, #6ee7b7); list-style: none; }
+    .choice-more summary::-webkit-details-marker { display: none; }
+    .choice-more[open] summary { color: var(--muted); }
+    .choice-more > div { margin-top: 3px; }
+    .choice-desc { margin: 0 0 10px; }
+    .privacy-gate-note { font-size: 11px; color: var(--text-2); background: var(--inset); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; margin-bottom: 10px; }
+    .privacy-divider { border-top: 1px solid var(--border); margin: 12px 0 10px; }
+    .privacy-explainer > summary { cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-2); }
+    .privacy-explainer[open] > summary { margin-bottom: 10px; }
+    .privacy-link { background: none; border: none; padding: 0; font: inherit; color: var(--green-text, #6ee7b7); text-decoration: underline; cursor: pointer; }
+    .sub-choice { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+    .is-disabled { opacity: .45; }
+    .is-disabled .toggle, .is-disabled select { pointer-events: none; }
     .privacy-last-sync { margin-top: 8px; }
     .privacy-last-sync-meta { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
     .privacy-last-sync pre {
@@ -1004,12 +1020,12 @@
           <div class="section-card">
             <div class="section-label" style="margin-top:0">App</div>
             <div class="toggle-row">
-              <span>Launch at Login</span>
+              <span>Launch at login</span>
               <label class="toggle"><input type="checkbox" id="auto-start-enabled"><span class="track"></span></label>
             </div>
             <div class="setting-row" style="margin-bottom:0">
-              <label style="color:var(--muted);font-size:11px">Re-run the first-run setup wizard</label>
-              <button id="open-setup-wizard-btn" style="background:var(--bg-input);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Setup Wizard ↗</button>
+              <label style="color:var(--muted);font-size:11px">Go through the setup and privacy choices again</label>
+              <button id="open-setup-wizard-btn" style="background:var(--bg-input);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Run setup again</button>
             </div>
           </div>
 
@@ -1036,7 +1052,7 @@
                   </div>
                 </div>
                 <div class="setting-row">
-                  <label for="break-mode">Break Mode</label>
+                  <label for="break-mode" style="white-space:nowrap">Break mode</label>
                   <select id="break-mode">
                     <option value="pomodoro" selected>Pomodoro — fixed intervals</option>
                     <option value="smart">Smart — based on activity</option>
@@ -1090,7 +1106,7 @@
                 <div class="section-label">Body</div>
                 <div class="desc-toggle-row">
                   <div class="desc-toggle-row-info">
-                    <div class="desc-toggle-row-name">Eye Care</div>
+                    <div class="desc-toggle-row-name">Eye care</div>
                     <div class="desc-toggle-row-desc">Look away 20 sec every 20 min to reduce eye strain</div>
                   </div>
                   <label class="toggle"><input type="checkbox" id="eye-strain-enabled" checked><span class="track"></span></label>
@@ -1125,7 +1141,7 @@
                 </div>
                 <div class="desc-toggle-row">
                   <div class="desc-toggle-row-info">
-                    <div class="desc-toggle-row-name">Stuck Detection</div>
+                    <div class="desc-toggle-row-name">Stuck detection</div>
                     <div class="desc-toggle-row-desc">Nudges you when you've been spinning your wheels too long</div>
                   </div>
                   <label class="toggle"><input type="checkbox" id="stuck-detection" checked><span class="track"></span></label>
@@ -1140,14 +1156,14 @@
                 <div class="section-label">Balance</div>
                 <div class="desc-toggle-row">
                   <div class="desc-toggle-row-info">
-                    <div class="desc-toggle-row-name">Work-Life Balance</div>
+                    <div class="desc-toggle-row-name">Work-life balance</div>
                     <div class="desc-toggle-row-desc">Gentle reminders to step away and recharge</div>
                   </div>
                   <label class="toggle"><input type="checkbox" id="boundary-awareness" checked><span class="track"></span></label>
                 </div>
                 <div class="wellness-card" style="margin-bottom:0">
                   <div class="wcard-header">
-                    <div class="wcard-info"><div class="wcard-name">Celebrate Wins</div><div class="wcard-desc">Recognition and encouragement for your progress</div></div>
+                    <div class="wcard-info"><div class="wcard-name">Celebrate wins</div><div class="wcard-desc">Recognition and encouragement for your progress</div></div>
                     <label class="toggle"><input type="checkbox" id="encouragement-enabled" checked><span class="track"></span></label>
                   </div>
                   <div class="wcard-footer">
@@ -1162,72 +1178,30 @@
 
         <!-- ══════════ TRACKING ══════════ -->
         <div id="panel-tracking" class="tab-panel">
-          <div class="panel-cols">
 
-            <div class="panel-col">
-              <div class="section-label">Coding Apps</div>
-              <div class="section-desc">Apps counted as active coding time</div>
-              <div id="coding-apps-list" class="coding-apps-list"></div>
-              <div class="coding-apps-add">
-                <input type="text" id="coding-app-input" placeholder="App name…">
-                <button id="coding-app-add-btn">Add</button>
-              </div>
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Git tracking</div>
+            <div class="toggle-row" style="margin-bottom:2px">
+              <span style="font-weight:600;color:var(--text-2)" data-choice-label="gitTrackingEnabled">Git tracking</span>
+              <label class="toggle"><input type="checkbox" id="git-tracking-enabled" checked><span class="track"></span></label>
             </div>
-
-            <div class="panel-col">
-              <div class="section-label">Git Repos</div>
-              <div class="section-card found-repos-card">
-                <div class="toggle-row" style="margin-bottom:6px">
-                  <span style="font-weight:600;color:var(--text-2)" data-choice-label="trackClaudeRepos">Also track the repos Claude Code works in</span>
-                  <label class="toggle"><input type="checkbox" id="track-claude-repos"><span class="track"></span></label>
-                </div>
-                <div id="track-claude-repos-desc" class="section-desc" style="margin:0 0 10px">Repos where Claude Code starts a session or edits files are tracked and remembered, plus the repos in your project folders below. Temp, app-data and system folders never are. Paths stay on this computer.</div>
-                <div class="found-repos-head">
-                  <span id="found-repos-summary">Loading…</span>
-                </div>
-                <div id="found-repos-list" class="found-repos-list"></div>
-                <div id="ignored-repos-wrap" class="ignored-repos" hidden>
-                  <div id="ignored-repos-summary" class="git-group-label">Ignored</div>
-                  <div id="ignored-repos-list" class="found-repos-list"></div>
-                </div>
-              </div>
-              <div class="section-label">Project Folders</div>
-              <div class="section-desc">Repos here are tracked too: a folder that is a repo, or the repos directly inside it</div>
-              <div id="project-folders-list" class="project-folders-list"></div>
-              <div class="project-folders-add" style="flex-direction:column;gap:5px">
-                <input type="text" id="project-folder-input" placeholder="Or paste a folder path…" style="width:100%">
-                <div style="display:flex;gap:5px">
-                  <button id="project-folder-browse-btn" class="browse-btn" style="flex:1">Browse…</button>
-                  <button id="project-folder-add-btn" class="add-btn" style="flex:1">Add Path</button>
-                </div>
-              </div>
-              <div class="section-label">Claude Code</div>
-              <div class="section-card" style="margin-bottom:14px">
-                <div class="toggle-row" style="margin-bottom:6px">
-                  <span style="font-weight:600;color:var(--text-2)" data-choice-label="claudeCodeHooksEnabled">Follow Claude Code</span>
-                  <label class="toggle"><input type="checkbox" id="claude-hooks-enabled"><span class="track"></span></label>
-                </div>
-                <div class="section-desc" style="margin-bottom:10px" data-choice-help="claudeCodeHooksEnabled"></div>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                  <span id="hooks-status" style="font-size:11px;color:var(--muted-2)">Checking…</span>
-                  <button id="hooks-install-btn" class="browse-btn">Install / Fix</button>
-                </div>
-                <div id="hooks-result" style="font-size:10px;color:var(--muted-2);margin-top:6px;min-height:14px"></div>
-              </div>
-              <div class="section-label">Git Tracking</div>
-              <div class="toggle-row" style="margin-bottom:10px">
-                <span style="font-weight:600;color:var(--text-2)" data-choice-label="gitTrackingEnabled">Git tracking</span>
-                <label class="toggle"><input type="checkbox" id="git-tracking-enabled" checked><span class="track"></span></label>
-              </div>
-              <div id="git-tracking-sub-rows">
+            <div class="section-desc choice-desc" data-choice-help="gitTrackingEnabled"></div>
+            <div id="git-tracking-sub-rows" class="inner-cols">
+              <div>
                 <div class="git-group">
                   <div class="git-group-label">Notifications</div>
                   <div class="sub-row"><span>Commits</span><label class="toggle"><input type="checkbox" id="git-commit-notifications" checked><span class="track"></span></label></div>
-                  <div class="sub-row"><span>Branch Changes</span><label class="toggle"><input type="checkbox" id="git-branch-notifications" checked><span class="track"></span></label></div>
+                  <div class="sub-row"><span>Branch changes</span><label class="toggle"><input type="checkbox" id="git-branch-notifications" checked><span class="track"></span></label></div>
                 </div>
                 <div class="git-group">
+                  <div class="git-group-label">Polling</div>
+                  <div class="sub-row"><span>Check every</span><select id="git-poll-interval" class="freq-select"><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option></select></div>
+                </div>
+              </div>
+              <div>
+                <div class="git-group">
                   <div class="git-group-header">
-                    <div class="git-group-label">Commit Reminders</div>
+                    <div class="git-group-label">Commit reminders</div>
                     <label class="toggle"><input type="checkbox" id="git-commit-reminders" checked><span class="track"></span></label>
                   </div>
                   <div id="git-reminder-sub-rows">
@@ -1235,14 +1209,78 @@
                     <div class="sub-row"><span>Min changes</span><select id="git-reminder-min-changes" class="freq-select"><option value="1">1</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10</option></select></div>
                   </div>
                 </div>
-                <div class="git-group">
-                  <div class="git-group-label">Polling</div>
-                  <div class="sub-row"><span>Check every</span><select id="git-poll-interval" class="freq-select"><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option></select></div>
-                </div>
               </div>
             </div>
-
           </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Project folders</div>
+            <div class="section-desc">Repos here are tracked: a folder that is a repo, or the repos directly inside it.</div>
+            <div id="project-folders-list" class="project-folders-list"></div>
+            <div class="project-folders-add">
+              <input type="text" id="project-folder-input" placeholder="Or paste a folder path…">
+              <button id="project-folder-browse-btn" class="browse-btn">Browse…</button>
+              <button id="project-folder-add-btn" class="add-btn">Add path</button>
+            </div>
+            <div class="found-repos-card">
+              <div class="git-group-label" style="margin-top:10px">Tracked repos</div>
+              <div class="found-repos-head">
+                <span id="found-repos-summary">Loading…</span>
+              </div>
+              <div id="found-repos-list" class="found-repos-list"></div>
+              <div id="ignored-repos-wrap" class="ignored-repos" hidden>
+                <div id="ignored-repos-summary" class="git-group-label">Ignored</div>
+                <div id="ignored-repos-list" class="found-repos-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Claude Code</div>
+            <div class="toggle-row" style="margin-bottom:2px">
+              <span style="font-weight:600;color:var(--text-2)" data-choice-label="claudeCodeHooksEnabled">Follow Claude Code</span>
+              <label class="toggle"><input type="checkbox" id="claude-hooks-enabled"><span class="track"></span></label>
+            </div>
+            <div class="section-desc choice-desc" data-choice-help="claudeCodeHooksEnabled"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span id="hooks-status" style="font-size:11px;color:var(--muted-2)">Checking…</span>
+              <button id="hooks-install-btn" class="browse-btn" title="Puts Dr. Vibe's hooks back in Claude Code's settings if they went missing">Repair hooks</button>
+            </div>
+            <div id="hooks-result" style="font-size:10px;color:var(--muted-2);margin-top:4px;min-height:12px"></div>
+            <div id="track-claude-repos-row" class="sub-choice">
+              <div class="toggle-row" style="margin-bottom:2px">
+                <span data-choice-label="trackClaudeRepos">Also track the repos Claude Code works in</span>
+                <label class="toggle"><input type="checkbox" id="track-claude-repos"><span class="track"></span></label>
+              </div>
+              <div id="track-claude-repos-desc" class="section-desc" style="margin:0"></div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-label" style="margin-top:0">Coding apps</div>
+            <div class="section-desc">Apps whose window in front counts as coding time.</div>
+            <div id="coding-apps-list" class="coding-apps-list"></div>
+            <div class="coding-apps-add">
+              <input type="text" id="coding-app-input" placeholder="App name…">
+              <button id="coding-app-add-btn">Add</button>
+            </div>
+          </div>
+
+          <div class="section-card" id="tracking-pause-card">
+            <div class="section-label" style="margin-top:0">Pause tracking</div>
+            <div class="setting-row" style="margin-bottom:6px">
+              <label id="pause-status">Tracking is on</label>
+              <button id="pause-resume-btn" class="privacy-btn" style="display:none">Resume tracking</button>
+            </div>
+            <div id="pause-buttons" style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="privacy-btn" data-pause="1h">Pause for 1 hour</button>
+              <button class="privacy-btn" data-pause="tomorrow">Until tomorrow</button>
+              <button class="privacy-btn" data-pause="manual">Until I resume</button>
+            </div>
+            <div class="section-desc" style="margin:8px 0 12px">Stops reading window titles, watching folders, polling git and reading the Claude Code log. Also in the tray menu.</div>
+            <div id="privacy-onscreen-choices"></div>
+          </div>
+
         </div><!-- /panel-tracking -->
 
         <!-- ══════════ BEHAVIOR ══════════ -->
@@ -1252,24 +1290,24 @@
             <div class="panel-col">
               <div class="section-label">Sound</div>
               <div class="section-desc">Sounds Dr. Vibe makes as you code</div>
-              <div class="toggle-row"><span>Reaction Sounds</span><label class="toggle"><input type="checkbox" id="sound-reactions-enabled"><span class="track"></span></label></div>
-              <div class="toggle-row"><span>Talking Sounds</span><label class="toggle"><input type="checkbox" id="sound-talk-enabled"><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Reaction sounds</span><label class="toggle"><input type="checkbox" id="sound-reactions-enabled"><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Talking sounds</span><label class="toggle"><input type="checkbox" id="sound-talk-enabled"><span class="track"></span></label></div>
               <div class="sub-row" id="sound-volume-row" style="display:none">
                 <span>Volume</span>
                 <select id="sound-volume"><option value="10">10%</option><option value="25">25%</option><option value="50" selected>50%</option><option value="75">75%</option><option value="100">100%</option></select>
               </div>
               <div class="sub-row" id="sound-talk-voice-row" style="display:none">
-                <span>Voice Style</span>
+                <span>Voice style</span>
                 <select id="sound-talk-voice"><option value="mumble" selected>Mumble</option><option value="squeaky">Squeaky</option><option value="gruff">Gruff</option><option value="alien">Alien</option><option value="robot">Robot</option><option value="mystic">Mystic</option><option value="hyper">Hyper</option><option value="retro">Retro</option></select>
               </div>
               <div class="section-label">Suggestions</div>
               <div class="section-desc">Contextual tips and resources from Dr. Vibe</div>
-              <div class="toggle-row"><span>Resume Suggestions</span><label class="toggle"><input type="checkbox" id="resume-suggestions" checked><span class="track"></span></label></div>
-              <div class="toggle-row"><span>Learning Resources</span><label class="toggle"><input type="checkbox" id="learning-resources"><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Resume suggestions</span><label class="toggle"><input type="checkbox" id="resume-suggestions" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Learning resources</span><label class="toggle"><input type="checkbox" id="learning-resources"><span class="track"></span></label></div>
 
               <div class="section-label">Heat Bar</div>
               <div class="section-desc">Momentum bar showing your coding intensity</div>
-              <div class="toggle-row"><span>Show Heat Bar</span><label class="toggle"><input type="checkbox" id="momentum-meter-enabled" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Show heat bar</span><label class="toggle"><input type="checkbox" id="momentum-meter-enabled" checked><span class="track"></span></label></div>
               <div class="sub-row" id="momentum-meter-position-row" style="display:none">
                 <span>Position</span>
                 <select id="momentum-meter-position"><option value="bottom" selected>Below Dr. Vibe</option><option value="top">Above Dr. Vibe</option></select>
@@ -1279,10 +1317,10 @@
             <div class="panel-col">
               <div class="section-label">Notifications</div>
               <div class="section-desc">Toast popups shown during your session</div>
-              <div class="toggle-row"><span>Enable Popups</span><label class="toggle"><input type="checkbox" id="notifications" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Enable popups</span><label class="toggle"><input type="checkbox" id="notifications" checked><span class="track"></span></label></div>
               <div class="setting-row">
                 <label for="notification-position">Position</label>
-                <select id="notification-position"><option value="top-left">Top Left</option><option value="top-center">Top Center</option><option value="top-right">Top Right</option><option value="bottom-left">Bottom Left</option><option value="bottom-center">Bottom Center</option><option value="bottom-right" selected>Bottom Right</option></select>
+                <select id="notification-position"><option value="top-left">Top left</option><option value="top-center">Top center</option><option value="top-right">Top right</option><option value="bottom-left">Bottom left</option><option value="bottom-center">Bottom center</option><option value="bottom-right" selected>Bottom right</option></select>
               </div>
               <div class="setting-row">
                 <label for="popup-duration">Show for (sec)</label>
@@ -1298,15 +1336,15 @@
 
               <div class="section-label">Movement</div>
               <div class="section-desc">How Dr. Vibe moves and reacts on screen</div>
-              <div class="toggle-row"><span>Ghost on Hover</span><label class="toggle"><input type="checkbox" id="click-through-ghost" checked><span class="track"></span></label></div>
-              <div class="toggle-row"><span>Nudge on Hover</span><label class="toggle"><input type="checkbox" id="mouse-nudge-enabled"><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Ghost on hover</span><label class="toggle"><input type="checkbox" id="click-through-ghost" checked><span class="track"></span></label></div>
+              <div class="toggle-row"><span>Nudge on hover</span><label class="toggle"><input type="checkbox" id="mouse-nudge-enabled"><span class="track"></span></label></div>
               <div class="slider-row" id="mouse-nudge-speed-row">
-                <label for="mouse-nudge-speed">Nudge Speed</label>
+                <label for="mouse-nudge-speed">Nudge speed</label>
                 <input type="range" id="mouse-nudge-speed" min="1" max="10" value="7" step="1">
                 <span class="slider-value" id="mouse-nudge-speed-label">7</span>
               </div>
               <div class="toggle-row"><span>Walking</span><label class="toggle"><input type="checkbox" id="walking-enabled" checked><span class="track"></span></label></div>
-              <div class="toggle-row" id="walking-locked-row"><span>Lock to Screen</span><label class="toggle"><input type="checkbox" id="walking-locked" checked><span class="track"></span></label></div>
+              <div class="toggle-row" id="walking-locked-row"><span>Lock to screen</span><label class="toggle"><input type="checkbox" id="walking-locked" checked><span class="track"></span></label></div>
               <div class="setting-row" id="walking-bound-left-row"><label for="walking-bound-left">Left margin (%)</label><select id="walking-bound-left"><option value="0" selected>0</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option></select></div>
               <div class="setting-row" id="walking-bound-right-row"><label for="walking-bound-right">Right margin (%)</label><select id="walking-bound-right"><option value="0" selected>0</option><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option></select></div>
             </div>
@@ -1414,41 +1452,35 @@
         <div id="panel-privacy" class="tab-panel">
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">Tracking</div>
-            <div class="setting-row" style="margin-bottom:6px">
-              <label id="pause-status">Tracking is on</label>
-              <button id="pause-resume-btn" class="privacy-btn" style="display:none">Resume tracking</button>
-            </div>
-            <div id="pause-buttons" style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="privacy-btn" data-pause="1h">Pause for 1 hour</button>
-              <button class="privacy-btn" data-pause="tomorrow">Until tomorrow</button>
-              <button class="privacy-btn" data-pause="manual">Until I resume</button>
-            </div>
-            <div class="section-desc" style="margin:8px 0 0">While paused Dr. Vibe stops reading window titles, watching folders, polling git and reading the Claude Code log. The screen-share check keeps running so Dr. Vibe still hides while you present. Also in the tray menu.</div>
+            <div class="section-label" style="margin-top:0">Sync</div>
+            <div id="privacy-sync-choice"></div>
+            <div class="section-desc" id="privacy-status" style="margin:2px 0 0"></div>
           </div>
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">What Dr. Vibe sends</div>
-            <div class="section-desc">You choose what leaves this computer: each switch stops that data here, before anything is sent. The same choices as in setup. Choices made on the website are never overwritten.</div>
-            <div id="privacy-sync-choice"></div>
+            <div class="section-label" style="margin-top:0">What's sent</div>
+            <div class="section-desc">Each switch stops that data on this computer, before anything is sent.</div>
+            <div class="privacy-gate-note" id="privacy-gate-note" hidden></div>
             <div id="privacy-send-choices"></div>
-            <div class="section-desc" id="privacy-status" style="margin:4px 0 0"></div>
-            <div class="setting-row" style="margin:8px 0 0">
+            <div id="privacy-crash-choice"></div>
+            <div class="setting-row" style="margin:0">
               <label style="color:var(--muted);font-size:11px">Crash reports waiting to be sent</label>
               <button id="crash-queue-btn" class="privacy-btn">View queued reports</button>
             </div>
           </div>
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">On screen</div>
-            <div id="privacy-onscreen-choices"></div>
+            <div class="section-label" style="margin-top:0">Who can see it</div>
+            <div class="privacy-gate-note" id="privacy-who-gate-note" hidden></div>
+            <div id="privacy-who-choices"></div>
+            <div class="section-desc" style="margin:2px 0 0">Choices made on the website are never overwritten here.</div>
           </div>
 
           <div class="section-card">
-            <div class="section-label" style="margin-top:0">What will be sent next</div>
+            <div class="section-label" style="margin-top:0">Your data</div>
             <div class="privacy-tabs">
-              <button class="privacy-btn privacy-tab active" data-outbox-tab="next">Next</button>
-              <button class="privacy-btn privacy-tab" data-outbox-tab="last">Show my last sync</button>
+              <button class="privacy-btn privacy-tab active" data-outbox-tab="next">What will be sent next</button>
+              <button class="privacy-btn privacy-tab" data-outbox-tab="last">My last sync</button>
             </div>
             <div id="outbox-next">
               <div class="section-desc" style="margin:8px 0 6px">Built on this computer by the same code that sends, before anything goes out.</div>
@@ -1462,7 +1494,7 @@
                 <div id="outbox-recap"></div>
                 <div class="outbox-head">Queued crash reports (POST /api/v1/errors)</div>
                 <pre id="outbox-crash"></pre>
-                <div class="section-desc" style="margin:6px 0 0">Requests also carry your time zone (for daily limits) and the 60-second online check-in fetches news for you; see What Dr. Vibe sees below.</div>
+                <div class="section-desc" style="margin:6px 0 0">Requests also carry your time zone (for daily limits), and a check-in every 60 seconds fetches news for you.</div>
               </div>
             </div>
             <div id="outbox-last" style="display:none">
@@ -1476,15 +1508,7 @@
                 <button id="privacy-last-sync-copy" class="privacy-btn">Copy full payload</button>
               </div>
             </div>
-          </div>
-
-          <div class="section-card">
-            <div class="section-label" style="margin-top:0">What Dr. Vibe sees</div>
-            <div id="privacy-what-sees"></div>
-          </div>
-
-          <div class="section-card">
-            <div class="section-label" style="margin-top:0">Your local data</div>
+            <div class="privacy-divider"></div>
             <div class="setting-row">
               <label style="font-size:11px">Everything Dr. Vibe keeps here, as one file</label>
               <button id="local-export-btn" class="privacy-btn">Export my local data</button>
@@ -1511,6 +1535,13 @@
             </div>
             <div class="section-desc" id="local-data-status" style="margin:8px 0 0"></div>
           </div>
+
+          <details class="section-card privacy-explainer">
+            <summary>See everything Dr. Vibe sees and sends</summary>
+            <div id="privacy-what-sees"></div>
+          </details>
+
+          <div class="section-desc" style="margin:4px 2px 12px">Pause tracking and hiding while you share your screen are in <button class="privacy-link" id="privacy-to-tracking" type="button">Tracking</button>.</div>
 
           <div class="section-card">
             <div class="setting-row" style="margin:0">
