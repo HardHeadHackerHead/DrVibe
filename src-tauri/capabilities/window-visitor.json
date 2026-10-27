@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "window-visitor",
+  "description": "The sensitive Dr. Vibe commands the visitor window uses (network as the linked device, Claude Code hooks, the AI generator, local data). Every other window is refused them.",
+  "windows": [
+    "visitor"
+  ],
+  "permissions": [
+    "allow-api-poll",
+    "allow-api-ack",
+    "allow-api-send-events",
+    "allow-api-send-visit",
+    "allow-api-update-privacy",
+    "allow-api-collection",
+    "allow-api-set-equipped",
+    "allow-api-send-recap",
+    "allow-api-submit-design",
+    "allow-sync-profile",
+    "allow-get-last-sync",
+    "allow-start-device-link"
+  ]
+}
