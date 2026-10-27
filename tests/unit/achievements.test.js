@@ -104,6 +104,9 @@ describe('achievement unlocks', () => {
     expect(again.getProgress('first_push').unlocked).toBe(true);
     expect(again.lifetimeCommitCount).toBe(2);
     expect(again.seenRepos.size).toBe(2);
+    // Only tags and a count are stored, never the repo names.
+    expect(JSON.stringify(db.getSection('achievements'))).not.toMatch(/"a"|"b"/);
+    expect(db.getSection('achievements').seenRepoCount).toBe(2);
   });
 });
 

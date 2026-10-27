@@ -505,10 +505,12 @@ pub(crate) fn error_reports_queue() -> Vec<Report> {
     read_queue(dir)
 }
 
-/// "Delete all local data": the queue goes, the switch stays as it is.
-pub(crate) fn clear_all() {
+/// "Delete all local data": the queue and the switch go (back to off).
+pub(crate) fn forget_all() {
+    ENABLED.store(false, Ordering::Relaxed);
     if let Some(dir) = DIR.get() {
         clear_queue(dir);
+        let _ = fs::remove_file(dir.join(SETTINGS_FILE));
     }
 }
 

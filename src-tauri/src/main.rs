@@ -11,6 +11,7 @@ mod e2e_bridge;
 mod error_reports;
 mod generator;
 mod gitignore;
+mod local_data;
 mod panels;
 mod presence;
 mod projects;
@@ -219,6 +220,8 @@ fn main() {
             error_reports::error_reports_get_enabled,
             error_reports::error_reports_set_enabled,
             error_reports::error_reports_queue,
+            local_data::export_local_data,
+            local_data::wipe_local_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
