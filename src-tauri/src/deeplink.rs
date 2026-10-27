@@ -6,7 +6,9 @@
 
 use tauri::Emitter;
 
-use crate::skins::download_and_save_skin;
+use crate::skins::{
+    fetch_linked_skin, linked_skin_exists, resolve_custom_skins_dir, save_linked_skin,
+};
 
 pub(crate) const SCHEME: &str = "dr-vibe";
 
@@ -55,7 +57,25 @@ fn handle_link_callback(app: &tauri::AppHandle, code: String) {
     });
 }
 
+/// The question asked before a linked skin is written.
+pub(crate) fn install_question(name: &str, replaces: bool) -> (String, &'static str) {
+    if replaces {
+        (
+            format!("A Dr. Vibe skin called \u{201c}{name}\u{201d} is already installed. Replace it with the one from drvibe.io?"),
+            "Replace",
+        )
+    } else {
+        (
+            format!("Install the Dr. Vibe skin \u{201c}{name}\u{201d} from drvibe.io?"),
+            "Install",
+        )
+    }
+}
+
 /// dr-vibe://install-skin?slug=...&png=...&anim=...
+/// Any web page can open this link, so the download must come from
+/// drvibe.io, pass the size and format checks (skins.rs fetch_linked_skin)
+/// and the player confirms before anything is written or replaced.
 fn handle_install_skin(app: &tauri::AppHandle, params: &std::collections::HashMap<String, String>) {
     let slug = match params.get("slug").filter(|s| !s.is_empty()) {
         Some(s) => s.clone(),
@@ -68,7 +88,19 @@ fn handle_install_skin(app: &tauri::AppHandle, params: &std::collections::HashMa
     let anim_url = params.get("anim").cloned().filter(|s| !s.is_empty());
     let app2 = app.clone();
     tauri::async_runtime::spawn(async move {
-        match download_and_save_skin(&app2, &slug, &png_url, anim_url.as_deref()).await {
+        let result = async {
+            let skin = fetch_linked_skin(&slug, &png_url, anim_url.as_deref()).await?;
+            let dir = resolve_custom_skins_dir(&app2)?;
+            let (question, ok) = install_question(&skin.name, linked_skin_exists(&dir, &skin.slug));
+            if !crate::system::confirm(&app2, "Install a Dr. Vibe skin", question, ok).await {
+                return Err("cancelled".to_string());
+            }
+            let was_update = save_linked_skin(&dir, &skin)?;
+            Ok::<_, String>((skin.slug, was_update))
+        }
+        .await;
+        match result {
+            Err(e) if e == "cancelled" => {}
             Ok((final_slug, was_update)) => {
                 let _ = app2.emit(
                     "skin-installed",
@@ -110,6 +142,77 @@ pub(crate) fn init(app: &tauri::App) {
 
 #[cfg(test)]
 mod tests {
+    use crate::skins::{check_link_slug, check_linked_anim, check_linked_png, check_skin_link_url};
+
+    #[test]
+    fn skin_links_download_only_from_drvibe() {
+        for ok in [
+            "https://drvibe.io/api/v1/gallery/x/sprite.png",
+            "https://cdn.drvibe.io/skins/x.png?v=2",
+            "https://CDN.drvibe.io/a.png",
+        ] {
+            assert!(check_skin_link_url(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "http://drvibe.io/a.png",
+            "https://drvibe.io.evil.com/a.png",
+            "https://evil.com/drvibe.io/a.png",
+            "https://img.drvibe.io/a.png",
+            "https://drvibe.io:8443/a.png",
+            "https://user@drvibe.io/a.png",
+            "https://localhost/a.png",
+            "https://192.168.1.10/a.png",
+            "file:///C:/a.png",
+            "not a url",
+        ] {
+            assert!(check_skin_link_url(bad).is_err(), "{bad}");
+        }
+        assert!(check_link_slug("santa-claus_2").is_ok());
+        for bad in ["", "../x", "a/b", "a b", &"x".repeat(81)] {
+            assert!(check_link_slug(bad).is_err(), "{bad:?}");
+        }
+    }
+
+    fn png(width: u32, height: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut enc = png::Encoder::new(&mut out, width, height);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.write_header()
+            .unwrap()
+            .write_image_data(&vec![0u8; (width * height * 4) as usize])
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn linked_files_are_checked_before_anything_is_written() {
+        assert!(check_linked_png(&png(128, 544)).is_ok());
+        assert!(check_linked_png(&png(128, 512)).is_ok());
+        assert!(
+            check_linked_png(&png(64, 64)).is_err(),
+            "not a Dr. Vibe sheet size"
+        );
+        assert!(check_linked_png(b"GIF89a....").is_err());
+        let mut big = png(128, 544);
+        big.resize(crate::visitors::MAX_SPRITE_BYTES + 1, 0);
+        assert!(check_linked_png(&big).is_err(), "over the size cap");
+        assert!(check_linked_anim(br#"{"name":"Santa"}"#).is_ok());
+        assert!(check_linked_anim(b"[1,2]").is_err());
+        assert!(check_linked_anim(b"<html>").is_err());
+        assert!(check_linked_anim(&vec![b' '; crate::visitors::MAX_ANIM_BYTES + 1]).is_err());
+    }
+
+    #[test]
+    fn asks_before_installing_and_before_replacing() {
+        let (q, ok) = super::install_question("Santa", false);
+        assert!(q.contains("Install") && q.contains("Santa") && q.contains("drvibe.io"));
+        assert_eq!(ok, "Install");
+        let (q, ok) = super::install_question("Santa", true);
+        assert!(q.contains("already installed") && q.contains("Replace"));
+        assert_eq!(ok, "Replace");
+    }
+
     #[test]
     fn link_callback_url_shape() {
         let u: url::Url = "dr-vibe://auth/callback?code=abc123".parse().unwrap();

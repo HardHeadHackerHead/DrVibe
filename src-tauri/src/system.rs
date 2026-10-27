@@ -76,6 +76,30 @@ pub(crate) fn is_coding_app(app_name: String) -> bool {
     false
 }
 
+/// A native question with a custom OK button and Cancel; false when
+/// dismissed. Used before installing a linked skin or an update.
+pub(crate) async fn confirm(
+    app: &tauri::AppHandle,
+    title: &str,
+    message: String,
+    ok: &str,
+) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(message)
+        .title(title)
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            ok.into(),
+            "Cancel".into(),
+        ))
+        .show(move |yes| {
+            let _ = tx.send(yes);
+        });
+    rx.await.unwrap_or(false)
+}
+
 pub(crate) fn dirs_home() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {

@@ -8,8 +8,8 @@ use tauri::Manager;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
 /// Sprite sheet limit from the sprite spec (PLAN → Sprite format).
-const MAX_SPRITE_BYTES: usize = 2 * 1024 * 1024;
-const MAX_ANIM_BYTES: usize = 256 * 1024;
+pub(crate) const MAX_SPRITE_BYTES: usize = 2 * 1024 * 1024;
+pub(crate) const MAX_ANIM_BYTES: usize = 256 * 1024;
 const MAX_CACHED_VISITORS: usize = 30;
 const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
