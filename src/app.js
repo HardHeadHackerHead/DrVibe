@@ -1932,7 +1932,10 @@ class App {
       { onLaunch },
     );
     if (r.error && !r.notFound) console.warn('Claude Code hooks:', r.error);
-    if (r.installed) this._writeHookRepos();
+    if (r.installed) {
+      this._writeHookRepos();
+      this.trackingPause?.apply(); // a pause already on reaches the new hook too
+    }
     return r;
   }
 

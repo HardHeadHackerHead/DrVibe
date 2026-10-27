@@ -230,7 +230,7 @@ fn path_at(chars: &[char], i: usize, prev: Option<char>) -> Option<(usize, Strin
     let after_boundary = prev.is_none_or(|p| {
         p.is_whitespace() || matches!(p, '"' | '\'' | '(' | '[' | '=' | ',' | ':' | '`' | '<')
     });
-    if c == '/' && after_boundary && next.is_some_and(|n| name_char(n)) {
+    if c == '/' && after_boundary && next.is_some_and(name_char) {
         let (end, dirs, name) = path_rest(chars, i);
         if dirs >= 1 {
             return Some((end - i, format!("{PATH_PREFIX}{name}")));
