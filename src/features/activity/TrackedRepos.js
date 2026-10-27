@@ -12,11 +12,14 @@
 import { eventBus, Events } from '../../core/EventBus.js';
 import { tauri } from '../../core/TauriBridge.js';
 import { db } from '../../core/Database.js';
-import { repoKey, isIgnoredRepo } from './repoPaths.js';
+import { repoKey, isIgnoredRepo, isInside } from './repoPaths.js';
 import { migrateRepoScan } from './repoMigration.js';
 
 const SECTION = 'trackedRepos';
 const MAX_REMEMBERED = 200;
+// A remembered repo Claude Code has not worked in for this long is
+// forgotten (the same 90 days as the session history).
+export const REMEMBER_DAYS = 90;
 // A remembered repo's "last seen" is saved at most this often.
 const LAST_SEEN_SAVE_MS = 60 * 60 * 1000;
 
@@ -105,6 +108,7 @@ export class TrackedRepos {
       });
     }
     if (Array.isArray(saved?.repos)) this.claudeRepos = saved.repos;
+    if (this._dropStale()) this._save();
     console.log(`TrackedRepos: ${this.claudeRepos.length} repos remembered from Claude Code`);
     this._emit();
 
@@ -284,6 +288,16 @@ export class TrackedRepos {
     return all.filter(r => !isIgnoredRepo(r.path, ignored));
   }
 
+  /**
+   * The tracked repo `path` is in (its main folder or one of its working
+   * trees), or null. Sync sends a project name only when this finds one.
+   */
+  repoFor(path) {
+    if (!path) return null;
+    return this.getRepos().find(r =>
+      [r.path, ...(r.worktrees || [])].some(root => isInside(path, root))) || null;
+  }
+
   /** Snapshot for Settings → Tracking. */
   getStatus() {
     return { trackClaude: this._trackClaude(), repos: this.getRepos() };
@@ -327,7 +341,24 @@ export class TrackedRepos {
   }
 
   _trackClaude() {
-    return this.settings?.get('trackClaudeRepos') !== false;
+    return this.settings?.get('trackClaudeRepos') === true;
+  }
+
+  /** Forgets remembered repos not seen in REMEMBER_DAYS. Returns whether any went. */
+  _dropStale() {
+    const cutoff = this._now() - REMEMBER_DAYS * 24 * 60 * 60 * 1000;
+    const kept = this.claudeRepos.filter(r => !r.lastSeen || r.lastSeen >= cutoff);
+    if (kept.length === this.claudeRepos.length) return false;
+    this.claudeRepos = kept;
+    return true;
+  }
+
+  /** "Forget tracked repos": the remembered list (folders stay in Settings). */
+  forget() {
+    this.claudeRepos = [];
+    this._resolved.clear();
+    this._save();
+    this._emit();
   }
 
   _folders() {

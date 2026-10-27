@@ -3,8 +3,9 @@ import { applyClaudeHooksSetting, CLAUDE_CODE_NOT_FOUND } from '../../src/featur
 import { DEFAULT_SETTINGS } from '../../src/features/settings/Settings.js';
 
 describe('Claude Code hooks switch', () => {
-  it('is on by default', () => {
-    expect(DEFAULT_SETTINGS.claudeCodeHooksEnabled).toBe(true);
+  it('is off until chosen', () => {
+    expect(DEFAULT_SETTINGS.claudeCodeHooksEnabled).toBe(false);
+    expect(DEFAULT_SETTINGS.trackClaudeRepos).toBe(false);
   });
 
   it('installs the hooks when on', async () => {

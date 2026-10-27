@@ -161,7 +161,8 @@
         "headerImage": "nsis/header.bmp",
         "sidebarImage": "nsis/sidebar.bmp",
         "installMode": "currentUser",
-        "compression": "lzma"
+        "compression": "lzma",
+        "installerHooks": "nsis/hooks.nsh"
       }
     },
     "macOS": {
