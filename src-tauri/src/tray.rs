@@ -5,9 +5,83 @@ use crate::panels::open_panel;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
-// Tray menu state for dynamic show/hide toggle
+// Tray menu state for dynamic show/hide toggle and the Pause tracking submenu
 pub(crate) struct TrayMenuState {
     pub(crate) toggle_item: tauri::menu::MenuItem<tauri::Wry>,
+    pub(crate) pause_menu: PauseMenu,
+}
+
+/// Whether tracking is paused (TrackingPause in the main window tells us).
+static TRACKING_PAUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// "Pause tracking" items: (menu id, label, the mode sent to the main window).
+pub(crate) const PAUSE_ITEMS: &[(&str, &str, &str)] = &[
+    ("pause_1h", "For 1 hour", "1h"),
+    ("pause_tomorrow", "Until tomorrow", "tomorrow"),
+    ("pause_manual", "Until I resume", "manual"),
+    ("pause_resume", "Resume tracking", "resume"),
+];
+
+/// The Pause tracking submenu and its Resume item, kept to relabel them.
+#[derive(Clone)]
+pub(crate) struct PauseMenu {
+    submenu: tauri::menu::Submenu<tauri::Wry>,
+    resume: tauri::menu::MenuItem<tauri::Wry>,
+}
+
+fn pause_title(paused: bool) -> &'static str {
+    if paused {
+        "Tracking paused"
+    } else {
+        "Pause tracking"
+    }
+}
+
+fn pause_menu<M: Manager<tauri::Wry>>(manager: &M) -> tauri::Result<PauseMenu> {
+    use tauri::menu::{MenuItem, Submenu};
+    let paused = TRACKING_PAUSED.load(std::sync::atomic::Ordering::Relaxed);
+    let items = PAUSE_ITEMS
+        .iter()
+        .map(|(id, label, _)| {
+            let enabled = (*id == "pause_resume") == paused;
+            MenuItem::with_id(manager, *id, *label, enabled, None::<&str>)
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = items
+        .iter()
+        .map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+        .collect();
+    let submenu = Submenu::with_items(manager, pause_title(paused), true, refs.as_slice())?;
+    let resume = items.last().cloned().expect("resume item");
+    Ok(PauseMenu { submenu, resume })
+}
+
+/// The main window's TrackingPause reports the state: relabel the submenu.
+#[tauri::command]
+pub(crate) fn set_tray_paused(app_handle: tauri::AppHandle, paused: bool) {
+    TRACKING_PAUSED.store(paused, std::sync::atomic::Ordering::Relaxed);
+    #[cfg(desktop)]
+    if let Ok(guard) = app_handle.state::<Mutex<TrayMenuState>>().lock() {
+        let _ = guard.pause_menu.submenu.set_text(pause_title(paused));
+        let _ = guard.pause_menu.resume.set_enabled(paused);
+        if let Ok(items) = guard.pause_menu.submenu.items() {
+            for item in items {
+                if let Some(mi) = item.as_menuitem() {
+                    if mi.id().as_ref() != "pause_resume" {
+                        let _ = mi.set_enabled(!paused);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Mode for a Pause tracking menu id.
+pub(crate) fn pause_mode(id: &str) -> Option<&'static str> {
+    PAUSE_ITEMS
+        .iter()
+        .find(|(i, _, _)| *i == id)
+        .map(|(_, _, m)| *m)
 }
 
 // Holds the main tray icon handle so JS can call set_tray_tooltip.
@@ -92,6 +166,7 @@ pub(crate) fn update_companions_tray(
             .map_err(|e| e.to_string())?;
         let about = MenuItem::with_id(&app_handle, "about", "About", true, None::<&str>)
             .map_err(|e| e.to_string())?;
+        let pause = pause_menu(&app_handle).map_err(|e| e.to_string())?;
         let quit = MenuItem::with_id(&app_handle, "quit", "Quit Dr. Vibe", true, None::<&str>)
             .map_err(|e| e.to_string())?;
 
@@ -168,6 +243,7 @@ pub(crate) fn update_companions_tray(
                 &dashboard,
                 &make,
                 &about,
+                &pause.submenu,
                 &companions_submenu,
                 &devtools,
                 &debug_menu,
@@ -187,6 +263,7 @@ pub(crate) fn update_companions_tray(
                 &dashboard,
                 &make,
                 &about,
+                &pause.submenu,
                 &companions_submenu,
                 &sep_links as &TI,
             ];
@@ -205,6 +282,7 @@ pub(crate) fn update_companions_tray(
         // Keep TrayMenuState in sync so the toggle_visibility handler can update the label
         if let Ok(mut guard) = app_handle.state::<Mutex<TrayMenuState>>().lock() {
             guard.toggle_item = toggle;
+            guard.pause_menu = pause;
         }
     }
     Ok(())
@@ -224,6 +302,7 @@ pub(crate) fn build(app: &tauri::App) -> tauri::Result<()> {
     let dashboard = MenuItem::with_id(app, "dashboard", "Dashboard", true, None::<&str>)?;
     let make = MenuItem::with_id(app, "make_drvibe", MAKE_LABEL, true, None::<&str>)?;
     let about = MenuItem::with_id(app, "about", "About", true, None::<&str>)?;
+    let pause = pause_menu(app)?;
 
     // Website shortcut items
     let sep_links = PredefinedMenuItem::separator(app)?;
@@ -236,6 +315,7 @@ pub(crate) fn build(app: &tauri::App) -> tauri::Result<()> {
 
     app.manage(Mutex::new(TrayMenuState {
         toggle_item: toggle.clone(),
+        pause_menu: pause.clone(),
     }));
     app.manage(CompanionTrayState {
         companions: Mutex::new(Vec::new()),
@@ -250,6 +330,7 @@ pub(crate) fn build(app: &tauri::App) -> tauri::Result<()> {
         &dashboard,
         &make,
         &about,
+        &pause.submenu,
     ];
     #[cfg(debug_assertions)]
     items.extend([&devtools as &TI, &debug_menu]);
@@ -402,6 +483,15 @@ pub(crate) fn build(app: &tauri::App) -> tauri::Result<()> {
                         );
                     }
                 }
+                // Pause tracking: the main window's TrackingPause does it
+                id if pause_mode(id).is_some() => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.emit(
+                            "pause-tracking",
+                            serde_json::json!({ "mode": pause_mode(id) }),
+                        );
+                    }
+                }
                 // Website shortcuts
                 id if id.starts_with("open_") => open_web_link(app, id),
                 _ => {}
@@ -504,6 +594,15 @@ mod tests {
         for want in ["My Collection", "Trades", "Support Dr. Vibe"] {
             assert!(WEB_LINKS.iter().any(|(_, l)| *l == want), "missing {want}");
         }
+    }
+
+    #[test]
+    fn pause_items_map_to_modes() {
+        assert_eq!(pause_mode("pause_1h"), Some("1h"));
+        assert_eq!(pause_mode("pause_tomorrow"), Some("tomorrow"));
+        assert_eq!(pause_mode("pause_manual"), Some("manual"));
+        assert_eq!(pause_mode("pause_resume"), Some("resume"));
+        assert_eq!(pause_mode("open_trades"), None);
     }
 
     #[test]

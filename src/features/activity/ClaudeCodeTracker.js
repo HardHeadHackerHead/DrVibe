@@ -198,6 +198,15 @@ export class ClaudeCodeTracker {
     for (const unsub of this._unsubscribers) unsub();
   }
 
+  /** Pause tracking: stop reading the log (the hook writes nothing meanwhile). */
+  pause() {
+    this._stopPolling();
+  }
+
+  resume() {
+    this._startPolling();
+  }
+
   _startPolling() {
     if (this._pollTimer) return;
     this._pollTimer = setInterval(() => this._poll(), POLL_INTERVAL_MS);

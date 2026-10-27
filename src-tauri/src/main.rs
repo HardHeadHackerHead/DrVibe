@@ -159,6 +159,7 @@ fn main() {
             account::set_web_base_override,
             account::get_web_base_url,
             tray::set_tray_tooltip,
+            tray::set_tray_paused,
             system::set_main_window_size,
             panels::open_settings_window,
             panels::open_dashboard_window,

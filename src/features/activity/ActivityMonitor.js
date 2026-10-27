@@ -44,6 +44,23 @@ export class ActivityMonitor {
     console.log('Activity monitoring stopped');
   }
 
+  /** Pause tracking: stop looking at windows, and end a coding stretch. */
+  pause() {
+    this.stop();
+    if (this.isCoding) {
+      this.isCoding = false;
+      eventBus.emit(Events.ACTIVITY_CODING_STOP, { paused: true });
+    }
+    this.lastWindowTitle = '';
+    this.lastAppName = '';
+  }
+
+  resume() {
+    if (this.pollInterval) return;
+    this.lastActivity = Date.now();
+    this.start();
+  }
+
   setIdleThreshold(minutes) {
     this.idleThresholdMs = minutes * 60 * 1000;
   }

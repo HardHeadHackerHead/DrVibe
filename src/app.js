@@ -67,6 +67,7 @@ import { PollClient } from './core/PollClient.js';
 import { createProfileRefresher } from './core/accountProfile.js';
 import { privacySync } from './features/privacy/PrivacySync.js';
 import { syncSwitch } from './core/SyncSwitch.js';
+import { TrackingPause } from './features/privacy/TrackingPause.js';
 import { PresenceGuard } from './features/presence/PresenceGuard.js';
 import { VisitorController, visitSpeech } from './features/visits/VisitorController.js';
 import { communityFromSync, visitErrorMessage } from './core/api/contract.js';
@@ -350,6 +351,23 @@ class App {
       this.notifier.init();
       this.notifier.setEnabled(this.settings.notificationsEnabled);
       this._initToastWindow();
+    });
+
+    // Pause tracking (tray, Settings → Privacy): the trackers above stop;
+    // the screen-share guard below keeps running.
+    await this._initOptional('TrackingPause', async () => {
+      this.trackingPause = new TrackingPause({
+        settings: this.settings,
+        invoke: tauri.isAvailable ? (cmd, args) => tauri.invoke(cmd, args) : null,
+      });
+      eventBus.on(Events.TRACKING_PAUSED, () => this._setTrackersPaused(true));
+      eventBus.on(Events.TRACKING_RESUMED, () => this._setTrackersPaused(false));
+      this.trackingPause.init();
+      tauri.window?.listen?.('pause-tracking', (e) => {
+        const mode = e?.payload?.mode;
+        if (mode === 'resume') this.trackingPause.resume();
+        else this.trackingPause.pause(mode);
+      });
     });
 
     // Screen shares and fullscreen apps: Dr. Vibe hides, toasts and visits wait.
@@ -1804,6 +1822,22 @@ class App {
     this.celebrationSystem?.destroy();
     this.celebrationEffect?.destroy();
     this.resumeSuggester?.destroy();
+  }
+
+  /** Stops (or restarts) everything that watches the computer, for Pause tracking. */
+  _setTrackersPaused(paused) {
+    console.log(`Tracking ${paused ? 'paused' : 'resumed'}`);
+    if (paused) {
+      this.activityMonitor?.pause();
+      this.gitTracker?.pause();
+      this.momentumTracker?.pauseWatching();
+      this.claudeCodeTracker?.pause();
+    } else {
+      this.activityMonitor?.resume();
+      this.gitTracker?.resume();
+      this.momentumTracker?.resumeWatching();
+      this.claudeCodeTracker?.resume();
+    }
   }
 
   /** Install or remove the Claude Code hooks to match the setting. */

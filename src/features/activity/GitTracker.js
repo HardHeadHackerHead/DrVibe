@@ -90,7 +90,18 @@ export class GitTracker {
   // ---- Setting helpers ----
 
   _isEnabled() {
-    return this.settings?.get('gitTrackingEnabled') !== false;
+    return !this._paused && this.settings?.get('gitTrackingEnabled') !== false;
+  }
+
+  /** Pause tracking: no git polling until resume(). */
+  pause() {
+    this._paused = true;
+    this._stopAllPolling();
+  }
+
+  resume() {
+    this._paused = false;
+    this._ensureIdleTierRunning();
   }
 
   _pollIntervalMs() {
