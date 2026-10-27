@@ -2430,6 +2430,11 @@ function setupPrivacyTab() {
     e.target.textContent = 'Refresh';
     tell('outbox-request', { for: 'settings' });
   });
+  document.getElementById('crash-queue-btn')?.addEventListener('click', () => {
+    document.querySelector('[data-outbox-tab="next"]')?.click();
+    document.getElementById('outbox-refresh-btn')?.click();
+    document.getElementById('outbox-crash')?.scrollIntoView({ block: 'center' });
+  });
   window.__TAURI__?.event?.listen?.('outbox-data', (e) => {
     if (e.payload?.for === 'settings') renderOutbox(e.payload).catch(err => console.error('[privacy] outbox:', err));
   });

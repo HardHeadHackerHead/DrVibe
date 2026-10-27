@@ -62,6 +62,12 @@ describe('Settings → Privacy', () => {
     expect(document.querySelector('[data-choice-help="claudeCodeHooksEnabled"]').textContent).toContain('~/.claude/settings.json');
   });
 
+  it('"View queued reports" opens the Outbox', () => {
+    Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {});
+    document.getElementById('crash-queue-btn').click();
+    expect(emitted('outbox-request')).toContainEqual({ for: 'settings' });
+  });
+
   it('pause buttons and local data actions ask the main window', () => {
     document.querySelector('[data-pause="1h"]').click();
     expect(emitted('pause-tracking')).toContainEqual({ mode: '1h' });
