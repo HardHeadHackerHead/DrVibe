@@ -83,15 +83,17 @@ describe('setup wizard window', () => {
   let emitTo;
   let osClose = null;
 
-  async function openWizard({ claude = true } = {}) {
+  async function openWizard({ claude = true, before = () => {}, autoStartOn = false } = {}) {
     vi.resetModules();
     localStorage.clear();
+    before();
     document.body.innerHTML = body;
     invoke = vi.fn(async (cmd) => {
       if (cmd === 'list_skins') return [];
       if (cmd === 'get_profile') return { linked: false };
       if (cmd === 'claude_code_present') return claude;
       if (cmd === 'error_reports_get_enabled') return false;
+      if (cmd === 'plugin:autostart|is_enabled') return autoStartOn;
       return null;
     });
     emitTo = vi.fn(async () => {});
@@ -125,6 +127,7 @@ describe('setup wizard window', () => {
     const cmds = invoke.mock.calls.map(c => c[0]);
     expect(cmds).not.toContain('install_claude_code_hooks');
     expect(cmds).not.toContain('error_reports_set_enabled');
+    expect(cmds.filter(c => c.startsWith('plugin:autostart|') && c !== 'plugin:autostart|is_enabled')).toEqual([]);
     expect(emitted('privacy-changed')).toEqual([]);
     for (const saved of emitted('settings-saved')) {
       expect(Object.keys(saved).every(k => ['selectedSkin', 'selectedSkinTone', 'characterScale'].includes(k)), JSON.stringify(saved)).toBe(true);
@@ -194,5 +197,35 @@ describe('setup wizard window', () => {
     await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
     expect(emitted('settings-saved').at(-1)).toMatchObject({ claudeCodeHooksEnabled: false, trackClaudeRepos: false });
     expect(invoke).toHaveBeenCalledWith('error_reports_set_enabled', { enabled: false });
+  });
+
+  it('a first run starts Dr. Vibe with the computer unless turned off', async () => {
+    await openWizard();
+    expect(document.getElementById('chk-autostart').checked).toBe(true);
+    for (let i = 0; i < 8; i++) next();
+    await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
+    expect(invoke).toHaveBeenCalledWith('plugin:autostart|enable');
+    expect(emitted('settings-saved').at(-1)).toMatchObject({ autoStartEnabled: true });
+
+    await openWizard();
+    next();
+    next();
+    const chk = document.getElementById('chk-autostart');
+    chk.checked = false;
+    chk.dispatchEvent(new Event('change'));
+    for (let i = 0; i < 6; i++) next();
+    await vi.waitFor(() => expect(emitted('setup-wizard-completed')).toHaveLength(1));
+    expect(invoke).toHaveBeenCalledWith('plugin:autostart|disable');
+    expect(invoke).not.toHaveBeenCalledWith('plugin:autostart|enable');
+    expect(emitted('settings-saved').at(-1)).toMatchObject({ autoStartEnabled: false });
+  });
+
+  it('"Run setup again" shows whether the OS starts Dr. Vibe now', async () => {
+    const done = () => localStorage.setItem('dr-vibe-database', JSON.stringify({ setupWizard: { completed: true } }));
+    await openWizard({ before: done, autoStartOn: false });
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('plugin:autostart|is_enabled'));
+    expect(document.getElementById('chk-autostart').checked).toBe(false);
+    await openWizard({ before: done, autoStartOn: true });
+    expect(document.getElementById('chk-autostart').checked).toBe(true);
   });
 });

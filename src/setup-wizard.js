@@ -407,6 +407,8 @@ let postureReminderEnabled = true;
 let postureFrequency = 30;
 let overworkPreventionEnabled = true;
 let breakMode = 'pomodoro';
+// Launch at login: on for a first run; "Run setup again" shows what the OS has.
+let autoStart = true;
 
 // Privacy choices (same keys and wording as Settings: ui/privacyChoices.js)
 let choices = wizardDefaults();
@@ -1038,6 +1040,7 @@ async function finishWizard() {
     postureFrequency,
     overworkPreventionEnabled,
     breakMode,
+    autoStartEnabled: autoStart,
     // Joined, or asked never to be asked again: no more join invites.
     communityInviteDismissed: isSignedIn || neverAskToJoin || existing.communityInviteDismissed === true,
   };
@@ -1047,6 +1050,13 @@ async function finishWizard() {
 
   // Mark setup complete
   await writeSection('setupWizard', { completed: true });
+
+  // Launch at login: the OS login item is the real switch.
+  try {
+    await window.__TAURI__?.core?.invoke?.(autoStart ? 'plugin:autostart|enable' : 'plugin:autostart|disable');
+  } catch (e) {
+    console.log('Could not set launch at login:', e);
+  }
 
   // Crash reports: Rust owns the switch. Flushing waits for setup to complete.
   try {
@@ -1111,6 +1121,9 @@ async function loadExistingSettings() {
   claudePresent = await window.__TAURI__?.core?.invoke?.('claude_code_present').then(v => v === true).catch(() => false) ?? false;
   const saved = await readSection('settings');
   choices = wizardDefaults({ settings: saved || {}, privacy, errorReports: errorReportsBefore });
+  if ((await readSection('setupWizard'))?.completed) {
+    autoStart = await window.__TAURI__?.core?.invoke?.('plugin:autostart|is_enabled').then(v => v === true).catch(() => false) ?? false;
+  }
   if (!saved) return;
 
   if (saved.selectedSkin) selectedSkin = saved.selectedSkin;
@@ -1142,12 +1155,14 @@ function syncWellnessUI() {
   const chkPosture = document.getElementById('chk-posture');
   const selPostureFreq = document.getElementById('sel-posture-freq');
   const chkOverwork = document.getElementById('chk-overwork');
+  const chkAutoStart = document.getElementById('chk-autostart');
 
   if (chkHydration) { chkHydration.checked = hydrationEnabled; chkHydration.onchange = () => { hydrationEnabled = chkHydration.checked; }; }
   if (selHydrationFreq) { selHydrationFreq.value = String(hydrationFrequency); selHydrationFreq.onchange = () => { hydrationFrequency = parseInt(selHydrationFreq.value); }; }
   if (chkEyestrain) { chkEyestrain.checked = eyeStrainEnabled; chkEyestrain.onchange = () => { eyeStrainEnabled = chkEyestrain.checked; }; }
   if (chkPosture) { chkPosture.checked = postureReminderEnabled; chkPosture.onchange = () => { postureReminderEnabled = chkPosture.checked; }; }
   if (selPostureFreq) { selPostureFreq.value = String(postureFrequency); selPostureFreq.onchange = () => { postureFrequency = parseInt(selPostureFreq.value); }; }
+  if (chkAutoStart) { chkAutoStart.checked = autoStart; chkAutoStart.onchange = () => { autoStart = chkAutoStart.checked; }; }
   if (chkOverwork) { chkOverwork.checked = overworkPreventionEnabled; chkOverwork.onchange = () => { overworkPreventionEnabled = chkOverwork.checked; }; }
 
   // Break mode cards

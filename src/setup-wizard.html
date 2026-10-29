@@ -542,6 +542,8 @@
     .wellness-card:has(.toggle input:not(:checked)) .wcard-name,
     .wellness-card:has(.toggle input:not(:checked)) .wcard-desc { opacity: 0.4; }
     .wellness-card:has(.toggle input:not(:checked)) .wcard-footer { opacity: 0.3; pointer-events: none; }
+    .startup-card { margin-top: 16px; }
+    .startup-card:has(.toggle input:checked) { border-left-color: var(--green-border); }
 
     /* ── Break mode cards ── */
     .break-mode-options { display: flex; gap: 6px; margin-top: 4px; }
@@ -767,6 +769,16 @@
           <input type="text" id="input-folder-path" placeholder="Or paste a path…">
           <button id="btn-browse-folder" class="browse-btn">Browse…</button>
           <button id="btn-add-folder">Add</button>
+        </div>
+
+        <div class="wellness-card startup-card">
+          <div class="wcard-header">
+            <div class="wcard-info">
+              <div class="wcard-name">Start Dr. Vibe when your computer starts</div>
+              <div class="wcard-desc">So your coding time counts from the first minute. You can change this in Settings any time.</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="chk-autostart" checked aria-label="Start Dr. Vibe when your computer starts"><span class="track"></span></label>
+          </div>
         </div>
       </div>
 
