@@ -57,11 +57,18 @@ fn pause_menu<M: Manager<tauri::Wry>>(manager: &M) -> tauri::Result<PauseMenu> {
 }
 
 /// The main window's TrackingPause reports the state: relabel the submenu.
+///
+/// The tray commands use `try_state`: the windows load before `setup` builds
+/// the tray, and `state()` on missing state aborts the app.
 #[tauri::command]
 pub(crate) fn set_tray_paused(app_handle: tauri::AppHandle, paused: bool) {
     TRACKING_PAUSED.store(paused, std::sync::atomic::Ordering::Relaxed);
     #[cfg(desktop)]
-    if let Ok(guard) = app_handle.state::<Mutex<TrayMenuState>>().lock() {
+    let Some(state) = app_handle.try_state::<Mutex<TrayMenuState>>() else {
+        return;
+    };
+    #[cfg(desktop)]
+    if let Ok(guard) = state.lock() {
         let _ = guard.pause_menu.submenu.set_text(pause_title(paused));
         let _ = guard.pause_menu.resume.set_enabled(paused);
         if let Ok(items) = guard.pause_menu.submenu.items() {
@@ -73,7 +80,7 @@ pub(crate) fn set_tray_paused(app_handle: tauri::AppHandle, paused: bool) {
                 }
             }
         }
-    }
+    };
 }
 
 /// Mode for a Pause tracking menu id.
@@ -108,8 +115,9 @@ pub(crate) struct CompanionTrayState {
 pub(crate) fn set_tray_tooltip(app_handle: tauri::AppHandle, tooltip: String) {
     #[cfg(desktop)]
     {
-        let state = app_handle.state::<MainTrayIcon>();
-        let _ = state.0.set_tooltip(Some(&tooltip));
+        if let Some(state) = app_handle.try_state::<MainTrayIcon>() {
+            let _ = state.0.set_tooltip(Some(&tooltip));
+        }
     }
 }
 
@@ -125,12 +133,18 @@ pub(crate) fn update_companions_tray(
     {
         use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
+        // No tray yet (the windows load before setup builds it): the main
+        // window asks again shortly.
+        let (Some(ct), Some(tray_state), Some(menu_state)) = (
+            app_handle.try_state::<CompanionTrayState>(),
+            app_handle.try_state::<MainTrayIcon>(),
+            app_handle.try_state::<Mutex<TrayMenuState>>(),
+        ) else {
+            return Err("tray not ready".into());
+        };
         // Store companion state so the menu event handler can read it
-        let ct = app_handle.state::<CompanionTrayState>();
         *ct.companions.lock().map_err(|e| e.to_string())? = companions.clone();
         *ct.equipped_id.lock().map_err(|e| e.to_string())? = equipped_id.clone();
-
-        let tray_state = app_handle.state::<MainTrayIcon>();
 
         // Determine current window visibility for the toggle label
         let toggle_text = app_handle
@@ -280,10 +294,10 @@ pub(crate) fn update_companions_tray(
             .map_err(|e| e.to_string())?;
 
         // Keep TrayMenuState in sync so the toggle_visibility handler can update the label
-        if let Ok(mut guard) = app_handle.state::<Mutex<TrayMenuState>>().lock() {
+        if let Ok(mut guard) = menu_state.lock() {
             guard.toggle_item = toggle;
             guard.pause_menu = pause;
-        }
+        };
     }
     Ok(())
 }

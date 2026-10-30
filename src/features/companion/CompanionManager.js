@@ -494,7 +494,12 @@ export class CompanionManager {
         companions: this._companions.map(c => ({ id: c.id, name: trayName(c) })),
         equippedId: this._equippedId,
       });
-    } catch { /* non-critical */ }
+    } catch (e) {
+      // Right after launch the tray may not exist yet; try again soon.
+      if (String(e).includes('tray not ready') && !this._trayRetry) {
+        this._trayRetry = setTimeout(() => { this._trayRetry = null; this._updateTray(); }, 2000);
+      }
+    }
   }
 }
 

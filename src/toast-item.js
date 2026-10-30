@@ -148,10 +148,9 @@ async function init() {
 
     const delay = alreadyExiting ? 0 : 250;
     setTimeout(async () => {
-      // Tell manager to remove from stack and reposition, then self-close
-      // immediately so the window stops blocking clicks.
+      // The manager hides and destroys this window. It never closes itself:
+      // a window destroyed while its own close call is answered crashed the app.
       try { await emitTo('toast', 'toast-item-close', { label }); } catch {}
-      try { await currentWindow.close(); } catch {}
     }, delay);
   }
 }

@@ -179,24 +179,31 @@ async function handleItemReady(event) {
   }
 }
 
+// How long a hidden toast lives before it is destroyed: long enough for any
+// call it made to be answered. Destroying a window while Rust answers one of
+// its calls crashes the app (WebView2).
+const DESTROY_DELAY_MS = 1000;
+
+/** Hides a toast now (it stops blocking clicks) and destroys it a little later. */
+async function retire(label) {
+  const { Window: TauriWindow } = window.__TAURI__.window;
+  const win = await TauriWindow.getByLabel(label);
+  if (!win) return;
+  try { await win.hide(); } catch {}
+  setTimeout(() => { win.destroy().catch(() => {}); }, DESTROY_DELAY_MS);
+}
+
 async function handleItemClose(event) {
   const { label } = event.payload;
   stack.delete(label);
-
-  const { Window: TauriWindow } = window.__TAURI__.window;
-  const win = await TauriWindow.getByLabel(label);
-  if (win) { try { await win.destroy(); } catch {} }
-
+  await retire(label);
   await repositionStack();
 }
 
 async function handleDismissAll() {
-  const { Window: TauriWindow } = window.__TAURI__.window;
-  for (const label of stack.keys()) {
-    const win = await TauriWindow.getByLabel(label);
-    if (win) { try { await win.destroy(); } catch {} }
-  }
+  const labels = [...stack.keys()];
   stack.clear();
+  for (const label of labels) await retire(label);
 }
 
 async function handleReposition(event) {
