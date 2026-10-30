@@ -1,6 +1,6 @@
 [package]
 name = "dr-vibe"
-version = "2.0.6"
+version = "2.0.7"
 description = "Desktop coding companion - a mad scientist who reacts to your coding activity"
 authors = ["Dr. Vibe"]
 edition = "2021"
